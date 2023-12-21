@@ -34,3 +34,12 @@ def read_events():
     events = distinct_by_key(events1 + events2, "event_id")
     events.sort(key=lambda x: x["started_at"], reverse=True)
     return events
+
+
+@app.get("/events/{event_id}")
+def read_event(event_id: int):
+    connpass = ConnpassEventRequest(prefecture="山梨県", event_id=event_id)
+    event = connpass.get_event()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return event
