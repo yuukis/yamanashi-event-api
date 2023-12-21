@@ -2,7 +2,11 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import RedirectResponse
 from connpass import ConnpassEventRequest
 
-app = FastAPI()
+app = FastAPI(
+    title="Yamanashi Tech Events API",
+    description="This is an API for Tech events in Yamanashi prefecture.",
+    version="1.0.0"
+)
 
 # 山梨県で開催されたIT勉強会コミュニティ
 SERIES_IDS = [
