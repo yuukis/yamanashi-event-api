@@ -39,7 +39,7 @@ def read_events():
 
 @app.get("/events/{event_id}")
 def read_event(event_id: int):
-    connpass = ConnpassEventRequest(prefecture="山梨県", event_id=event_id)
+    connpass = ConnpassEventRequest(event_id=event_id)
     event = connpass.get_event()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
