@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import RedirectResponse
 from connpass import ConnpassEventRequest
 
 app = FastAPI()
@@ -23,8 +24,8 @@ def distinct_by_key(data: list[dict], key: str) -> list[dict]:
 
 
 @app.get("/")
-def read_root():
-    return {"Hello": "World"}
+def docs_redirect():
+    return RedirectResponse(url='/docs')
 
 
 @app.get("/events")
