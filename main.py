@@ -23,7 +23,7 @@ def distinct_by_key(data: list[dict], key: str) -> list[dict]:
     return list({element[key]: element for element in data}.values())
 
 
-@app.get("/")
+@app.get("/", include_in_schema=False)
 def docs_redirect():
     return RedirectResponse(url='/docs')
 
