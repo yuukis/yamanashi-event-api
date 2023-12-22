@@ -71,6 +71,24 @@ def read_events_by_year_month(year: int, month: int, keyword: str = None):
     return events
 
 
+@app.get("/events/{year}/{month}/{day}")
+def read_events_by_year_month_day(year: int, month: int, day: int,
+                                  keyword: str = None):
+    ymd = f"{year:04}{month:02}{day:02}"
+    events = []
+    if "prefecture" in config:
+        events += ConnpassEventRequest(prefecture=config["prefecture"],
+                                       keyword=keyword,
+                                       year_month_day=ymd).get_events()
+    if "series_id" in config:
+        events += ConnpassEventRequest(series_ids=config["series_id"],
+                                       keyword=keyword,
+                                       year_month_day=ymd).get_events()
+    events = distinct_by_key(events, "event_id")
+    events.sort(key=lambda x: x["started_at"], reverse=False)
+    return events
+
+
 @app.get("/events/{event_id}/detail")
 def read_event(event_id: int):
     connpass = ConnpassEventRequest(event_id=event_id)

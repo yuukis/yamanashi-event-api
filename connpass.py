@@ -5,7 +5,7 @@ import datetime
 class ConnpassEventRequest:
 
     def __init__(self, event_id=None, prefecture="", series_ids=None,
-                 year=None, year_month=None,
+                 year=None, year_month=None, year_month_day=None,
                  keyword=None, months=None):
         self.url = "https://connpass.com/api/v1/event/"
         self.event_id = event_id
@@ -21,6 +21,7 @@ class ConnpassEventRequest:
         self.months = months
         self.year = year
         self.year_month = year_month
+        self.year_month_day = year_month_day
 
     def get_event(self):
         events = self.get_events()
@@ -44,6 +45,8 @@ class ConnpassEventRequest:
             params["ym"] = ",".join(ym)
         elif self.year_month is not None:
             params["ym"] = self.year_month
+        elif self.year_month_day is not None:
+            params["ymd"] = self.year_month_day
 
         if self.months is not None:
             delta = self.months
