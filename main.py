@@ -37,7 +37,7 @@ def read_events(keyword: str = None):
     return events
 
 
-@app.get("/events/{event_id}")
+@app.get("/events/{event_id}/detail")
 def read_event(event_id: int):
     connpass = ConnpassEventRequest(event_id=event_id)
     event = connpass.get_event()
