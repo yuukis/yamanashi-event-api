@@ -23,14 +23,15 @@ def docs_redirect():
 
 
 @app.get("/events")
-def read_events():
+def read_events(keyword: str = None):
+    keyword = keyword.split(",") if keyword else None
     events = []
     if "prefecture" in config:
         events += ConnpassEventRequest(prefecture=config["prefecture"],
-                                       months=6).get_events()
+                                       keyword=keyword, months=6).get_events()
     if "series_id" in config:
         events += ConnpassEventRequest(series_ids=config["series_id"],
-                                       months=6).get_events()
+                                       keyword=keyword, months=6).get_events()
     events = distinct_by_key(events, "event_id")
     events.sort(key=lambda x: x["started_at"], reverse=True)
     return events
