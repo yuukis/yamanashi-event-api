@@ -33,6 +33,12 @@ def read_events(keyword: str = None):
                                          dt_to.year, dt_to.month, keyword)
 
 
+@app.get("/events/today")
+def read_events_today(keyword: str = None):
+    now = datetime.datetime.now()
+    return read_events_in_year_month_day(now.year, now.month, now.day, keyword)
+
+
 @app.get("/events/{event_id}")
 def read_event(
     event_id: int = Path(ge=1)
