@@ -53,19 +53,7 @@ def read_events_in_year(
     year: int = Path(ge=2010, le=2040),
     keyword: str = None
 ):
-    y = f"{year:04}"
-    events = []
-    if "prefecture" in config:
-        events += ConnpassEventRequest(prefecture=config["prefecture"],
-                                       keyword=keyword,
-                                       year=y).get_events()
-    if "series_id" in config:
-        events += ConnpassEventRequest(series_id=config["series_id"],
-                                       keyword=keyword,
-                                       year=y).get_events()
-    events = distinct_by_key(events, "event_id")
-    events.sort(key=lambda x: x["started_at"], reverse=False)
-    return events
+    return read_events_fromto_year_month(year, 1, year, 12, keyword)
 
 
 @app.get("/events/in/{year}/{month}")
@@ -74,19 +62,7 @@ def read_events_in_year_month(
     month: int = Path(ge=1, le=12),
     keyword: str = None
 ):
-    ym = f"{year:04}{month:02}"
-    events = []
-    if "prefecture" in config:
-        events += ConnpassEventRequest(prefecture=config["prefecture"],
-                                       keyword=keyword,
-                                       year_month=ym).get_events()
-    if "series_id" in config:
-        events += ConnpassEventRequest(series_id=config["series_id"],
-                                       keyword=keyword,
-                                       year_month=ym).get_events()
-    events = distinct_by_key(events, "event_id")
-    events.sort(key=lambda x: x["started_at"], reverse=False)
-    return events
+    return read_events_fromto_year_month(year, month, year, month, keyword)
 
 
 @app.get("/events/in/{year}/{month}/{day}")
@@ -96,16 +72,53 @@ def read_events_in_year_month_day(
     day: int = Path(ge=1, le=31),
     keyword: str = None
 ):
-    ymd = f"{year:04}{month:02}{day:02}"
+    ymd = [f"{year:04}{month:02}{day:02}"]
     events = []
     if "prefecture" in config:
         events += ConnpassEventRequest(prefecture=config["prefecture"],
                                        keyword=keyword,
-                                       year_month_day=ymd).get_events()
+                                       ymd=ymd).get_events()
     if "series_id" in config:
         events += ConnpassEventRequest(series_id=config["series_id"],
                                        keyword=keyword,
-                                       year_month_day=ymd).get_events()
+                                       ymd=ymd).get_events()
+    events = distinct_by_key(events, "event_id")
+    events.sort(key=lambda x: x["started_at"], reverse=False)
+    return events
+
+
+@app.get("/events/from/{from_year}/{from_month}/to/{to_year}/{to_month}")
+def read_events_fromto_year_month(
+    from_year: int = Path(ge=2010, le=2040),
+    from_month: int = Path(ge=1, le=12),
+    to_year: int = Path(ge=2010, le=2040),
+    to_month: int = Path(ge=1, le=12),
+    keyword: str = None
+):
+    if from_year > to_year or (from_year == to_year and from_month > to_month):
+        raise HTTPException(status_code=400, detail="Invalid year/month")
+
+    ym = []
+    y = from_year
+    m = from_month
+    while True:
+        ym.append(f"{y:04}{m:02}")
+        if y == to_year and m == to_month:
+            break
+        m += 1
+        if m > 12:
+            y += 1
+            m = 1
+
+    events = []
+    if "prefecture" in config:
+        events += ConnpassEventRequest(prefecture=config["prefecture"],
+                                       keyword=keyword,
+                                       ym=ym).get_events()
+    if "series_id" in config:
+        events += ConnpassEventRequest(series_id=config["series_id"],
+                                       keyword=keyword,
+                                       ym=ym).get_events()
     events = distinct_by_key(events, "event_id")
     events.sort(key=lambda x: x["started_at"], reverse=False)
     return events

@@ -5,8 +5,7 @@ import datetime
 class ConnpassEventRequest:
 
     def __init__(self, event_id=None, prefecture="", series_id=None,
-                 year=None, year_month=None, year_month_day=None,
-                 keyword=None, months=None):
+                 ym=None, ymd=None, keyword=None, months=None):
         self.url = "https://connpass.com/api/v1/event/"
         self.event_id = event_id
         self.prefecture = prefecture
@@ -18,10 +17,15 @@ class ConnpassEventRequest:
             self.series_id = []
         else:
             self.series_id = series_id
+        if ym is None:
+            self.ym = []
+        else:
+            self.ym = ym
+        if ymd is None:
+            self.ymd = []
+        else:
+            self.ymd = ymd
         self.months = months
-        self.year = year
-        self.year_month = year_month
-        self.year_month_day = year_month_day
 
     def get_event(self):
         events = self.get_events()
@@ -39,15 +43,10 @@ class ConnpassEventRequest:
             params["keyword"] = ",".join(self.keyword)
         if len(self.series_id) > 0:
             params["series_id"] = ",".join(self.series_id)
-
-        if self.year is not None:
-            ym = [f"{self.year}{m:02}" for m in range(1, 13)]
-            params["ym"] = ",".join(ym)
-        elif self.year_month is not None:
-            params["ym"] = self.year_month
-        elif self.year_month_day is not None:
-            params["ymd"] = self.year_month_day
-
+        if len(self.ym) > 0:
+            params["ym"] = ",".join(self.ym)
+        if len(self.ymd) > 0:
+            params["ymd"] = ",".join(self.ymd)
         if self.months is not None:
             delta = self.months
             ym_array = []
