@@ -1,26 +1,16 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import RedirectResponse
 from connpass import ConnpassEventRequest
+import yaml
+
+with open('config.yaml', 'r') as yml:
+    config = yaml.safe_load(yml)
 
 app = FastAPI(
-    title="Yamanashi Tech Events API",
-    description="This is an API for Tech events in Yamanashi prefecture.",
-    version="1.0.0"
+    title=config["metadata"]["title"],
+    description=config["metadata"]["description"],
+    version=config["metadata"]["version"]
 )
-
-# 山梨県で開催されたIT勉強会コミュニティ
-SERIES_IDS = [
-    "1678",   # 日本Androidの会 山梨支部
-    "4255",   # 子ども向けプログラミングクラブ コーダー道場甲府
-    "5327",   # Redmineプラグインもくもく会 山梨
-    "7069",   # shingen.py
-    "7465",   # 子どものためのプログラミングクラブ CoderDojo北杜
-    "7466",   # 子どものためのプログラミングクラブ CoderDojo韮崎
-    "7759",   # 山梨IT同好会(仮)
-    "9176",   # 富士もくもく会
-    "10940",  # 山梨Web勉強会
-    "11367"   # 山梨SPA
-]
 
 
 def distinct_by_key(data: list[dict], key: str) -> list[dict]:
@@ -34,9 +24,14 @@ def docs_redirect():
 
 @app.get("/events")
 def read_events():
-    events1 = ConnpassEventRequest(prefecture="山梨県", months=6).get_events()
-    events2 = ConnpassEventRequest(series_ids=SERIES_IDS, months=6).get_events()
-    events = distinct_by_key(events1 + events2, "event_id")
+    events = []
+    if "prefecture" in config:
+        events += ConnpassEventRequest(prefecture=config["prefecture"],
+                                       months=6).get_events()
+    if "series_id" in config:
+        events += ConnpassEventRequest(series_ids=config["series_id"],
+                                       months=6).get_events()
+    events = distinct_by_key(events, "event_id")
     events.sort(key=lambda x: x["started_at"], reverse=True)
     return events
 
