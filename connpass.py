@@ -1,31 +1,17 @@
 import requests
-import datetime
 
 
 class ConnpassEventRequest:
 
     def __init__(self, event_id=None, prefecture="", series_id=None,
-                 ym=None, ymd=None, keyword=None, months=None):
+                 ym=None, ymd=None, keyword=None):
         self.url = "https://connpass.com/api/v1/event/"
         self.event_id = event_id
         self.prefecture = prefecture
-        if keyword is None:
-            self.keyword = []
-        else:
-            self.keyword = keyword
-        if series_id is None:
-            self.series_id = []
-        else:
-            self.series_id = series_id
-        if ym is None:
-            self.ym = []
-        else:
-            self.ym = ym
-        if ymd is None:
-            self.ymd = []
-        else:
-            self.ymd = ymd
-        self.months = months
+        self.keyword = [] if keyword is None else keyword
+        self.series_id = [] if series_id is None else series_id
+        self.ym = [] if ym is None else ym
+        self.ymd = [] if ymd is None else ymd
 
     def get_event(self):
         events = self.get_events()
@@ -47,21 +33,6 @@ class ConnpassEventRequest:
             params["ym"] = ",".join(self.ym)
         if len(self.ymd) > 0:
             params["ymd"] = ",".join(self.ymd)
-        if self.months is not None:
-            delta = self.months
-            ym_array = []
-            now = datetime.datetime.now()
-            for i in range(-delta, delta + 1):
-                y = now.year
-                m = now.month + i - 1
-                if m < 0:
-                    y -= 1
-                elif m >= 12:
-                    y += 1
-                m = m % 12
-                dt = datetime.datetime(y, m + 1, 1)
-                ym_array.append(dt.strftime("%Y%m"))
-            params["ym"] = ",".join(ym_array)
 
         page_size = 100
         params["count"] = page_size
