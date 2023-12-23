@@ -30,7 +30,7 @@ def read_events(keyword: str = None):
         events += ConnpassEventRequest(prefecture=config["prefecture"],
                                        keyword=keyword, months=6).get_events()
     if "series_id" in config:
-        events += ConnpassEventRequest(series_ids=config["series_id"],
+        events += ConnpassEventRequest(series_id=config["series_id"],
                                        keyword=keyword, months=6).get_events()
     events = distinct_by_key(events, "event_id")
     events.sort(key=lambda x: x["started_at"], reverse=True)
@@ -46,7 +46,7 @@ def read_events_by_year(year: int, keyword: str = None):
                                        keyword=keyword,
                                        year=y).get_events()
     if "series_id" in config:
-        events += ConnpassEventRequest(series_ids=config["series_id"],
+        events += ConnpassEventRequest(series_id=config["series_id"],
                                        keyword=keyword,
                                        year=y).get_events()
     events = distinct_by_key(events, "event_id")
@@ -63,7 +63,7 @@ def read_events_by_year_month(year: int, month: int, keyword: str = None):
                                        keyword=keyword,
                                        year_month=ym).get_events()
     if "series_id" in config:
-        events += ConnpassEventRequest(series_ids=config["series_id"],
+        events += ConnpassEventRequest(series_id=config["series_id"],
                                        keyword=keyword,
                                        year_month=ym).get_events()
     events = distinct_by_key(events, "event_id")
@@ -81,7 +81,7 @@ def read_events_by_year_month_day(year: int, month: int, day: int,
                                        keyword=keyword,
                                        year_month_day=ymd).get_events()
     if "series_id" in config:
-        events += ConnpassEventRequest(series_ids=config["series_id"],
+        events += ConnpassEventRequest(series_id=config["series_id"],
                                        keyword=keyword,
                                        year_month_day=ymd).get_events()
     events = distinct_by_key(events, "event_id")

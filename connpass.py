@@ -4,7 +4,7 @@ import datetime
 
 class ConnpassEventRequest:
 
-    def __init__(self, event_id=None, prefecture="", series_ids=None,
+    def __init__(self, event_id=None, prefecture="", series_id=None,
                  year=None, year_month=None, year_month_day=None,
                  keyword=None, months=None):
         self.url = "https://connpass.com/api/v1/event/"
@@ -14,10 +14,10 @@ class ConnpassEventRequest:
             self.keyword = []
         else:
             self.keyword = keyword
-        if series_ids is None:
-            self.series_ids = []
+        if series_id is None:
+            self.series_id = []
         else:
-            self.series_ids = series_ids
+            self.series_id = series_id
         self.months = months
         self.year = year
         self.year_month = year_month
@@ -37,8 +37,8 @@ class ConnpassEventRequest:
             self.keyword.append(self.prefecture)
         if len(self.keyword) > 0:
             params["keyword"] = ",".join(self.keyword)
-        if len(self.series_ids) > 0:
-            params["series_id"] = ",".join(self.series_ids)
+        if len(self.series_id) > 0:
+            params["series_id"] = ",".join(self.series_id)
 
         if self.year is not None:
             ym = [f"{self.year}{m:02}" for m in range(1, 13)]
