@@ -1,23 +1,17 @@
 import requests
-import datetime
 
 
 class ConnpassEventRequest:
 
-    def __init__(self, event_id=None, prefecture="", keyword=None,
-                 series_ids=None, months=None):
+    def __init__(self, event_id=None, prefecture="", series_id=None,
+                 ym=None, ymd=None, keyword=None):
         self.url = "https://connpass.com/api/v1/event/"
         self.event_id = event_id
         self.prefecture = prefecture
-        if keyword is None:
-            self.keyword = []
-        else:
-            self.keyword = keyword
-        if series_ids is None:
-            self.series_ids = []
-        else:
-            self.series_ids = series_ids
-        self.months = months
+        self.keyword = [] if keyword is None else keyword
+        self.series_id = [] if series_id is None else series_id
+        self.ym = [] if ym is None else ym
+        self.ymd = [] if ymd is None else ymd
 
     def get_event(self):
         events = self.get_events()
@@ -33,23 +27,12 @@ class ConnpassEventRequest:
             self.keyword.append(self.prefecture)
         if len(self.keyword) > 0:
             params["keyword"] = ",".join(self.keyword)
-        if len(self.series_ids) > 0:
-            params["series_id"] = ",".join(self.series_ids)
-        if self.months is not None:
-            delta = self.months
-            ym_array = []
-            now = datetime.datetime.now()
-            for i in range(-delta, delta + 1):
-                y = now.year
-                m = now.month + i - 1
-                if m < 0:
-                    y -= 1
-                elif m >= 12:
-                    y += 1
-                m = m % 12
-                dt = datetime.datetime(y, m + 1, 1)
-                ym_array.append(dt.strftime("%Y%m"))
-            params["ym"] = ",".join(ym_array)
+        if len(self.series_id) > 0:
+            params["series_id"] = ",".join(self.series_id)
+        if len(self.ym) > 0:
+            params["ym"] = ",".join(self.ym)
+        if len(self.ymd) > 0:
+            params["ymd"] = ",".join(self.ymd)
 
         page_size = 100
         params["count"] = page_size
