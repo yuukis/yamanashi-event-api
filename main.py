@@ -37,8 +37,17 @@ def read_events(keyword: str = None):
     return events
 
 
-@app.get("/events/{year}")
-def read_events_by_year(year: int, keyword: str = None):
+@app.get("/events/{event_id}")
+def read_event(event_id: int):
+    connpass = ConnpassEventRequest(event_id=event_id)
+    event = connpass.get_event()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return event
+
+
+@app.get("/events/in/{year}")
+def read_events_in_year(year: int, keyword: str = None):
     y = f"{year:04}"
     events = []
     if "prefecture" in config:
@@ -54,8 +63,8 @@ def read_events_by_year(year: int, keyword: str = None):
     return events
 
 
-@app.get("/events/{year}/{month}")
-def read_events_by_year_month(year: int, month: int, keyword: str = None):
+@app.get("/events/in/{year}/{month}")
+def read_events_in_year_month(year: int, month: int, keyword: str = None):
     ym = f"{year:04}{month:02}"
     events = []
     if "prefecture" in config:
@@ -71,8 +80,8 @@ def read_events_by_year_month(year: int, month: int, keyword: str = None):
     return events
 
 
-@app.get("/events/{year}/{month}/{day}")
-def read_events_by_year_month_day(year: int, month: int, day: int,
+@app.get("/events/in/{year}/{month}/{day}")
+def read_events_in_year_month_day(year: int, month: int, day: int,
                                   keyword: str = None):
     ymd = f"{year:04}{month:02}{day:02}"
     events = []
@@ -87,12 +96,3 @@ def read_events_by_year_month_day(year: int, month: int, day: int,
     events = distinct_by_key(events, "event_id")
     events.sort(key=lambda x: x["started_at"], reverse=False)
     return events
-
-
-@app.get("/events/{event_id}/detail")
-def read_event(event_id: int):
-    connpass = ConnpassEventRequest(event_id=event_id)
-    event = connpass.get_event()
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
-    return event
