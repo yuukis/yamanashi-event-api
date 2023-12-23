@@ -8,7 +8,12 @@ class ConnpassEventRequest:
         self.url = "https://connpass.com/api/v1/event/"
         self.event_id = event_id
         self.prefecture = prefecture
-        self.keyword = [] if keyword is None else keyword
+        if keyword is None:
+            self.keyword = []
+        elif isinstance(keyword, str):
+            self.keyword = keyword.split(",")
+        else:
+            self.keyword = keyword
         self.series_id = [] if series_id is None else series_id
         self.ym = [] if ym is None else ym
         self.ymd = [] if ymd is None else ymd
@@ -55,6 +60,7 @@ class ConnpassEventRequest:
         return events
 
     def __get(self, params):
+        print(params)
         headers = {
             "User-Agent": "YamanashiEventApiBot/1.0"
         }
