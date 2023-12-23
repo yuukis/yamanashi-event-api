@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Path, HTTPException
 from fastapi.responses import RedirectResponse
 from connpass import ConnpassEventRequest
 import yaml
@@ -38,7 +38,9 @@ def read_events(keyword: str = None):
 
 
 @app.get("/events/{event_id}")
-def read_event(event_id: int):
+def read_event(
+    event_id: int = Path(ge=1)
+):
     connpass = ConnpassEventRequest(event_id=event_id)
     event = connpass.get_event()
     if not event:
@@ -47,7 +49,10 @@ def read_event(event_id: int):
 
 
 @app.get("/events/in/{year}")
-def read_events_in_year(year: int, keyword: str = None):
+def read_events_in_year(
+    year: int = Path(ge=2010, le=2040),
+    keyword: str = None
+):
     y = f"{year:04}"
     events = []
     if "prefecture" in config:
@@ -64,7 +69,11 @@ def read_events_in_year(year: int, keyword: str = None):
 
 
 @app.get("/events/in/{year}/{month}")
-def read_events_in_year_month(year: int, month: int, keyword: str = None):
+def read_events_in_year_month(
+    year: int = Path(ge=2010, le=2040),
+    month: int = Path(ge=1, le=12),
+    keyword: str = None
+):
     ym = f"{year:04}{month:02}"
     events = []
     if "prefecture" in config:
@@ -81,8 +90,12 @@ def read_events_in_year_month(year: int, month: int, keyword: str = None):
 
 
 @app.get("/events/in/{year}/{month}/{day}")
-def read_events_in_year_month_day(year: int, month: int, day: int,
-                                  keyword: str = None):
+def read_events_in_year_month_day(
+    year: int = Path(ge=2010, le=2040),
+    month: int = Path(ge=1, le=12),
+    day: int = Path(ge=1, le=31),
+    keyword: str = None
+):
     ymd = f"{year:04}{month:02}{day:02}"
     events = []
     if "prefecture" in config:
