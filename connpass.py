@@ -1,4 +1,5 @@
 import requests
+from models import EventDetail
 
 
 class ConnpassEventRequest:
@@ -48,7 +49,7 @@ class ConnpassEventRequest:
             params["start"] = page * page_size + 1
             response = self.__get(params)
             json = response.json()
-            events += json['events']
+            events += EventDetail.from_json(json['events'])
 
             if json['results_returned'] < page_size:
                 break
@@ -68,6 +69,6 @@ class ConnpassEventRequest:
         return response
 
     def __is_in_pref(self, event):
-        if event["address"] is None:
+        if event.address is None:
             return False
-        return event["address"].startswith(self.prefecture)
+        return event.address.startswith(self.prefecture)
