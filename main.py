@@ -1,8 +1,11 @@
+from typing import List
 from fastapi import FastAPI, Path, HTTPException
 from fastapi.responses import RedirectResponse
 from connpass import ConnpassEventRequest
+from models import Event, EventDetail
 import datetime
 import yaml
+import uvicorn
 
 with open('config.yaml', 'r') as yml:
     config = yaml.safe_load(yml)
@@ -14,16 +17,12 @@ app = FastAPI(
 )
 
 
-def distinct_by_key(data: list[dict], key: str) -> list[dict]:
-    return list({element[key]: element for element in data}.values())
-
-
 @app.get("/", include_in_schema=False)
 def docs_redirect():
     return RedirectResponse(url='/docs')
 
 
-@app.get("/events")
+@app.get("/events", response_model=List[Event])
 def read_events(keyword: str = None):
     days = 90
     now = datetime.datetime.now()
@@ -33,13 +32,13 @@ def read_events(keyword: str = None):
                                          dt_to.year, dt_to.month, keyword)
 
 
-@app.get("/events/today")
+@app.get("/events/today", response_model=List[Event])
 def read_events_today(keyword: str = None):
     now = datetime.datetime.now()
     return read_events_in_year_month_day(now.year, now.month, now.day, keyword)
 
 
-@app.get("/events/{event_id}")
+@app.get("/events/{event_id}", response_model=EventDetail)
 def read_event(
     event_id: int = Path(ge=1)
 ):
@@ -50,7 +49,7 @@ def read_event(
     return event
 
 
-@app.get("/events/in/{year}")
+@app.get("/events/in/{year}", response_model=List[Event])
 def read_events_in_year(
     year: int = Path(ge=2010, le=2040),
     keyword: str = None
@@ -58,7 +57,7 @@ def read_events_in_year(
     return read_events_fromto_year_month(year, 1, year, 12, keyword)
 
 
-@app.get("/events/in/{year}/{month}")
+@app.get("/events/in/{year}/{month}", response_model=List[Event])
 def read_events_in_year_month(
     year: int = Path(ge=2010, le=2040),
     month: int = Path(ge=1, le=12),
@@ -67,7 +66,7 @@ def read_events_in_year_month(
     return read_events_fromto_year_month(year, month, year, month, keyword)
 
 
-@app.get("/events/in/{year}/{month}/{day}")
+@app.get("/events/in/{year}/{month}/{day}", response_model=List[Event])
 def read_events_in_year_month_day(
     year: int = Path(ge=2010, le=2040),
     month: int = Path(ge=1, le=12),
@@ -84,12 +83,13 @@ def read_events_in_year_month_day(
         events += ConnpassEventRequest(series_id=config["series_id"],
                                        keyword=keyword,
                                        ymd=ymd).get_events()
-    events = distinct_by_key(events, "event_id")
-    events.sort(key=lambda x: x["started_at"], reverse=False)
+    events = Event.distinct_by_id(events)
+    events.sort(key=lambda x: x.started_at, reverse=False)
     return events
 
 
-@app.get("/events/from/{from_year}/{from_month}/to/{to_year}/{to_month}")
+@app.get("/events/from/{from_year}/{from_month}/to/{to_year}/{to_month}",
+         response_model=List[Event])
 def read_events_fromto_year_month(
     from_year: int = Path(ge=2010, le=2040),
     from_month: int = Path(ge=1, le=12),
@@ -121,6 +121,6 @@ def read_events_fromto_year_month(
         events += ConnpassEventRequest(series_id=config["series_id"],
                                        keyword=keyword,
                                        ym=ym).get_events()
-    events = distinct_by_key(events, "event_id")
-    events.sort(key=lambda x: x["started_at"], reverse=False)
+    events = Event.distinct_by_id(events)
+    events.sort(key=lambda x: x.started_at, reverse=False)
     return events
