@@ -45,7 +45,11 @@ def read_events_today(keyword: str = None):
 def read_event(
     event_id: int = Path(ge=1)
 ):
-    connpass = ConnpassEventRequest(event_id=event_id)
+    cache = None
+    if redis_url is not None:
+        cache = EventRequestCache(url=redis_url)
+
+    connpass = ConnpassEventRequest(event_id=event_id, cache=cache)
     event = connpass.get_event()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
