@@ -71,7 +71,7 @@ https://api.event.yamanashi.dev
     curl http://localhost:8000/events?keyword=Python
     ```
 
-See [API document](https://api.event.yamanashi.dev/docs) for more details.
+See [API document](https://yuukis.github.io/yamanashi-event-api) for more details.
 
 <!-- LICENSE -->
 ## License
