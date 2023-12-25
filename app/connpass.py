@@ -1,5 +1,5 @@
 import requests
-from models import EventDetail
+from .models import EventDetail
 
 
 class ConnpassEventRequest:

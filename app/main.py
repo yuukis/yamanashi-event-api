@@ -1,14 +1,18 @@
 from typing import List
 from fastapi import FastAPI, Path, HTTPException
 from fastapi.responses import RedirectResponse
-from connpass import ConnpassEventRequest
-from models import Event, EventDetail
-from cache import EventRequestCache
+from .connpass import ConnpassEventRequest
+from .models import Event, EventDetail
+from .cache import EventRequestCache
 import os
 import datetime
 import yaml
 
-with open('config.yaml', 'r') as yml:
+
+dirname = os.path.dirname(__file__)
+config_file = os.path.join(dirname, "config.yaml")
+
+with open(config_file, "r") as yml:
     config = yaml.safe_load(yml)
 
 redis_url = os.getenv("REDIS_URL")
@@ -22,7 +26,7 @@ app = FastAPI(
 
 @app.get("/", include_in_schema=False)
 def docs_redirect():
-    return RedirectResponse(url='/docs')
+    return RedirectResponse(url="/docs")
 
 
 @app.get("/events", response_model=List[Event])
@@ -45,11 +49,7 @@ def read_events_today(keyword: str = None):
 def read_event(
     event_id: int = Path(ge=1)
 ):
-    cache = None
-    if redis_url is not None:
-        cache = EventRequestCache(url=redis_url)
-
-    connpass = ConnpassEventRequest(event_id=event_id, cache=cache)
+    connpass = ConnpassEventRequest(event_id=event_id)
     event = connpass.get_event()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
