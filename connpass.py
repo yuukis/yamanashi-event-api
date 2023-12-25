@@ -5,7 +5,7 @@ from models import EventDetail
 class ConnpassEventRequest:
 
     def __init__(self, event_id=None, prefecture="", series_id=None,
-                 ym=None, ymd=None, keyword=None):
+                 ym=None, ymd=None, keyword=None, cache=None):
         self.url = "https://connpass.com/api/v1/event/"
         self.event_id = event_id
         self.prefecture = prefecture
@@ -18,6 +18,7 @@ class ConnpassEventRequest:
         self.series_id = [] if series_id is None else series_id
         self.ym = [] if ym is None else ym
         self.ymd = [] if ymd is None else ymd
+        self.cache = cache
 
     def get_event(self):
         events = self.get_events()
@@ -47,8 +48,15 @@ class ConnpassEventRequest:
         events = []
         while True:
             params["start"] = page * page_size + 1
-            response = self.__get(params)
-            json = response.json()
+
+            json = None
+            if self.cache is not None:
+                json = self.cache.get(params)
+            if json is None:
+                response = self.__get(params)
+                json = response.json()
+                if self.cache is not None:
+                    self.cache.set(params, json)
             events += EventDetail.from_json(json['events'])
 
             if json['results_returned'] < page_size:

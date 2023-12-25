@@ -3,12 +3,15 @@ from fastapi import FastAPI, Path, HTTPException
 from fastapi.responses import RedirectResponse
 from connpass import ConnpassEventRequest
 from models import Event, EventDetail
+from cache import EventRequestCache
+import os
 import datetime
 import yaml
-import uvicorn
 
 with open('config.yaml', 'r') as yml:
     config = yaml.safe_load(yml)
+
+redis_url = os.getenv("REDIS_URL")
 
 app = FastAPI(
     title=config["metadata"]["title"],
@@ -74,15 +77,20 @@ def read_events_in_year_month_day(
     keyword: str = None
 ):
     ymd = [f"{year:04}{month:02}{day:02}"]
+
+    cache = None
+    if redis_url is not None:
+        cache = EventRequestCache(url=redis_url)
+
     events = []
     if "prefecture" in config:
         events += ConnpassEventRequest(prefecture=config["prefecture"],
                                        keyword=keyword,
-                                       ymd=ymd).get_events()
+                                       ymd=ymd, cache=cache).get_events()
     if "series_id" in config:
         events += ConnpassEventRequest(series_id=config["series_id"],
                                        keyword=keyword,
-                                       ymd=ymd).get_events()
+                                       ymd=ymd, cache=cache).get_events()
     events = Event.distinct_by_id(events)
     events.sort(key=lambda x: x.started_at, reverse=False)
     return events
@@ -112,15 +120,19 @@ def read_events_fromto_year_month(
             y += 1
             m = 1
 
+    cache = None
+    if redis_url is not None:
+        cache = EventRequestCache(url=redis_url)
+
     events = []
     if "prefecture" in config:
         events += ConnpassEventRequest(prefecture=config["prefecture"],
                                        keyword=keyword,
-                                       ym=ym).get_events()
+                                       ym=ym, cache=cache).get_events()
     if "series_id" in config:
         events += ConnpassEventRequest(series_id=config["series_id"],
                                        keyword=keyword,
-                                       ym=ym).get_events()
+                                       ym=ym, cache=cache).get_events()
     events = Event.distinct_by_id(events)
     events.sort(key=lambda x: x.started_at, reverse=False)
     return events
