@@ -70,8 +70,9 @@ class ConnpassEventRequest:
 
     def __get(self, params):
         print(params)
+        ua = "YamanashiTechEventApiBot/1.0 (+https://api.event.yamanashi.dev)"
         headers = {
-            "User-Agent": "YamanashiEventApiBot/1.0"
+            "User-Agent": ua
         }
         response = requests.get(self.url, headers=headers, params=params)
         return response
