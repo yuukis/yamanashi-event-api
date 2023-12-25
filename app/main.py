@@ -1,6 +1,7 @@
 from typing import List
 from fastapi import FastAPI, Path, HTTPException
 from fastapi.responses import RedirectResponse
+from fastapi.middleware.cors import CORSMiddleware
 from .connpass import ConnpassEventRequest
 from .models import Event, EventDetail
 from .cache import EventRequestCache
@@ -21,6 +22,14 @@ app = FastAPI(
     title=config["metadata"]["title"],
     description=config["metadata"]["description"],
     version=config["metadata"]["version"]
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
