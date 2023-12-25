@@ -1,4 +1,5 @@
 requests
 fastapi
 redis
+uvicorn
 pyyaml
