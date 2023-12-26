@@ -1,7 +1,7 @@
 metadata:
   title: 'Yamanashi Tech Events API'
   description: 'This is an API for Tech events in Yamanashi prefecture.'
-  version: '1.0.0'
+  version: '1.0.1'
 
 prefecture: '山梨県'
 
