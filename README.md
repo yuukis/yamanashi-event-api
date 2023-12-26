@@ -38,6 +38,22 @@ https://api.event.yamanashi.dev
     ```
 5. Access to http://localhost:8000
 
+### Docker Compose Installation
+
+If you have Docker and Docker Compose installed, you can use the following steps to get the project running:
+
+1. Clone the repo
+    ```sh
+    git clone https://github.com/yuukis/yamanashi-events-api.git
+    ```
+
+2. Build and run the Docker services
+    ```sh
+    docker-compose up --build
+    ```
+
+3. Access to http://localhost:8000
+
 <!-- USAGE EXAMPLES -->
 ## Usage
 
