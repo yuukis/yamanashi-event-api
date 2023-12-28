@@ -68,9 +68,11 @@ def read_event_detail(
     cache = None
     if redis_url is not None:
         cache = EventRequestCache(url=redis_url)
+    user_agent = get_user_agent(config)
 
-    connpass = ConnpassEventRequest(event_id=event_id, cache=cache)
-    event = connpass.get_event()
+    event = ConnpassEventRequest(event_id=event_id, cache=cache,
+                                 user_agent=user_agent).get_event()
+
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     return event
@@ -105,16 +107,22 @@ def read_events_in_year_month_day(
     cache = None
     if redis_url is not None:
         cache = EventRequestCache(url=redis_url)
+    user_agent = get_user_agent(config)
 
     events = []
     if "prefecture" in config:
-        events += ConnpassEventRequest(prefecture=config["prefecture"],
-                                       keyword=keyword,
-                                       ymd=ymd, cache=cache).get_events()
+        prefecture = config["prefecture"]
+        events += ConnpassEventRequest(prefecture=prefecture, ymd=ymd,
+                                       keyword=keyword, cache=cache,
+                                       user_agent=user_agent
+                                       ).get_events()
     if "series_id" in config:
-        events += ConnpassEventRequest(series_id=config["series_id"],
-                                       keyword=keyword,
-                                       ymd=ymd, cache=cache).get_events()
+        series_id = config["series_id"]
+        events += ConnpassEventRequest(series_id=series_id, ymd=ymd,
+                                       keyword=keyword, cache=cache,
+                                       user_agent=user_agent
+                                       ).get_events()
+
     events = Event.distinct_by_id(events)
     events.sort(key=lambda x: x.started_at, reverse=False)
     return events
@@ -147,16 +155,31 @@ def read_events_fromto_year_month(
     cache = None
     if redis_url is not None:
         cache = EventRequestCache(url=redis_url)
+    user_agent = get_user_agent(config)
 
     events = []
     if "prefecture" in config:
-        events += ConnpassEventRequest(prefecture=config["prefecture"],
-                                       keyword=keyword,
-                                       ym=ym, cache=cache).get_events()
+        prefecture = config["prefecture"]
+        events += ConnpassEventRequest(prefecture=prefecture, ym=ym,
+                                       keyword=keyword, cache=cache,
+                                       user_agent=user_agent
+                                       ).get_events()
     if "series_id" in config:
-        events += ConnpassEventRequest(series_id=config["series_id"],
-                                       keyword=keyword,
-                                       ym=ym, cache=cache).get_events()
+        series_id = config["series_id"]
+        events += ConnpassEventRequest(series_id=series_id, ym=ym,
+                                       keyword=keyword, cache=cache,
+                                       user_agent=user_agent
+                                       ).get_events()
+
     events = Event.distinct_by_id(events)
     events.sort(key=lambda x: x.started_at, reverse=False)
     return events
+
+
+def get_user_agent(config):
+    if "api_client" in config and "user_agent" in config["api_client"]:
+        version = config["metadata"]["version"]
+        user_agent = config["api_client"]["user_agent"]
+        user_agent = user_agent.replace("{version}", version)
+        return user_agent
+    return None

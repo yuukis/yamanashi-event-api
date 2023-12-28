@@ -3,9 +3,8 @@ from .models import EventDetail
 
 
 class ConnpassEventRequest:
-
     def __init__(self, event_id=None, prefecture="", series_id=None,
-                 ym=None, ymd=None, keyword=None, cache=None):
+                 ym=None, ymd=None, keyword=None, cache=None, user_agent=None):
         self.url = "https://connpass.com/api/v1/event/"
         self.event_id = event_id
         self.prefecture = prefecture
@@ -19,6 +18,7 @@ class ConnpassEventRequest:
         self.ym = [] if ym is None else ym
         self.ymd = [] if ymd is None else ymd
         self.cache = cache
+        self.user_agent = user_agent
 
     def get_event(self):
         events = self.get_events()
@@ -69,11 +69,11 @@ class ConnpassEventRequest:
         return events
 
     def __get(self, params):
-        print(params)
-        ua = "YamanashiTechEventApiBot/1.0 (+https://api.event.yamanashi.dev)"
-        headers = {
-            "User-Agent": ua
-        }
+        headers = {}
+        if self.user_agent is not None:
+            headers["User-Agent"] = self.user_agent
+
+        print({"params": params, "headers": headers})
         response = requests.get(self.url, headers=headers, params=params)
         return response
 
