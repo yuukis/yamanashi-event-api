@@ -3,6 +3,9 @@ metadata:
   description: 'This is an API for Tech events in Yamanashi prefecture.'
   version: '1.0.2'
 
+api_client:
+  user_agent: 'YamanashiTechEventAPI/{version} (+https://github.com/yuukis/yamanashi-event-api)'
+
 prefecture: '山梨県'
 
 series_id:

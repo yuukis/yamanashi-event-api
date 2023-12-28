@@ -1,11 +1,17 @@
 import requests
+import re
 from .models import EventDetail
 
 
-class ConnpassEventRequest:
+class ConnpassException(Exception):
+    def __init__(self, status_code, message):
+        self.status_code = status_code
+        self.message = message
 
+
+class ConnpassEventRequest:
     def __init__(self, event_id=None, prefecture="", series_id=None,
-                 ym=None, ymd=None, keyword=None, cache=None):
+                 ym=None, ymd=None, keyword=None, cache=None, user_agent=None):
         self.url = "https://connpass.com/api/v1/event/"
         self.event_id = event_id
         self.prefecture = prefecture
@@ -19,6 +25,7 @@ class ConnpassEventRequest:
         self.ym = [] if ym is None else ym
         self.ymd = [] if ymd is None else ymd
         self.cache = cache
+        self.user_agent = user_agent
 
     def get_event(self):
         events = self.get_events()
@@ -53,7 +60,11 @@ class ConnpassEventRequest:
             if self.cache is not None:
                 json = self.cache.get(params)
             if json is None:
-                response = self.__get(params)
+                try:
+                    response = self.__get(params)
+                except ConnpassException as e:
+                    raise e
+
                 json = response.json()
                 if self.cache is not None:
                     self.cache.set(params, json)
@@ -69,12 +80,20 @@ class ConnpassEventRequest:
         return events
 
     def __get(self, params):
-        print(params)
-        ua = "YamanashiTechEventApiBot/1.0 (+https://api.event.yamanashi.dev)"
-        headers = {
-            "User-Agent": ua
-        }
+        headers = {}
+        if self.user_agent is not None:
+            headers["User-Agent"] = self.user_agent
+
+        print({"params": params, "headers": headers})
         response = requests.get(self.url, headers=headers, params=params)
+
+        if response.status_code != 200:
+            status_code = response.status_code
+            text = response.text
+            title = re.search(r'<title>(.+?)</title>', text)
+            message = title.group(1) if title else text
+            raise ConnpassException(status_code, message)
+
         return response
 
     def __is_in_pref(self, event):
