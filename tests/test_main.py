@@ -10,6 +10,12 @@ def test_read_events():
     assert isinstance(response.json(), list)
 
 
+def test_read_events_with_keyword():
+    response = client.get("/events?keyword=python")
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+
+
 def test_read_events_today():
     response = client.get("/events/today")
     assert response.status_code == 200
@@ -20,6 +26,7 @@ def test_read_event():
     response = client.get("/events/304904")
     assert response.status_code == 200
     assert isinstance(response.json(), dict)
+    assert "description" not in response.json()
 
 
 def test_read_event_detail():
@@ -51,6 +58,11 @@ def test_read_events_fromto_year_month():
     response = client.get("/events/from/2023/12/to/2024/01")
     assert response.status_code == 200
     assert isinstance(response.json(), list)
+
+
+def test_read_events_fromto_year_month_invalid():
+    response = client.get("/events/from/2023/12/to/2022/11")
+    assert response.status_code == 400
 
 
 def test_get_user_agent():
