@@ -2,7 +2,7 @@ from typing import List
 from fastapi import FastAPI, Path, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
-from .connpass import ConnpassEventRequest
+from .connpass import ConnpassEventRequest, ConnpassException
 from .models import Event, EventDetail
 from .cache import EventRequestCache
 import os
@@ -70,8 +70,11 @@ def read_event_detail(
         cache = EventRequestCache(url=redis_url)
     user_agent = get_user_agent(config)
 
-    event = ConnpassEventRequest(event_id=event_id, cache=cache,
-                                 user_agent=user_agent).get_event()
+    try:
+        event = ConnpassEventRequest(event_id=event_id, cache=cache,
+                                     user_agent=user_agent).get_event()
+    except ConnpassException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
 
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
@@ -110,18 +113,21 @@ def read_events_in_year_month_day(
     user_agent = get_user_agent(config)
 
     events = []
-    if "prefecture" in config:
-        prefecture = config["prefecture"]
-        events += ConnpassEventRequest(prefecture=prefecture, ymd=ymd,
-                                       keyword=keyword, cache=cache,
-                                       user_agent=user_agent
-                                       ).get_events()
-    if "series_id" in config:
-        series_id = config["series_id"]
-        events += ConnpassEventRequest(series_id=series_id, ymd=ymd,
-                                       keyword=keyword, cache=cache,
-                                       user_agent=user_agent
-                                       ).get_events()
+    try:
+        if "prefecture" in config:
+            prefecture = config["prefecture"]
+            events += ConnpassEventRequest(prefecture=prefecture, ymd=ymd,
+                                           keyword=keyword, cache=cache,
+                                           user_agent=user_agent
+                                           ).get_events()
+        if "series_id" in config:
+            series_id = config["series_id"]
+            events += ConnpassEventRequest(series_id=series_id, ymd=ymd,
+                                           keyword=keyword, cache=cache,
+                                           user_agent=user_agent
+                                           ).get_events()
+    except ConnpassException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
 
     events = Event.distinct_by_id(events)
     events.sort(key=lambda x: x.started_at, reverse=False)
@@ -158,18 +164,21 @@ def read_events_fromto_year_month(
     user_agent = get_user_agent(config)
 
     events = []
-    if "prefecture" in config:
-        prefecture = config["prefecture"]
-        events += ConnpassEventRequest(prefecture=prefecture, ym=ym,
-                                       keyword=keyword, cache=cache,
-                                       user_agent=user_agent
-                                       ).get_events()
-    if "series_id" in config:
-        series_id = config["series_id"]
-        events += ConnpassEventRequest(series_id=series_id, ym=ym,
-                                       keyword=keyword, cache=cache,
-                                       user_agent=user_agent
-                                       ).get_events()
+    try:
+        if "prefecture" in config:
+            prefecture = config["prefecture"]
+            events += ConnpassEventRequest(prefecture=prefecture, ym=ym,
+                                           keyword=keyword, cache=cache,
+                                           user_agent=user_agent
+                                           ).get_events()
+        if "series_id" in config:
+            series_id = config["series_id"]
+            events += ConnpassEventRequest(series_id=series_id, ym=ym,
+                                           keyword=keyword, cache=cache,
+                                           user_agent=user_agent
+                                           ).get_events()
+    except ConnpassException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
 
     events = Event.distinct_by_id(events)
     events.sort(key=lambda x: x.started_at, reverse=False)

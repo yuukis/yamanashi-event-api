@@ -1,5 +1,12 @@
 import requests
+import re
 from .models import EventDetail
+
+
+class ConnpassException(Exception):
+    def __init__(self, status_code, message):
+        self.status_code = status_code
+        self.message = message
 
 
 class ConnpassEventRequest:
@@ -53,7 +60,11 @@ class ConnpassEventRequest:
             if self.cache is not None:
                 json = self.cache.get(params)
             if json is None:
-                response = self.__get(params)
+                try:
+                    response = self.__get(params)
+                except ConnpassException as e:
+                    raise e
+
                 json = response.json()
                 if self.cache is not None:
                     self.cache.set(params, json)
@@ -75,6 +86,14 @@ class ConnpassEventRequest:
 
         print({"params": params, "headers": headers})
         response = requests.get(self.url, headers=headers, params=params)
+
+        if response.status_code != 200:
+            status_code = response.status_code
+            text = response.text
+            title = re.search(r'<title>(.+?)</title>', text)
+            message = title.group(1) if title else text
+            raise ConnpassException(status_code, message)
+
         return response
 
     def __is_in_pref(self, event):
