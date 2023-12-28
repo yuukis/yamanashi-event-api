@@ -10,11 +10,11 @@ class ConnpassException(Exception):
 
 
 class ConnpassEventRequest:
-    def __init__(self, event_id=None, prefecture="", series_id=None,
+    def __init__(self, event_id=None, prefecture=None, series_id=None,
                  ym=None, ymd=None, keyword=None, cache=None, user_agent=None):
         self.url = "https://connpass.com/api/v1/event/"
         self.event_id = event_id
-        self.prefecture = prefecture
+        self.prefecture = [] if prefecture is None else prefecture
         if keyword is None:
             self.keyword = []
         elif isinstance(keyword, str):
@@ -37,16 +37,16 @@ class ConnpassEventRequest:
         params = {}
         if self.event_id is not None:
             params["event_id"] = self.event_id
-        if self.prefecture != "":
-            self.keyword.append(self.prefecture)
-        if len(self.keyword) > 0:
-            params["keyword"] = ",".join(self.keyword)
+        if len(self.prefecture) > 0:
+            params["keyword_or"] = ",".join(self.prefecture)
         if len(self.series_id) > 0:
             params["series_id"] = ",".join(self.series_id)
         if len(self.ym) > 0:
             params["ym"] = ",".join(self.ym)
         if len(self.ymd) > 0:
             params["ymd"] = ",".join(self.ymd)
+        if len(self.keyword) > 0:
+            params["keyword"] = ",".join(self.keyword)
 
         page_size = 100
         params["count"] = page_size
@@ -74,7 +74,7 @@ class ConnpassEventRequest:
                 break
             page += 1
 
-        if self.prefecture != "":
+        if len(self.prefecture) > 0:
             events = list(filter(self.__is_in_pref, events))
 
         return events
@@ -99,4 +99,9 @@ class ConnpassEventRequest:
     def __is_in_pref(self, event):
         if event.address is None:
             return False
-        return event.address.startswith(self.prefecture)
+
+        for pref in self.prefecture:
+            if pref in event.address:
+                return True
+
+        return False
