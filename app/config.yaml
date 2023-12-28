@@ -6,7 +6,8 @@ metadata:
 api_client:
   user_agent: 'YamanashiTechEventAPI/{version} (+https://github.com/yuukis/yamanashi-event-api)'
 
-prefecture: '山梨県'
+prefecture:
+  - '山梨県'
 
 series_id:
   - '1678'   # 日本Androidの会 山梨支部
