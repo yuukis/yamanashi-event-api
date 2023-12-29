@@ -28,9 +28,9 @@ https://api.event.yamanashi.dev
     ```sh
     pip install -r requirements.txt
     ```
-3. Set environment variables
-    ```sh
-    export REDIS_URL=redis://localhost:6379
+3. Copy `.env.example` to `.env` and set environment variables
+    ```ini
+    REDIS_URL=redis://localhost:6379
     ```
 4. Run the app
     ```sh

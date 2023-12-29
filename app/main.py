@@ -8,8 +8,9 @@ from .cache import EventRequestCache
 import os
 import datetime
 import yaml
+from dotenv import load_dotenv
 
-
+load_dotenv()
 dirname = os.path.dirname(__file__)
 config_file = os.path.join(dirname, "config.yaml")
 
