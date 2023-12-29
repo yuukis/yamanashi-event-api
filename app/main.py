@@ -115,14 +115,14 @@ def read_events_in_year_month_day(
 
     events = []
     try:
-        if "prefecture" in config:
-            prefecture = config["prefecture"]
+        if "scope" in config and "prefecture" in config["scope"]:
+            prefecture = config["scope"]["prefecture"]
             events += ConnpassEventRequest(prefecture=prefecture, ymd=ymd,
                                            keyword=keyword, cache=cache,
                                            user_agent=user_agent
                                            ).get_events()
-        if "series_id" in config:
-            series_id = config["series_id"]
+        if "scope" in config and "series_id" in config["scope"]:
+            series_id = config["scope"]["series_id"]
             events += ConnpassEventRequest(series_id=series_id, ymd=ymd,
                                            keyword=keyword, cache=cache,
                                            user_agent=user_agent
@@ -145,7 +145,7 @@ def read_events_fromto_year_month(
     keyword: str = None
 ):
     if from_year > to_year or (from_year == to_year and from_month > to_month):
-        raise HTTPException(status_code=400, detail="Invalid year/month")
+        raise HTTPException(status_code=400, detail="Invalid date range")
 
     ym = []
     y = from_year
@@ -166,14 +166,14 @@ def read_events_fromto_year_month(
 
     events = []
     try:
-        if "prefecture" in config:
-            prefecture = config["prefecture"]
+        if "scope" in config and "prefecture" in config["scope"]:
+            prefecture = config["scope"]["prefecture"]
             events += ConnpassEventRequest(prefecture=prefecture, ym=ym,
                                            keyword=keyword, cache=cache,
                                            user_agent=user_agent
                                            ).get_events()
-        if "series_id" in config:
-            series_id = config["series_id"]
+        if "scope" in config and "series_id" in config["scope"]:
+            series_id = config["scope"]["series_id"]
             events += ConnpassEventRequest(series_id=series_id, ym=ym,
                                            keyword=keyword, cache=cache,
                                            user_agent=user_agent

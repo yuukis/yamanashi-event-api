@@ -6,17 +6,18 @@ metadata:
 api_client:
   user_agent: 'YamanashiTechEventAPI/{version} (+https://github.com/yuukis/yamanashi-event-api)'
 
-prefecture:
-  - '山梨県'
+scope:
+  prefecture:
+    - '山梨県'
 
-series_id:
-  - '1678'   # 日本Androidの会 山梨支部
-  - '4255'   # 子ども向けプログラミングクラブ コーダー道場甲府
-  - '5327'   # Redmineプラグインもくもく会 山梨
-  - '7069'   # shingen.py
-  - '7465'   # 子どものためのプログラミングクラブ CoderDojo北杜
-  - '7466'   # 子どものためのプログラミングクラブ CoderDojo韮崎
-  - '7759'   # 山梨IT同好会(仮)
-  - '9176'   # 富士もくもく会
-  - '10940'  # 山梨Web勉強会
-  - '11367'  # 山梨SPA
+  series_id:
+    - '1678'   # 日本Androidの会 山梨支部
+    - '4255'   # 子ども向けプログラミングクラブ コーダー道場甲府
+    - '5327'   # Redmineプラグインもくもく会 山梨
+    - '7069'   # shingen.py
+    - '7465'   # 子どものためのプログラミングクラブ CoderDojo北杜
+    - '7466'   # 子どものためのプログラミングクラブ CoderDojo韮崎
+    - '7759'   # 山梨IT同好会(仮)
+    - '9176'   # 富士もくもく会
+    - '10940'  # 山梨Web勉強会
+    - '11367'  # 山梨SPA
