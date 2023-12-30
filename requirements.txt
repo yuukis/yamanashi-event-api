@@ -4,3 +4,4 @@ redis
 uvicorn
 pyyaml
 python-dotenv
+pytest
