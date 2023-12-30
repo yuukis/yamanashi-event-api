@@ -1,3 +1,4 @@
+[![Test](https://github.com/yuukis/yamanashi-event-api/actions/workflows/test.yml/badge.svg?branch=main&event=push)](https://github.com/yuukis/yamanashi-event-api/actions/workflows/test.yml)
 [![DockerHub](https://github.com/yuukis/yamanashi-event-api/actions/workflows/dockerhub.yml/badge.svg?branch=main&event=push)](https://github.com/yuukis/yamanashi-event-api/actions/workflows/dockerhub.yml)
 
 # Yamanashi Tech Events API
