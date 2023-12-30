@@ -5,7 +5,7 @@ import json
 
 class EventRequestCache:
 
-    def __init__(self, url="redis://localhost:6379", prefix="request_"):
+    def __init__(self, url="redis://localhost:6379", prefix="event-request:"):
         self._redis = Redis.from_url(url=url)
         self._prefix = prefix
 
