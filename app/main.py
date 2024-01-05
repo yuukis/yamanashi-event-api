@@ -41,7 +41,7 @@ def docs_redirect():
 
 @app.get("/events", response_model=List[Event])
 def read_events(keyword: str = None):
-    days = 90
+    days = config["recent_days"] if "recent_days" in config else 90
     now = datetime.datetime.now()
     dt_from = now - datetime.timedelta(days=days)
     dt_to = now + datetime.timedelta(days=days)

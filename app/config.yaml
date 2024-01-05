@@ -6,6 +6,8 @@ metadata:
 api_client:
   user_agent: 'YamanashiTechEventAPI/{version} (+https://github.com/yuukis/yamanashi-event-api)'
 
+recent_days: 90
+
 scope:
   prefecture:
     - '山梨県'
