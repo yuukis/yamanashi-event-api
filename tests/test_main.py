@@ -49,7 +49,7 @@ def test_read_events_in_year_month():
 
 
 def test_read_events_in_year_month_day():
-    response = client.get("/events/in/2023/12/31")
+    response = client.get("/events/in/2024/01/28")
     assert response.status_code == 200
     assert isinstance(response.json(), list)
 
