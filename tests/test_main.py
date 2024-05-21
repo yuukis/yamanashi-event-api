@@ -71,6 +71,12 @@ def test_read_events_full():
     assert isinstance(response.json(), list)
 
 
+def test_read_events_full_today():
+    response = client.get("/events/full/today")
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+
+
 def test_get_user_agent():
     config = {
         "metadata": {
