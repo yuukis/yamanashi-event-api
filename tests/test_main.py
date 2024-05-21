@@ -49,7 +49,7 @@ def test_read_events_in_year_month():
 
 
 def test_read_events_in_year_month_day():
-    response = client.get("/events/in/2023/12/31")
+    response = client.get("/events/in/2024/01/28")
     assert response.status_code == 200
     assert isinstance(response.json(), list)
 
@@ -62,6 +62,51 @@ def test_read_events_fromto_year_month():
 
 def test_read_events_fromto_year_month_invalid():
     response = client.get("/events/from/2023/12/to/2022/11")
+    assert response.status_code == 400
+
+
+def test_read_events_full():
+    response = client.get("/events/full")
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+
+
+def test_read_events_full_today():
+    response = client.get("/events/full/today")
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+
+
+def test_read_events_full_in_year():
+    response = client.get("/events/full/in/2023")
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+    assert "description" in response.json()[0]
+
+
+def test_read_events_full_in_year_month():
+    response = client.get("/events/full/in/2023/12")
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+    assert "description" in response.json()[0]
+
+
+def test_read_events_full_in_year_month_day():
+    response = client.get("/events/full/in/2024/01/28")
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+    assert "description" in response.json()[0]
+
+
+def test_read_events_full_fromto_year_month():
+    response = client.get("/events/full/from/2023/12/to/2024/01")
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+    assert "description" in response.json()[0]
+
+
+def test_read_events_full_fromto_year_month_invalid():
+    response = client.get("/events/full/from/2023/12/to/2022/11")
     assert response.status_code == 400
 
 

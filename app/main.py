@@ -186,6 +186,57 @@ def read_events_fromto_year_month(
     return events
 
 
+@app.get("/events/full", response_model=List[EventDetail])
+def read_events_full(keyword: str = None):
+    return read_events(keyword)
+
+
+@app.get("/events/full/today", response_model=List[EventDetail])
+def read_events_full_today(keyword: str = None):
+    return read_events_today(keyword)
+
+
+@app.get("/events/full/in/{year}", response_model=List[EventDetail])
+def read_events_full_in_year(
+    year: int = Path(ge=2010, le=2040),
+    keyword: str = None
+):
+    return read_events_in_year(year, keyword)
+
+
+@app.get("/events/full/in/{year}/{month}", response_model=List[EventDetail])
+def read_events_full_in_year_month(
+    year: int = Path(ge=2010, le=2040),
+    month: int = Path(ge=1, le=12),
+    keyword: str = None
+):
+    return read_events_in_year_month(year, month, keyword)
+
+
+@app.get("/events/full/in/{year}/{month}/{day}",
+         response_model=List[EventDetail])
+def read_events_full_in_year_month_day(
+    year: int = Path(ge=2010, le=2040),
+    month: int = Path(ge=1, le=12),
+    day: int = Path(ge=1, le=31),
+    keyword: str = None
+):
+    return read_events_in_year_month_day(year, month, day, keyword)
+
+
+@app.get("/events/full/from/{from_year}/{from_month}/to/{to_year}/{to_month}",
+         response_model=List[EventDetail])
+def read_events_full_fromto_year_month(
+    from_year: int = Path(ge=2010, le=2040),
+    from_month: int = Path(ge=1, le=12),
+    to_year: int = Path(ge=2010, le=2040),
+    to_month: int = Path(ge=1, le=12),
+    keyword: str = None
+):
+    return read_events_fromto_year_month(from_year, from_month,
+                                         to_year, to_month, keyword)
+
+
 def get_user_agent(config):
     if "api_client" in config and "user_agent" in config["api_client"]:
         version = config["metadata"]["version"]
