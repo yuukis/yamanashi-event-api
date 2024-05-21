@@ -1,7 +1,7 @@
 metadata:
   title: 'Yamanashi Tech Events API'
   description: 'This is an API for Tech events in Yamanashi prefecture.'
-  version: '1.0.5'
+  version: '1.1.0'
 
 api_client:
   user_agent: 'YamanashiTechEventAPI/{version} (+https://github.com/yuukis/yamanashi-event-api)'
