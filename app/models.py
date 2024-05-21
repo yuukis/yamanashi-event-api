@@ -12,9 +12,6 @@ class Event:
     started_at: str
     ended_at: str
     updated_at: str
-    limit: Optional[int]
-    accepted: Optional[int]
-    waiting: Optional[int]
     owner_name: str
     place: Optional[str]
     address: Optional[str]
