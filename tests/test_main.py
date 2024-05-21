@@ -65,6 +65,12 @@ def test_read_events_fromto_year_month_invalid():
     assert response.status_code == 400
 
 
+def test_read_events_full():
+    response = client.get("/events/full")
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+
+
 def test_get_user_agent():
     config = {
         "metadata": {

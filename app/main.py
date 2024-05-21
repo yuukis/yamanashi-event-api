@@ -186,6 +186,11 @@ def read_events_fromto_year_month(
     return events
 
 
+@app.get("/events/full", response_model=List[EventDetail])
+def read_events_full(keyword: str = None):
+    return read_events(keyword)
+
+
 def get_user_agent(config):
     if "api_client" in config and "user_agent" in config["api_client"]:
         version = config["metadata"]["version"]
