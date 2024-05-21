@@ -98,6 +98,18 @@ def test_read_events_full_in_year_month_day():
     assert "description" in response.json()[0]
 
 
+def test_read_events_full_fromto_year_month():
+    response = client.get("/events/full/from/2023/12/to/2024/01")
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+    assert "description" in response.json()[0]
+
+
+def test_read_events_full_fromto_year_month_invalid():
+    response = client.get("/events/full/from/2023/12/to/2022/11")
+    assert response.status_code == 400
+
+
 def test_get_user_agent():
     config = {
         "metadata": {

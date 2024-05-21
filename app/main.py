@@ -224,6 +224,19 @@ def read_events_full_in_year_month_day(
     return read_events_in_year_month_day(year, month, day, keyword)
 
 
+@app.get("/events/full/from/{from_year}/{from_month}/to/{to_year}/{to_month}",
+         response_model=List[EventDetail])
+def read_events_full_fromto_year_month(
+    from_year: int = Path(ge=2010, le=2040),
+    from_month: int = Path(ge=1, le=12),
+    to_year: int = Path(ge=2010, le=2040),
+    to_month: int = Path(ge=1, le=12),
+    keyword: str = None
+):
+    return read_events_fromto_year_month(from_year, from_month,
+                                         to_year, to_month, keyword)
+
+
 def get_user_agent(config):
     if "api_client" in config and "user_agent" in config["api_client"]:
         version = config["metadata"]["version"]
