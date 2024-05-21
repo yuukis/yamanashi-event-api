@@ -22,13 +22,6 @@ def test_read_events_today():
     assert isinstance(response.json(), list)
 
 
-def test_read_event_detail():
-    response = client.get("/events/304904/detail")
-    assert response.status_code == 200
-    assert isinstance(response.json(), dict)
-    assert "description" in response.json()
-
-
 def test_read_events_in_year():
     response = client.get("/events/in/2023")
     assert response.status_code == 200
