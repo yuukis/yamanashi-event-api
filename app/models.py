@@ -48,6 +48,28 @@ class EventDetail(Event):
     lat: Optional[str]
     lon: Optional[str]
 
+    def contains_keyword(self, keyword: str):
+        if keyword is None:
+            return True
+
+        keyword = keyword.replace(",", " ").replace("　", " ")
+        keywords = keyword.split()
+
+        for k in keywords:
+            k = k.lower()
+            if not any([
+                k in self.title.lower(),
+                k in self.catch.lower(),
+                k in self.owner_name.lower(),
+                k in (self.place.lower() if self.place else ""),
+                k in (self.address.lower() if self.address else ""),
+                k in (self.group_name.lower() if self.group_name else ""),
+                k in self.description.lower(),
+            ]):
+                return False
+
+        return True
+
     @staticmethod
     def from_json(json: dict):
         events = []
