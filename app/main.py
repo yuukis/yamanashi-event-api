@@ -204,6 +204,15 @@ def read_events_full_in_year(
     return read_events_in_year(year, keyword)
 
 
+@app.get("/events/full/in/{year}/{month}", response_model=List[EventDetail])
+def read_events_full_in_year_month(
+    year: int = Path(ge=2010, le=2040),
+    month: int = Path(ge=1, le=12),
+    keyword: str = None
+):
+    return read_events_in_year_month(year, month, keyword)
+
+
 def get_user_agent(config):
     if "api_client" in config and "user_agent" in config["api_client"]:
         version = config["metadata"]["version"]
