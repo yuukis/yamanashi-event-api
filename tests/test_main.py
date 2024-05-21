@@ -91,6 +91,13 @@ def test_read_events_full_in_year_month():
     assert "description" in response.json()[0]
 
 
+def test_read_events_full_in_year_month_day():
+    response = client.get("/events/full/in/2024/01/28")
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+    assert "description" in response.json()[0]
+
+
 def test_get_user_agent():
     config = {
         "metadata": {
