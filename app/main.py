@@ -196,6 +196,14 @@ def read_events_full_today(keyword: str = None):
     return read_events_today(keyword)
 
 
+@app.get("/events/full/in/{year}", response_model=List[EventDetail])
+def read_events_full_in_year(
+    year: int = Path(ge=2010, le=2040),
+    keyword: str = None
+):
+    return read_events_in_year(year, keyword)
+
+
 def get_user_agent(config):
     if "api_client" in config and "user_agent" in config["api_client"]:
         version = config["metadata"]["version"]
