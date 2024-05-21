@@ -142,20 +142,22 @@ def read_events_fromto_year_month(
         if "scope" in config and "prefecture" in config["scope"]:
             prefecture = config["scope"]["prefecture"]
             events += ConnpassEventRequest(prefecture=prefecture, ym=ym,
-                                           keyword=keyword, cache=cache,
-                                           user_agent=user_agent
+                                           cache=cache, user_agent=user_agent
                                            ).get_events()
         if "scope" in config and "series_id" in config["scope"]:
             series_id = config["scope"]["series_id"]
             events += ConnpassEventRequest(series_id=series_id, ym=ym,
-                                           keyword=keyword, cache=cache,
-                                           user_agent=user_agent
+                                           cache=cache, user_agent=user_agent
                                            ).get_events()
     except ConnpassException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
 
     events = Event.distinct_by_id(events)
     events.sort(key=lambda x: x.started_at, reverse=False)
+
+    if keyword is not None:
+        events = [event for event in events if event.contains_keyword(keyword)]
+
     return events
 
 
