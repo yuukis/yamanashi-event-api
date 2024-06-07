@@ -94,12 +94,15 @@ def read_events_in_year_month_day(
                                            keyword=keyword, cache=cache,
                                            user_agent=user_agent
                                            ).get_events()
-        if "scope" in config and "series_id" in config["scope"]:
-            series_id = config["scope"]["series_id"]
-            events += ConnpassEventRequest(series_id=series_id, ymd=ymd,
-                                           keyword=keyword, cache=cache,
-                                           user_agent=user_agent
-                                           ).get_events()
+        # TODO:
+        # connpass の robots.txt に従い、連続リクエストとならないよう一時的にコメントアウト
+        #
+        # if "scope" in config and "series_id" in config["scope"]:
+        #     series_id = config["scope"]["series_id"]
+        #     events += ConnpassEventRequest(series_id=series_id, ymd=ymd,
+        #                                    keyword=keyword, cache=cache,
+        #                                    user_agent=user_agent
+        #                                    ).get_events()
     except ConnpassException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
 
@@ -144,11 +147,14 @@ def read_events_fromto_year_month(
             events += ConnpassEventRequest(prefecture=prefecture, ym=ym,
                                            cache=cache, user_agent=user_agent
                                            ).get_events()
-        if "scope" in config and "series_id" in config["scope"]:
-            series_id = config["scope"]["series_id"]
-            events += ConnpassEventRequest(series_id=series_id, ym=ym,
-                                           cache=cache, user_agent=user_agent
-                                           ).get_events()
+        # TODO:
+        # connpass の robots.txt に従い、連続リクエストとならないよう一時的にコメントアウト
+        #
+        # if "scope" in config and "series_id" in config["scope"]:
+        #     series_id = config["scope"]["series_id"]
+        #     events += ConnpassEventRequest(series_id=series_id, ym=ym,
+        #                                    cache=cache, user_agent=user_agent
+        #                                    ).get_events()
     except ConnpassException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
 
