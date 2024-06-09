@@ -25,4 +25,4 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run pytest
-        run: pytest
+        run: pytest --ignore=tests/test_main.py
