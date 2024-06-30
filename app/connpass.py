@@ -1,5 +1,6 @@
 import requests
 import re
+import time
 from .models import EventDetail
 
 
@@ -80,12 +81,20 @@ class ConnpassEventRequest:
         return events
 
     def __get(self, params):
+        if self.cache is not None:
+            wait_sec = self.cache.get_wait_for_request()
+            if wait_sec > 0:
+                time.sleep(wait_sec)
+
         headers = {}
         if self.user_agent is not None:
             headers["User-Agent"] = self.user_agent
 
         print({"params": params, "headers": headers})
         response = requests.get(self.url, headers=headers, params=params)
+
+        if self.cache is not None:
+            self.cache.set_wait_for_request(5)
 
         if response.status_code != 200:
             status_code = response.status_code
