@@ -1,6 +1,7 @@
 import requests
 import re
 import time
+import datetime
 from .models import EventDetail
 
 
@@ -90,7 +91,10 @@ class ConnpassEventRequest:
         if self.user_agent is not None:
             headers["User-Agent"] = self.user_agent
 
-        print({"params": params, "headers": headers})
+        date = datetime.datetime.now()
+        date_str = date.strftime('%Y-%m-%d %H:%M:%S')
+        print({"params": params, "headers": headers, "url": self.url,
+               "date": date_str})
         response = requests.get(self.url, headers=headers, params=params)
 
         if self.cache is not None:
