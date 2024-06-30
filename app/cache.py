@@ -1,6 +1,7 @@
 from redis import Redis
 import hashlib
 import json
+import datetime
 
 
 class EventRequestCache:
@@ -27,3 +28,16 @@ class EventRequestCache:
         key_sha256 = hashlib.sha256(json_text.encode())
         key = self._prefix + key_sha256.hexdigest()
         return key
+
+    def get_wait_for_request(self) -> int:
+        key = "request_wait_sec"
+        ttl = self._redis.ttl(key)
+        if ttl == -2:
+            return 0
+        return ttl
+
+    def set_wait_for_request(self, wait_sec: int):
+        key = "request_wait_sec"
+        date = datetime.datetime.now()
+        date_str = date.strftime('%Y-%m-%d %H:%M:%S')
+        self._redis.set(key, date_str, ex=wait_sec)
