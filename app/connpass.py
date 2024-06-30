@@ -82,9 +82,12 @@ class ConnpassEventRequest:
 
     def __get(self, params):
         if self.cache is not None:
-            wait_sec = self.cache.get_wait_for_request()
-            if wait_sec > 0:
+            while True:
+                wait_sec = self.cache.get_wait_for_request()
+                if wait_sec == 0:
+                    break
                 time.sleep(wait_sec)
+            self.cache.set_wait_for_request(5)
 
         headers = {}
         if self.user_agent is not None:
