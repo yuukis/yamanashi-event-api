@@ -80,31 +80,7 @@ def read_events_in_year_month_day(
     keyword: str = None
 ):
     ymd = [f"{year:04}{month:02}{day:02}"]
-
-    cache = None
-    if redis_url is not None:
-        cache = EventRequestCache(url=redis_url)
-    user_agent = get_user_agent(config)
-
-    events = []
-    try:
-        if "scope" in config and "prefecture" in config["scope"]:
-            prefecture = config["scope"]["prefecture"]
-            events += ConnpassEventRequest(prefecture=prefecture, ymd=ymd,
-                                           keyword=keyword, cache=cache,
-                                           user_agent=user_agent
-                                           ).get_events()
-        if "scope" in config and "series_id" in config["scope"]:
-            series_id = config["scope"]["series_id"]
-            events += ConnpassEventRequest(series_id=series_id, ymd=ymd,
-                                           keyword=keyword, cache=cache,
-                                           user_agent=user_agent
-                                           ).get_events()
-    except ConnpassException as e:
-        raise HTTPException(status_code=e.status_code, detail=e.message)
-
-    events = Event.distinct_by_id(events)
-    events.sort(key=lambda x: x.started_at, reverse=False)
+    events = request_events({"ymd": ymd, "keyword": keyword})
     return events
 
 
@@ -132,32 +108,7 @@ def read_events_fromto_year_month(
             y += 1
             m = 1
 
-    cache = None
-    if redis_url is not None:
-        cache = EventRequestCache(url=redis_url)
-    user_agent = get_user_agent(config)
-
-    events = []
-    try:
-        if "scope" in config and "prefecture" in config["scope"]:
-            prefecture = config["scope"]["prefecture"]
-            events += ConnpassEventRequest(prefecture=prefecture, ym=ym,
-                                           cache=cache, user_agent=user_agent
-                                           ).get_events()
-        if "scope" in config and "series_id" in config["scope"]:
-            series_id = config["scope"]["series_id"]
-            events += ConnpassEventRequest(series_id=series_id, ym=ym,
-                                           cache=cache, user_agent=user_agent
-                                           ).get_events()
-    except ConnpassException as e:
-        raise HTTPException(status_code=e.status_code, detail=e.message)
-
-    events = Event.distinct_by_id(events)
-    events.sort(key=lambda x: x.started_at, reverse=False)
-
-    if keyword is not None:
-        events = [event for event in events if event.contains_keyword(keyword)]
-
+    events = request_events({"ym": ym, "keyword": keyword})
     return events
 
 
@@ -210,6 +161,40 @@ def read_events_full_fromto_year_month(
 ):
     return read_events_fromto_year_month(from_year, from_month,
                                          to_year, to_month, keyword)
+
+
+def request_events(params):
+    ym = params["ym"] if "ym" in params else None
+    ymd = params["ymd"] if "ymd" in params else None
+    keyword = params["keyword"] if "keyword" in params else None
+
+    cache = None
+    if redis_url is not None:
+        cache = EventRequestCache(url=redis_url)
+    user_agent = get_user_agent(config)
+
+    events = []
+    try:
+        if "scope" in config and "prefecture" in config["scope"]:
+            prefecture = config["scope"]["prefecture"]
+            events += ConnpassEventRequest(prefecture=prefecture, 
+                                           ym=ym, ymd=ymd,
+                                           keyword=keyword, cache=cache,
+                                           user_agent=user_agent
+                                           ).get_events()
+        if "scope" in config and "series_id" in config["scope"]:
+            series_id = config["scope"]["series_id"]
+            events += ConnpassEventRequest(series_id=series_id,
+                                           ym=ym, ymd=ymd,
+                                           keyword=keyword, cache=cache,
+                                           user_agent=user_agent
+                                           ).get_events()
+    except ConnpassException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+
+    events = Event.distinct_by_id(events)
+    events.sort(key=lambda x: x.started_at, reverse=False)
+    return events
 
 
 def get_user_agent(config):
