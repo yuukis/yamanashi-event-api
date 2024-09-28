@@ -70,7 +70,7 @@ class ConnpassEventRequest:
                 json = response.json()
                 if self.cache is not None:
                     self.cache.set(params, json)
-            events += EventDetail.from_json(json['events'])
+            events += self.__convert_to_events(json['events'])
 
             if json['results_returned'] < page_size:
                 break
@@ -121,3 +121,38 @@ class ConnpassEventRequest:
                 return True
 
         return False
+
+    def __convert_to_events(self, json: dict):
+        events = []
+
+        for item in json:
+            series_title = None
+            series_url = None
+            if item["series"] is not None:
+                series_title = item["series"]["title"]
+                series_url = item["series"]["url"]
+
+            events.append(
+                EventDetail(
+                    event_id=item["event_id"],
+                    title=item["title"],
+                    catch=item["catch"],
+                    hash_tag=item["hash_tag"],
+                    event_url=item["event_url"],
+                    started_at=item["started_at"],
+                    ended_at=item["ended_at"],
+                    updated_at=item["updated_at"],
+                    limit=item["limit"],
+                    accepted=item["accepted"],
+                    waiting=item["waiting"],
+                    owner_name=item["owner_display_name"],
+                    place=item["place"],
+                    address=item["address"],
+                    group_name=series_title,
+                    group_url=series_url,
+                    description=item["description"],
+                    lat=item["lat"],
+                    lon=item["lon"]
+                )
+            )
+        return events
