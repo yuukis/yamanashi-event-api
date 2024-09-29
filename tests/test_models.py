@@ -76,6 +76,91 @@ class TestEvent(unittest.TestCase):
         # Check if the event contains the keyword "Event" and "Dummy"
         self.assertFalse(event.contains_keyword("Event,Dummy"))
 
+    def test_from_json_with_data(self):
+        # Create a data object
+        data = {
+            "event_id": 1,
+            "title": "Event 1",
+            "catch": "Catch 1",
+            "hash_tag": "Hash Tag",
+            "event_url": "Event URL",
+            "started_at": "2022-01-01T00:00:00+09:00",
+            "ended_at": "2022-01-01T00:00:00+09:00",
+            "updated_at": "2022-01-01T00:00:00+09:00",
+            "limit": 0,
+            "accepted": 0,
+            "waiting": 0,
+            "owner_name": "Owner 1",
+            "place": "Place",
+            "address": "Address",
+            "group_name": "Group Name",
+            "group_url": "Group URL",
+            "description": "Description",
+            "lat": "35.6895",
+            "lon": "139.6917"
+        }
+
+        # Call the from_json method
+        event = EventDetail.from_json(data)
+
+        # Check if the event object is created
+        self.assertIsNotNone(event)
+        self.assertEqual(event.event_id, 1)
+        self.assertEqual(event.title, "Event 1")
+        self.assertEqual(event.catch, "Catch 1")
+        self.assertEqual(event.hash_tag, "Hash Tag")
+        self.assertEqual(event.event_url, "Event URL")
+        self.assertEqual(event.started_at, "2022-01-01T00:00:00+09:00")
+        self.assertEqual(event.ended_at, "2022-01-01T00:00:00+09:00")
+        self.assertEqual(event.updated_at, "2022-01-01T00:00:00+09:00")
+        self.assertEqual(event.limit, 0)
+        self.assertEqual(event.accepted, 0)
+        self.assertEqual(event.waiting, 0)
+        self.assertEqual(event.owner_name, "Owner 1")
+        self.assertEqual(event.place, "Place")
+        self.assertEqual(event.address, "Address")
+        self.assertEqual(event.group_name, "Group Name")
+        self.assertEqual(event.group_url, "Group URL")
+        self.assertEqual(event.description, "Description")
+        self.assertEqual(event.lat, "35.6895")
+        self.assertEqual(event.lon, "139.6917")
+
+    def test_to_json_with_list(self):
+        # Create a list of event objects
+        events = [
+            EventDetail(event_id=1, title="Event 1", catch="Catch 1",
+                        hash_tag="Hash Tag", event_url="Event URL",
+                        started_at="2022-01-01T00:00:00+09:00",
+                        ended_at="2022-01-01T00:00:00+09:00",
+                        updated_at="2022-01-01T00:00:00+09:00",
+                        limit=0, accepted=0, waiting=0,
+                        owner_name="Owner 1",
+                        place="Place", address="Address",
+                        group_name="Group Name", group_url="Group URL",
+                        description="Description",
+                        lat="35.6895", lon="139.6917"),
+            EventDetail(event_id=2, title="Event 2", catch="Catch 2",
+                        hash_tag="Hash Tag", event_url="Event URL",
+                        started_at="2022-01-01T00:00:00+09:00",
+                        ended_at="2022-01-01T00:00:00+09:00",
+                        updated_at="2022-01-01T00:00:00+09:00",
+                        limit=0, accepted=0, waiting=0,
+                        owner_name="Owner 2",
+                        place="Place", address="Address",
+                        group_name="Group Name", group_url="Group URL",
+                        description="Description",
+                        lat="35.6895", lon="139.6917")
+        ]
+
+        # Call the to_json method
+        data = EventDetail.to_json(events)
+
+        # Check if the data object is created
+        self.assertIsNotNone(data)
+        self.assertEqual(len(data), 2)
+        self.assertEqual(data[0]["event_id"], 1)
+        self.assertEqual(data[1]["event_id"], 2)
+
 
 if __name__ == '__main__':
     unittest.main()

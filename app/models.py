@@ -68,37 +68,61 @@ class EventDetail(Event):
         return True
 
     @staticmethod
-    def from_json(json: dict):
-        events = []
+    def from_json(data: any):
+        if isinstance(data, list):
+            return [EventDetail.from_json(item) for item in data]
 
-        for item in json:
-            series_title = None
-            series_url = None
-            if item["series"] is not None:
-                series_title = item["series"]["title"]
-                series_url = item["series"]["url"]
-
-            events.append(
-                EventDetail(
-                    event_id=item["event_id"],
-                    title=item["title"],
-                    catch=item["catch"],
-                    hash_tag=item["hash_tag"],
-                    event_url=item["event_url"],
-                    started_at=item["started_at"],
-                    ended_at=item["ended_at"],
-                    updated_at=item["updated_at"],
-                    limit=item["limit"],
-                    accepted=item["accepted"],
-                    waiting=item["waiting"],
-                    owner_name=item["owner_display_name"],
-                    place=item["place"],
-                    address=item["address"],
-                    group_name=series_title,
-                    group_url=series_url,
-                    description=item["description"],
-                    lat=item["lat"],
-                    lon=item["lon"]
-                )
+        if isinstance(data, dict):
+            return EventDetail(
+                event_id=data["event_id"],
+                title=data["title"],
+                catch=data["catch"],
+                hash_tag=data["hash_tag"],
+                event_url=data["event_url"],
+                started_at=data["started_at"],
+                ended_at=data["ended_at"],
+                updated_at=data["updated_at"],
+                limit=data["limit"],
+                accepted=data["accepted"],
+                waiting=data["waiting"],
+                owner_name=data["owner_name"],
+                place=data["place"],
+                address=data["address"],
+                group_name=data["group_name"],
+                group_url=data["group_url"],
+                description=data["description"],
+                lat=data["lat"],
+                lon=data["lon"]
             )
-        return events
+
+        raise ValueError("data must be EventDetail or List[EventDetail]")
+
+    @staticmethod
+    def to_json(data: any):
+        if isinstance(data, list):
+            return [EventDetail.to_json(item) for item in data]
+
+        if isinstance(data, EventDetail):
+            return {
+                "event_id": data.event_id,
+                "title": data.title,
+                "catch": data.catch,
+                "hash_tag": data.hash_tag,
+                "event_url": data.event_url,
+                "started_at": data.started_at,
+                "ended_at": data.ended_at,
+                "updated_at": data.updated_at,
+                "limit": data.limit,
+                "accepted": data.accepted,
+                "waiting": data.waiting,
+                "owner_name": data.owner_name,
+                "place": data.place,
+                "address": data.address,
+                "group_name": data.group_name,
+                "group_url": data.group_url,
+                "description": data.description,
+                "lat": data.lat,
+                "lon": data.lon
+            }
+
+        raise ValueError("data must be EventDetail or List[EventDetail]")
