@@ -217,7 +217,7 @@ def fetch_events(params):
     try:
         events = request_events(params)
 
-    except ConnpassException as e:
+    except ConnpassException:
         return
 
     cache = None
@@ -244,15 +244,13 @@ def request_events(params):
         if "scope" in config and "prefecture" in config["scope"]:
             prefecture = config["scope"]["prefecture"]
             events += ConnpassEventRequest(prefecture=prefecture,
-                                           ym=ym, ymd=ymd,
-                                           keyword=keyword, cache=cache,
+                                           ym=ym, ymd=ymd, cache=cache,
                                            user_agent=user_agent
                                            ).get_events()
         if "scope" in config and "series_id" in config["scope"]:
             series_id = config["scope"]["series_id"]
             events += ConnpassEventRequest(series_id=series_id,
-                                           ym=ym, ymd=ymd,
-                                           keyword=keyword, cache=cache,
+                                           ym=ym, ymd=ymd, cache=cache,
                                            user_agent=user_agent
                                            ).get_events()
     except ConnpassException as e:
@@ -260,6 +258,10 @@ def request_events(params):
 
     events = Event.distinct_by_id(events)
     events.sort(key=lambda x: x.started_at, reverse=False)
+
+    if keyword is not None:
+        events = [ev for ev in events if ev.contains_keyword(keyword)]
+
     return events
 
 
