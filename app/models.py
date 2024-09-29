@@ -66,3 +66,63 @@ class EventDetail(Event):
                 return False
 
         return True
+
+    @staticmethod
+    def from_json(data: any):
+        if isinstance(data, list):
+            return [EventDetail.from_json(item) for item in data]
+
+        if isinstance(data, dict):
+            return EventDetail(
+                event_id=data["event_id"],
+                title=data["title"],
+                catch=data["catch"],
+                hash_tag=data["hash_tag"],
+                event_url=data["event_url"],
+                started_at=data["started_at"],
+                ended_at=data["ended_at"],
+                updated_at=data["updated_at"],
+                limit=data["limit"],
+                accepted=data["accepted"],
+                waiting=data["waiting"],
+                owner_name=data["owner_name"],
+                place=data["place"],
+                address=data["address"],
+                group_name=data["group_name"],
+                group_url=data["group_url"],
+                description=data["description"],
+                lat=data["lat"],
+                lon=data["lon"]
+            )
+
+        raise ValueError("data must be EventDetail or List[EventDetail]")
+
+    @staticmethod
+    def to_json(data: any):
+        if isinstance(data, list):
+            return [EventDetail.to_json(item) for item in data]
+
+        if isinstance(data, EventDetail):
+            return {
+                "event_id": data.event_id,
+                "title": data.title,
+                "catch": data.catch,
+                "hash_tag": data.hash_tag,
+                "event_url": data.event_url,
+                "started_at": data.started_at,
+                "ended_at": data.ended_at,
+                "updated_at": data.updated_at,
+                "limit": data.limit,
+                "accepted": data.accepted,
+                "waiting": data.waiting,
+                "owner_name": data.owner_name,
+                "place": data.place,
+                "address": data.address,
+                "group_name": data.group_name,
+                "group_url": data.group_url,
+                "description": data.description,
+                "lat": data.lat,
+                "lon": data.lon
+            }
+
+        raise ValueError("data must be EventDetail or List[EventDetail]")
