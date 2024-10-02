@@ -1,4 +1,5 @@
 from redis import Redis
+from typing import Tuple
 import hashlib
 import json
 import datetime
@@ -11,17 +12,29 @@ class EventRequestCache:
         self._prefix = prefix
 
     def get(self, request_params) -> dict:
+        return self.get_with_last_modified(request_params)[0]
+
+    def get_with_last_modified(self, request_params) -> Tuple[dict, str]:
         key = self.generate_key(request_params)
         message = self._redis.get(key)
         if message is None:
-            return None
+            return None, None
 
-        return json.loads(message)
+        key_last_modified = key + ":last_modified"
+        last_modified = self._redis.get(key_last_modified)
+        if last_modified is not None and isinstance(last_modified, bytes):
+            last_modified = last_modified.decode()
+        return json.loads(message), last_modified
 
     def set(self, request_params, response_json, ex=3600):
         key = self.generate_key(request_params)
         message = json.dumps(response_json, sort_keys=True)
         self._redis.set(key, message, ex)
+
+        key_last_modified = key + ":last_modified"
+        last_modified = datetime.datetime.now(datetime.timezone.utc)
+        last_modified_str = last_modified.strftime('%a, %d %b %Y %H:%M:%S GMT')
+        self._redis.set(key_last_modified, last_modified_str, ex)
 
     def generate_key(self, params) -> str:
         json_text = json.dumps(params, sort_keys=True)

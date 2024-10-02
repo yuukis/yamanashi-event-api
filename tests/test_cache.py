@@ -18,7 +18,7 @@ class TestEventRequestCache(unittest.TestCase):
                        + "bb9636b34606441b8ae6"
 
         self.assertEqual(response, {"key": "value"})
-        self.cache._redis.get.assert_called_once_with(expected_key)
+        self.cache._redis.get.assert_any_call(expected_key)
 
     def test_get_non_existing_key(self):
         # Mocking Redis.get method to return None
@@ -39,8 +39,8 @@ class TestEventRequestCache(unittest.TestCase):
         expected_key = "request_5647d15eb1d32d1548f1504fcc64134946cd1c401c87" \
                        + "bb9636b34606441b8ae6"
 
-        self.cache._redis.set.assert_called_once_with(expected_key,
-                                                      '{"key": "value"}', 3600)
+        self.cache._redis.set.assert_any_call(expected_key,
+                                              '{"key": "value"}', 3600)
 
     def test_generate_key(self):
         params = {"param": "value"}
