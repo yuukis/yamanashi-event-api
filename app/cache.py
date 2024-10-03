@@ -1,7 +1,7 @@
 from redis import Redis
 import hashlib
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class EventRequestCache:
@@ -21,7 +21,7 @@ class EventRequestCache:
         last_modified = None
         ts = self._redis.get(key_last_modified)
         if ts is not None:
-            last_modified = datetime.fromtimestamp(int(ts))
+            last_modified = datetime.fromtimestamp(int(ts), tz=timezone.utc)
 
         return {
             "content": json.loads(content),
