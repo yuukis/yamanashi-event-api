@@ -32,9 +32,9 @@ class EventRequestCache:
         self._redis.set(key, message, ex)
 
         key_last_modified = key + ":last_modified"
-        last_modified = datetime.datetime.now(datetime.timezone.utc)
-        last_modified_str = last_modified.strftime('%a, %d %b %Y %H:%M:%S GMT')
-        self._redis.set(key_last_modified, last_modified_str, ex)
+        now = datetime.datetime.now(datetime.timezone.utc)
+        last_modified = now.strftime('%a, %d %b %Y %H:%M:%S GMT')
+        self._redis.set(key_last_modified, last_modified, ex)
 
     def generate_key(self, params) -> str:
         json_text = json.dumps(params, sort_keys=True)

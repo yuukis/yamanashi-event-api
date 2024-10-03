@@ -220,6 +220,10 @@ def get_events(params, background_tasks: BackgroundTasks = None):
     if cache is not None:
         background_tasks.add_task(fetch_events, params)
 
+    if last_modified is None:
+        now = datetime.datetime.now(datetime.timezone.utc)
+        last_modified = now.strftime('%a, %d %b %Y %H:%M:%S GMT')
+
     return events, last_modified
 
 
