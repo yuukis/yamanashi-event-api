@@ -1,6 +1,6 @@
 from typing import List
 from fastapi import FastAPI, BackgroundTasks, Path, HTTPException
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from .connpass import ConnpassEventRequest, ConnpassException
 from .models import Event, EventDetail
@@ -40,51 +40,61 @@ def docs_redirect():
 
 
 @app.get("/events", response_model=List[Event])
-async def read_events(background_tasks: BackgroundTasks, keyword: str = None):
+async def read_events(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    keyword: str = None
+):
     days = config["recent_days"] if "recent_days" in config else 90
     now = datetime.now()
     dt_from = now - timedelta(days=days)
     dt_to = now + timedelta(days=days)
-    return await read_events_fromto_year_month(background_tasks,
+    return await read_events_fromto_year_month(response, background_tasks,
                                                dt_from.year, dt_from.month,
                                                dt_to.year, dt_to.month,
                                                keyword)
 
 
 @app.get("/events/today", response_model=List[Event])
-async def read_events_today(background_tasks: BackgroundTasks,
-                            keyword: str = None):
+async def read_events_today(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    keyword: str = None
+):
     now = datetime.now()
-    return await read_events_in_year_month_day(background_tasks,
+    return await read_events_in_year_month_day(response, background_tasks,
                                                now.year, now.month,
                                                now.day, keyword)
 
 
 @app.get("/events/in/{year}", response_model=List[Event])
 async def read_events_in_year(
+    response: Response,
     background_tasks: BackgroundTasks,
     year: int = Path(ge=2010, le=2040),
     keyword: str = None
 ):
-    return await read_events_fromto_year_month(background_tasks,
+    return await read_events_fromto_year_month(response, background_tasks,
                                                year, 1, year, 12,
                                                keyword)
 
 
 @app.get("/events/in/{year}/{month}", response_model=List[Event])
 async def read_events_in_year_month(
+    response: Response,
     background_tasks: BackgroundTasks,
     year: int = Path(ge=2010, le=2040),
     month: int = Path(ge=1, le=12),
     keyword: str = None
 ):
-    return await read_events_fromto_year_month(background_tasks,
+    return await read_events_fromto_year_month(response, background_tasks,
                                                year, month, year, month,
                                                keyword)
 
 
 @app.get("/events/in/{year}/{month}/{day}", response_model=List[Event])
 async def read_events_in_year_month_day(
+    response: Response,
     background_tasks: BackgroundTasks,
     year: int = Path(ge=2010, le=2040),
     month: int = Path(ge=1, le=12),
@@ -94,12 +104,17 @@ async def read_events_in_year_month_day(
     ymd = [f"{year:04}{month:02}{day:02}"]
     events, last_modified = get_events({"ymd": ymd, "keyword": keyword},
                                        background_tasks)
+
+    if last_modified is not None:
+        last_modified_str = last_modified.strftime("%a, %d %b %Y %H:%M:%S GMT")
+        response.headers["Last-Modified"] = last_modified_str
     return events
 
 
 @app.get("/events/from/{from_year}/{from_month}/to/{to_year}/{to_month}",
          response_model=List[Event])
 async def read_events_fromto_year_month(
+    response: Response,
     background_tasks: BackgroundTasks,
     from_year: int = Path(ge=2010, le=2040),
     from_month: int = Path(ge=1, le=12),
@@ -124,58 +139,71 @@ async def read_events_fromto_year_month(
 
     events, last_modified = get_events({"ym": ym, "keyword": keyword},
                                        background_tasks)
+    
+    if last_modified is not None:
+        last_modified_str = last_modified.strftime("%a, %d %b %Y %H:%M:%S GMT")
+        response.headers["Last-Modified"] = last_modified_str
     return events
 
 
 @app.get("/events/full", response_model=List[EventDetail])
-async def read_events_full(background_tasks: BackgroundTasks,
-                           keyword: str = None):
-    return await read_events(background_tasks, keyword)
+async def read_events_full(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    keyword: str = None
+):
+    return await read_events(response, background_tasks, keyword)
 
 
 @app.get("/events/full/today", response_model=List[EventDetail])
-async def read_events_full_today(background_tasks: BackgroundTasks,
-                                 keyword: str = None):
-    return await read_events_today(background_tasks, keyword)
+async def read_events_full_today(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    keyword: str = None
+):
+    return await read_events_today(response, background_tasks, keyword)
 
 
 @app.get("/events/full/in/{year}", response_model=List[EventDetail])
 async def read_events_full_in_year(
+    response: Response,
     background_tasks: BackgroundTasks,
     year: int = Path(ge=2010, le=2040),
     keyword: str = None
 ):
-    return await read_events_in_year(background_tasks, year, keyword)
+    return await read_events_in_year(response, background_tasks, year, keyword)
 
 
 @app.get("/events/full/in/{year}/{month}", response_model=List[EventDetail])
 async def read_events_full_in_year_month(
+    response: Response,
     background_tasks: BackgroundTasks,
     year: int = Path(ge=2010, le=2040),
     month: int = Path(ge=1, le=12),
     keyword: str = None
 ):
-    return await read_events_in_year_month(background_tasks, year, month,
-                                           keyword)
+    return await read_events_in_year_month(response, background_tasks,
+                                           year, month, keyword)
 
 
 @app.get("/events/full/in/{year}/{month}/{day}",
          response_model=List[EventDetail])
 async def read_events_full_in_year_month_day(
+    response: Response,
     background_tasks: BackgroundTasks,
     year: int = Path(ge=2010, le=2040),
     month: int = Path(ge=1, le=12),
     day: int = Path(ge=1, le=31),
     keyword: str = None
 ):
-    return await read_events_in_year_month_day(background_tasks,
-                                               year, month, day,
-                                               keyword)
+    return await read_events_in_year_month_day(response, background_tasks,
+                                               year, month, day, keyword)
 
 
 @app.get("/events/full/from/{from_year}/{from_month}/to/{to_year}/{to_month}",
          response_model=List[EventDetail])
 async def read_events_full_fromto_year_month(
+    response: Response,
     background_tasks: BackgroundTasks,
     from_year: int = Path(ge=2010, le=2040),
     from_month: int = Path(ge=1, le=12),
@@ -183,7 +211,7 @@ async def read_events_full_fromto_year_month(
     to_month: int = Path(ge=1, le=12),
     keyword: str = None
 ):
-    return await read_events_fromto_year_month(background_tasks,
+    return await read_events_fromto_year_month(response, background_tasks,
                                                from_year, from_month,
                                                to_year, to_month,
                                                keyword)
