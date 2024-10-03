@@ -6,7 +6,7 @@ from .connpass import ConnpassEventRequest, ConnpassException
 from .models import Event, EventDetail
 from .cache import EventRequestCache
 import os
-import datetime
+from datetime import datetime, timedelta
 import yaml
 from dotenv import load_dotenv
 
@@ -42,9 +42,9 @@ def docs_redirect():
 @app.get("/events", response_model=List[Event])
 async def read_events(background_tasks: BackgroundTasks, keyword: str = None):
     days = config["recent_days"] if "recent_days" in config else 90
-    now = datetime.datetime.now()
-    dt_from = now - datetime.timedelta(days=days)
-    dt_to = now + datetime.timedelta(days=days)
+    now = datetime.now()
+    dt_from = now - timedelta(days=days)
+    dt_to = now + timedelta(days=days)
     return await read_events_fromto_year_month(background_tasks,
                                                dt_from.year, dt_from.month,
                                                dt_to.year, dt_to.month,
@@ -54,7 +54,7 @@ async def read_events(background_tasks: BackgroundTasks, keyword: str = None):
 @app.get("/events/today", response_model=List[Event])
 async def read_events_today(background_tasks: BackgroundTasks,
                             keyword: str = None):
-    now = datetime.datetime.now()
+    now = datetime.now()
     return await read_events_in_year_month_day(background_tasks,
                                                now.year, now.month,
                                                now.day, keyword)
