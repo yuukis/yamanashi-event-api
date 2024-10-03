@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import MagicMock
 from app.cache import EventRequestCache
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class TestEventRequestCache(unittest.TestCase):
@@ -26,7 +26,8 @@ class TestEventRequestCache(unittest.TestCase):
 
         expected_key = "request_5647d15eb1d32d1548f1504fcc64134946cd1c401c87" \
                        + "bb9636b34606441b8ae6:last_modified"
-        self.assertEqual(last_modified, datetime.fromtimestamp(123))
+        self.assertEqual(last_modified,
+                         datetime.fromtimestamp(123, timezone.utc))
         self.cache._redis.get.assert_any_call(expected_key)
 
     def test_get_non_existing_key(self):
@@ -55,7 +56,7 @@ class TestEventRequestCache(unittest.TestCase):
         # Mocking Redis.set method
         self.cache._redis.set = MagicMock()
 
-        dt = datetime.fromtimestamp(123)
+        dt = datetime.fromtimestamp(123, timezone.utc)
 
         self.cache.set({"param": "value"}, {"key": "value"}, last_modified=dt,
                        ex=3600)

@@ -21,7 +21,7 @@ class EventRequestCache:
         last_modified = None
         ts = self._redis.get(key_last_modified)
         if ts is not None:
-            last_modified = datetime.fromtimestamp(int(ts), tz=timezone.utc)
+            last_modified = datetime.fromtimestamp(int(ts), timezone.utc)
 
         return {
             "content": json.loads(content),

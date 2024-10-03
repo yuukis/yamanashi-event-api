@@ -139,7 +139,7 @@ async def read_events_fromto_year_month(
 
     events, last_modified = get_events({"ym": ym, "keyword": keyword},
                                        background_tasks)
-    
+
     if last_modified is not None:
         last_modified_str = last_modified.strftime("%a, %d %b %Y %H:%M:%S GMT")
         response.headers["Last-Modified"] = last_modified_str
