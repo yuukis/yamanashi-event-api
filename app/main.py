@@ -241,7 +241,7 @@ def get_events(params,
 def get_events_from_cache(cache, params) -> Tuple[List[EventDetail], datetime]:
     response = cache.get(params)
     if response is None:
-        return None
+        return None, None
     json = response["content"]
     last_modified = response["last_modified"]
     if json is not None:
