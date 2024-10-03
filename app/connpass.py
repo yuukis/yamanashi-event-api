@@ -1,7 +1,7 @@
 import requests
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from .models import EventDetail
 
 
@@ -28,6 +28,7 @@ class ConnpassEventRequest:
         self.ymd = [] if ymd is None else ymd
         self.cache = cache
         self.user_agent = user_agent
+        self.last_modified = datetime.fromtimestamp(0, timezone.utc)
 
     def get_event(self):
         events = self.get_events()
@@ -60,7 +61,10 @@ class ConnpassEventRequest:
 
             json = None
             if self.cache is not None:
-                json = self.cache.get(params)
+                response = self.cache.get(params)
+                if response is not None:
+                    json = response["content"]
+                    last_modified = response["last_modified"]
             if json is None:
                 try:
                     response = self.__get(params)
@@ -68,9 +72,13 @@ class ConnpassEventRequest:
                     raise e
 
                 json = response.json()
+                last_modified = datetime.now(timezone.utc)
                 if self.cache is not None:
-                    self.cache.set(params, json)
+                    self.cache.set(params, json, last_modified=last_modified)
             events += self.__convert_to_events(json['events'])
+
+            if last_modified is not None:
+                self.last_modified = max(self.last_modified, last_modified)
 
             if json['results_returned'] < page_size:
                 break
@@ -80,6 +88,9 @@ class ConnpassEventRequest:
             events = list(filter(self.__is_in_pref, events))
 
         return events
+
+    def get_last_modified(self):
+        return self.last_modified
 
     def __get(self, params):
         if self.cache is not None:

@@ -6,7 +6,7 @@ from .connpass import ConnpassEventRequest, ConnpassException
 from .models import Event, EventDetail
 from .cache import EventRequestCache
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import yaml
 from dotenv import load_dotenv
 
@@ -92,7 +92,8 @@ async def read_events_in_year_month_day(
     keyword: str = None
 ):
     ymd = [f"{year:04}{month:02}{day:02}"]
-    events = get_events({"ymd": ymd, "keyword": keyword}, background_tasks)
+    events, last_modified = get_events({"ymd": ymd, "keyword": keyword},
+                                       background_tasks)
     return events
 
 
@@ -121,7 +122,8 @@ async def read_events_fromto_year_month(
             y += 1
             m = 1
 
-    events = get_events({"ym": ym, "keyword": keyword}, background_tasks)
+    events, last_modified = get_events({"ym": ym, "keyword": keyword},
+                                       background_tasks)
     return events
 
 
@@ -189,33 +191,39 @@ async def read_events_full_fromto_year_month(
 
 def get_events(params, background_tasks: BackgroundTasks = None):
     cache = None
+    last_modified = None
     if redis_url is not None:
         cache = EventRequestCache(url=redis_url)
 
     events = None
     if cache is not None:
-        events = get_events_from_cache(cache, params)
+        events, last_modified = get_events_from_cache(cache, params)
 
     if events is None:
-        events = request_events(params)
+        events, last_modified = request_events(params)
 
     if cache is not None:
         background_tasks.add_task(fetch_events, params)
 
-    return events
+    return events, last_modified
 
 
 def get_events_from_cache(cache, params):
-    json = cache.get(params)
+    response = cache.get(params)
+    if response is None:
+        return None
+    json = response["content"]
+    last_modified = response["last_modified"]
     if json is not None:
-        return EventDetail.from_json(json)
-    return None
+        return EventDetail.from_json(json), last_modified
+    return None, None
 
 
 def fetch_events(params):
     events = None
+    last_modified = None
     try:
-        events = request_events(params)
+        events, last_modified = request_events(params)
 
     except ConnpassException:
         return
@@ -226,7 +234,8 @@ def fetch_events(params):
 
     if cache is not None and events is not None:
         json = EventDetail.to_json(events)
-        cache.set(params, json, ex=3600*72)  # 72 hours
+        cache.set(params, json, last_modified=last_modified,
+                  ex=3600*72)  # 72 hours
 
 
 def request_events(params):
@@ -240,19 +249,26 @@ def request_events(params):
     user_agent = get_user_agent(config)
 
     events = []
+    last_modified = datetime.fromtimestamp(0, timezone.utc)
     try:
         if "scope" in config and "prefecture" in config["scope"]:
             prefecture = config["scope"]["prefecture"]
-            events += ConnpassEventRequest(prefecture=prefecture,
-                                           ym=ym, ymd=ymd, cache=cache,
-                                           user_agent=user_agent
-                                           ).get_events()
+            r = ConnpassEventRequest(prefecture=prefecture,
+                                     ym=ym, ymd=ymd, cache=cache,
+                                     user_agent=user_agent
+                                     )
+            events += r.get_events()
+            last_modified = max(last_modified, r.get_last_modified())
+
         if "scope" in config and "series_id" in config["scope"]:
             series_id = config["scope"]["series_id"]
-            events += ConnpassEventRequest(series_id=series_id,
-                                           ym=ym, ymd=ymd, cache=cache,
-                                           user_agent=user_agent
-                                           ).get_events()
+            r = ConnpassEventRequest(series_id=series_id,
+                                     ym=ym, ymd=ymd, cache=cache,
+                                     user_agent=user_agent
+                                     )
+            events += r.get_events()
+            last_modified = max(last_modified, r.get_last_modified())
+
     except ConnpassException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
 
@@ -262,7 +278,7 @@ def request_events(params):
     if keyword is not None:
         events = [ev for ev in events if ev.contains_keyword(keyword)]
 
-    return events
+    return events, last_modified
 
 
 def get_user_agent(config):

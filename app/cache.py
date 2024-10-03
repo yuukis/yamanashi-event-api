@@ -12,16 +12,33 @@ class EventRequestCache:
 
     def get(self, request_params) -> dict:
         key = self.generate_key(request_params)
-        message = self._redis.get(key)
-        if message is None:
+        key_content = key + ":content"
+        content = self._redis.get(key_content)
+        if content is None:
             return None
 
-        return json.loads(message)
+        key_last_modified = key + ":last_modified"
+        last_modified = None
+        ts = self._redis.get(key_last_modified)
+        if ts is not None:
+            last_modified = datetime.fromtimestamp(int(ts))
 
-    def set(self, request_params, response_json, ex=3600):
+        return {
+            "content": json.loads(content),
+            "last_modified": last_modified
+        }
+
+    def set(self, request_params, response_json, last_modified=None, ex=3600):
         key = self.generate_key(request_params)
-        message = json.dumps(response_json, sort_keys=True)
-        self._redis.set(key, message, ex)
+        content = json.dumps(response_json, sort_keys=True)
+
+        key_content = key + ":content"
+        self._redis.set(key_content, content, ex)
+
+        if last_modified is not None:
+            key_last_modified = key + ":last_modified"
+            ts = int(last_modified.timestamp())
+            self._redis.set(key_last_modified, ts, ex)
 
     def generate_key(self, params) -> str:
         json_text = json.dumps(params, sort_keys=True)
