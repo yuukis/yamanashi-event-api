@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Tuple
 from fastapi import FastAPI, BackgroundTasks, Path, HTTPException
 from fastapi.responses import RedirectResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -217,7 +217,9 @@ async def read_events_full_fromto_year_month(
                                                keyword)
 
 
-def get_events(params, background_tasks: BackgroundTasks = None):
+def get_events(params,
+               background_tasks: BackgroundTasks = None
+               ) -> Tuple[List[EventDetail], datetime]:
     cache = None
     last_modified = None
     if redis_url is not None:
@@ -236,7 +238,7 @@ def get_events(params, background_tasks: BackgroundTasks = None):
     return events, last_modified
 
 
-def get_events_from_cache(cache, params):
+def get_events_from_cache(cache, params) -> Tuple[List[EventDetail], datetime]:
     response = cache.get(params)
     if response is None:
         return None
@@ -266,7 +268,7 @@ def fetch_events(params):
                   ex=3600*72)  # 72 hours
 
 
-def request_events(params):
+def request_events(params) -> Tuple[List[EventDetail], datetime]:
     ym = params["ym"] if "ym" in params else None
     ymd = params["ymd"] if "ymd" in params else None
     keyword = params["keyword"] if "keyword" in params else None
