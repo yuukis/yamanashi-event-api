@@ -108,6 +108,7 @@ async def read_events_in_year_month_day(
     if last_modified is not None:
         last_modified_str = last_modified.strftime("%a, %d %b %Y %H:%M:%S GMT")
         response.headers["Last-Modified"] = last_modified_str
+        response.headers["Cache-Control"] = "public, max-age=3600"
     return events
 
 
@@ -143,6 +144,7 @@ async def read_events_fromto_year_month(
     if last_modified is not None:
         last_modified_str = last_modified.strftime("%a, %d %b %Y %H:%M:%S GMT")
         response.headers["Last-Modified"] = last_modified_str
+        response.headers["Cache-Control"] = "public, max-age=3600"
     return events
 
 
