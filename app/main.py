@@ -292,9 +292,9 @@ def request_events(params) -> Tuple[List[EventDetail], datetime]:
             events += r.get_events()
             last_modified = max(last_modified, r.get_last_modified())
 
-        if "scope" in config and "series_id" in config["scope"]:
-            series_id = config["scope"]["series_id"]
-            r = ConnpassEventRequest(series_id=series_id,
+        if "scope" in config and "subdomain" in config["scope"]:
+            subdomain = config["scope"]["subdomain"]
+            r = ConnpassEventRequest(subdomain=subdomain,
                                      ym=ym, ymd=ymd, cache=cache,
                                      user_agent=user_agent
                                      )
