@@ -1,5 +1,5 @@
 import unittest
-from app.models import Event, EventDetail
+from app.models import Event, EventDetail, Group
 
 
 class TestEvent(unittest.TestCase):
@@ -160,6 +160,67 @@ class TestEvent(unittest.TestCase):
         self.assertEqual(len(data), 2)
         self.assertEqual(data[0]["event_id"], 1)
         self.assertEqual(data[1]["event_id"], 2)
+
+
+class TestGroup(unittest.TestCase):
+    def test_from_json_with_data(self):
+        # Create a data object
+        data = {
+            "id": 1,
+            "key": "Key",
+            "title": "Title",
+            "sub_title": "Sub Title",
+            "url": "URL",
+            "description": "Description",
+            "owner_text": "Owner Text",
+            "image_url": "Image URL",
+            "website_url": "Website URL",
+            "x_username": "X Username",
+            "facebook_url": "Facebook URL",
+            "member_user_count": 100
+        }
+
+        # Call the from_json method
+        group = Group.from_json(data)
+
+        # Check if the group object is created
+        self.assertIsNotNone(group)
+        self.assertEqual(group.id, 1)
+        self.assertEqual(group.key, "Key")
+        self.assertEqual(group.title, "Title")
+        self.assertEqual(group.sub_title, "Sub Title")
+        self.assertEqual(group.url, "URL")
+        self.assertEqual(group.description, "Description")
+        self.assertEqual(group.owner_text, "Owner Text")
+        self.assertEqual(group.image_url, "Image URL")
+        self.assertEqual(group.website_url, "Website URL")
+        self.assertEqual(group.x_username, "X Username")
+        self.assertEqual(group.facebook_url, "Facebook URL")
+        self.assertEqual(group.member_user_count, 100)
+
+    def test_to_json_with_list(self):
+        # Create a list of group objects
+        groups = [
+            Group(id=1, key="Key", title="Title", sub_title="Sub Title",
+                  url="URL", description="Description", owner_text="Owner Text",
+                  image_url="Image URL", website_url="Website URL",
+                  x_username="X Username", facebook_url="Facebook URL",
+                  member_user_count=100),
+            Group(id=2, key="Key", title="Title", sub_title="Sub Title",
+                  url="URL", description="Description", owner_text="Owner Text",
+                  image_url="Image URL", website_url="Website URL",
+                  x_username="X Username", facebook_url="Facebook URL",
+                  member_user_count=100)
+        ]
+
+        # Call the to_json method
+        data = Group.to_json(groups)
+
+        # Check if the data object is created
+        self.assertIsNotNone(data)
+        self.assertEqual(len(data), 2)
+        self.assertEqual(data[0]["id"], 1)
+        self.assertEqual(data[1]["id"], 2)
 
 
 if __name__ == '__main__':
