@@ -149,7 +149,7 @@ class ConnpassEventRequest:
                     title=item["title"],
                     catch=item["catch"],
                     hash_tag=item["hash_tag"],
-                    event_url=item["event_url"],
+                    event_url=item["url"],
                     started_at=item["started_at"],
                     ended_at=item["ended_at"],
                     updated_at=item["updated_at"],
