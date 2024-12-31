@@ -11,11 +11,11 @@ class TestConnpassEventRequest(unittest.TestCase):
         mock_response.json.return_value = {
             'events': [
                 {
-                    'event_id': 123,
+                    'id': 123,
                     'title': 'Test Event',
                     'catch': 'This is a test event',
                     'hash_tag': 'test',
-                    'event_url': 'https://test.connpass.com',
+                    'url': 'https://test.connpass.com',
                     'started_at': '2020-01-01T00:00:00+09:00',
                     'ended_at': '2020-01-01T00:00:00+09:00',
                     'updated_at': '2020-01-01T00:00:00+09:00',
@@ -70,11 +70,11 @@ class TestConnpassEventRequest(unittest.TestCase):
         mock_response.json.return_value = {
             'events': [
                 {
-                    'event_id': 123,
+                    'id': 123,
                     'title': 'Test Event 1',
                     'catch': 'This is a test event',
                     'hash_tag': 'test',
-                    'event_url': 'https://test.connpass.com',
+                    'url': 'https://test.connpass.com',
                     'started_at': '2020-01-01T00:00:00+09:00',
                     'ended_at': '2020-01-01T00:00:00+09:00',
                     'updated_at': '2020-01-01T00:00:00+09:00',
@@ -97,11 +97,11 @@ class TestConnpassEventRequest(unittest.TestCase):
                     }
                 },
                 {
-                    'event_id': 456,
+                    'id': 456,
                     'title': 'Test Event 2',
                     'catch': 'This is a test event',
                     'hash_tag': '',
-                    'event_url': 'https://test.connpass.com',
+                    'url': 'https://test.connpass.com',
                     'started_at': '2020-01-01T00:00:00+09:00',
                     'ended_at': '2020-01-01T00:00:00+09:00',
                     'updated_at': '2020-01-01T00:00:00+09:00',

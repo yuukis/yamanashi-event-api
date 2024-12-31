@@ -12,17 +12,17 @@ scope:
   prefecture:
     - '山梨県'
 
-  series_id:
-    - '1678'   # 日本Androidの会 山梨支部
-    - '4255'   # 子ども向けプログラミングクラブ コーダー道場甲府
-    - '5327'   # Redmineプラグインもくもく会 山梨
-    - '7069'   # shingen.py
-    - '7465'   # 子どものためのプログラミングクラブ CoderDojo北杜
-    - '7466'   # 子どものためのプログラミングクラブ CoderDojo韮崎
-    - '7759'   # 山梨IT同好会(仮)
-    - '9176'   # 富士もくもく会
-    - '10940'  # 山梨Web勉強会
-    - '11367'  # 山梨SPA
-    - '14146'  # GDG Yamanashi
-    - '14681'  # 甲斐国もくもく会
-    - '14871'  # JAWS-UG山梨
+  subdomain:
+    - 'jagyamanashi' # 日本Androidの会 山梨支部
+    - 'coderdojokofu' # 子ども向けプログラミングクラブ コーダー道場甲府
+    - 'redmine-plugin-ymanasi' # Redmineプラグインもくもく会 山梨
+    - 'shingenpy' # shingen.py
+    - 'coderdojo-hokuto' # 子どものためのプログラミングクラブ CoderDojo北杜
+    - 'coderdojo-nirasaki' # 子どものためのプログラミングクラブ CoderDojo韮崎
+    - 'yamanashi-it' # 山梨IT同好会(仮)
+    - 'fujimokumokukai' # 富士もくもく会
+    - 'yamanashi-web' # 山梨Web勉強会
+    - 'yamanashi-spa' # 山梨SPA
+    - 'gdg-yamanashi' # GDG Yamanashi
+    - 'kainokuni' # 甲斐国もくもく会
+    - 'jaws-ug-yamanashi' # JAWS-UG山梨

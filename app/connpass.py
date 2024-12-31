@@ -12,7 +12,7 @@ class ConnpassException(Exception):
 
 
 class ConnpassEventRequest:
-    def __init__(self, event_id=None, prefecture=None, series_id=None,
+    def __init__(self, event_id=None, prefecture=None, subdomain=None,
                  ym=None, ymd=None, keyword=None, cache=None, user_agent=None):
         self.url = "https://connpass.com/api/v1/event/"
         self.event_id = event_id
@@ -23,7 +23,7 @@ class ConnpassEventRequest:
             self.keyword = keyword.split(",")
         else:
             self.keyword = keyword
-        self.series_id = [] if series_id is None else series_id
+        self.subdomain = [] if subdomain is None else subdomain
         self.ym = [] if ym is None else ym
         self.ymd = [] if ymd is None else ymd
         self.cache = cache
@@ -42,8 +42,8 @@ class ConnpassEventRequest:
             params["event_id"] = self.event_id
         if len(self.prefecture) > 0:
             params["keyword_or"] = ",".join(self.prefecture)
-        if len(self.series_id) > 0:
-            params["series_id"] = ",".join(self.series_id)
+        if len(self.subdomain) > 0:
+            params["subdomain"] = ",".join(self.subdomain)
         if len(self.ym) > 0:
             params["ym"] = ",".join(self.ym)
         if len(self.ymd) > 0:
@@ -145,11 +145,11 @@ class ConnpassEventRequest:
 
             events.append(
                 EventDetail(
-                    event_id=item["event_id"],
+                    event_id=item["id"],
                     title=item["title"],
                     catch=item["catch"],
                     hash_tag=item["hash_tag"],
-                    event_url=item["event_url"],
+                    event_url=item["url"],
                     started_at=item["started_at"],
                     ended_at=item["ended_at"],
                     updated_at=item["updated_at"],
