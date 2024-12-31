@@ -145,7 +145,7 @@ class ConnpassEventRequest:
 
             events.append(
                 EventDetail(
-                    event_id=item["event_id"],
+                    event_id=item["id"],
                     title=item["title"],
                     catch=item["catch"],
                     hash_tag=item["hash_tag"],

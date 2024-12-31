@@ -11,7 +11,7 @@ class TestConnpassEventRequest(unittest.TestCase):
         mock_response.json.return_value = {
             'events': [
                 {
-                    'event_id': 123,
+                    'id': 123,
                     'title': 'Test Event',
                     'catch': 'This is a test event',
                     'hash_tag': 'test',
@@ -70,7 +70,7 @@ class TestConnpassEventRequest(unittest.TestCase):
         mock_response.json.return_value = {
             'events': [
                 {
-                    'event_id': 123,
+                    'id': 123,
                     'title': 'Test Event 1',
                     'catch': 'This is a test event',
                     'hash_tag': 'test',
@@ -97,7 +97,7 @@ class TestConnpassEventRequest(unittest.TestCase):
                     }
                 },
                 {
-                    'event_id': 456,
+                    'id': 456,
                     'title': 'Test Event 2',
                     'catch': 'This is a test event',
                     'hash_tag': '',
