@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import MagicMock
-from app.connpass import ConnpassEventRequest
+from app.connpass import ConnpassEventRequest, ConnpassGroupRequest
 
 
 class TestConnpassEventRequest(unittest.TestCase):
@@ -153,6 +153,136 @@ class TestConnpassEventRequest(unittest.TestCase):
         self.assertEqual(events[1].title, 'Test Event 2')
         self.assertEqual(events[1].description, 'This is test event 2')
         self.assertEqual(events[1].address, None)
+
+
+class TestConnpassGroupRequest(unittest.TestCase):
+
+    def test_get_group(self):
+        # Create a mock response with a single group
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            'groups': [
+                {
+                    'id': 123,
+                    'subdomain': 'test',
+                    'title': 'Test Group',
+                    'sub_title': 'This is a test group',
+                    'url': 'https://test.connpass.com',
+                    'description': 'This is a test group',
+                    'owner_text': 'Test',
+                    'image_url': 'https://test.connpass.com',
+                    'website_url': 'https://test.connpass.com',
+                    'twitter_username': 'test',
+                    'facebook_url': 'https://test.connpass.com',
+                    'member_user_count': 100
+                }
+            ],
+            'results_returned': 1
+        }
+
+        # Create a mock cache object
+        mock_cache = MagicMock()
+        mock_cache.get.return_value = None
+
+        # Create an instance of ConnpassGroupRequest
+        connpass_request = ConnpassGroupRequest(cache=mock_cache)
+
+        # Mock the __get method to return the mock response
+        connpass_request._ConnpassGroupRequest__get = MagicMock(
+            return_value=mock_response)
+
+        # Call the get_group method
+        group = connpass_request.get_group()
+
+        # Assert that the group is not None
+        self.assertIsNotNone(group)
+
+        # Assert that the group has the expected properties
+        self.assertEqual(group.id, 123)
+        self.assertEqual(group.key, 'test')
+        self.assertEqual(group.title, 'Test Group')
+        self.assertEqual(group.description, 'This is a test group')
+        self.assertEqual(group.image_url, 'https://test.connpass.com')
+        self.assertEqual(group.website_url, 'https://test.connpass.com')
+        self.assertEqual(group.x_username, 'test')
+        self.assertEqual(group.facebook_url, 'https://test.connpass.com')
+        self.assertEqual(group.member_user_count, 100)
+    
+    def test_get_groups(self):
+        # Create a mock response with multiple groups
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            'groups': [
+                {
+                    'id': 123,
+                    'subdomain': 'test',
+                    'title': 'Test Group 1',
+                    'sub_title': 'This is a test group',
+                    'url': 'https://test.connpass.com',
+                    'description': 'This is a test group 1',
+                    'owner_text': 'Test',
+                    'image_url': 'https://test.connpass.com',
+                    'website_url': 'https://test.connpass.com',
+                    'twitter_username': 'test',
+                    'facebook_url': 'https://test.connpass.com',
+                    'member_user_count': 100
+                },
+                {
+                    'id': 456,
+                    'subdomain': 'test',
+                    'title': 'Test Group 2',
+                    'sub_title': 'This is a test group',
+                    'url': 'https://test.connpass.com',
+                    'description': 'This is a test group 2',
+                    'owner_text': 'Test',
+                    'image_url': 'https://test.connpass.com',
+                    'website_url': 'https://test.connpass.com',
+                    'twitter_username': 'test',
+                    'facebook_url': 'https://test.connpass.com',
+                    'member_user_count': 100
+                }
+            ],
+            'results_returned': 2
+        }
+
+        # Create a mock cache object
+        mock_cache = MagicMock()
+        mock_cache.get.return_value = None
+
+        # Create an instance of ConnpassGroupRequest
+        connpass_request = ConnpassGroupRequest(cache=mock_cache)
+
+        # Mock the __get method to return the mock response
+        connpass_request._ConnpassGroupRequest__get = MagicMock(
+            return_value=mock_response)
+
+        # Call the get_groups method
+        groups = connpass_request.get_groups()
+
+        # Assert that the groups list is not empty
+        self.assertNotEqual(len(groups), 0)
+
+        # Assert that the groups list has the expected length
+        self.assertEqual(len(groups), 2)
+
+        # Assert that the groups have the expected properties
+        self.assertEqual(groups[0].id, 123)
+        self.assertEqual(groups[0].title, 'Test Group 1')
+        self.assertEqual(groups[0].description, 'This is a test group 1')
+        self.assertEqual(groups[0].image_url, 'https://test.connpass.com')
+        self.assertEqual(groups[0].website_url, 'https://test.connpass.com')
+        self.assertEqual(groups[0].x_username, 'test')
+        self.assertEqual(groups[0].facebook_url, 'https://test.connpass.com')
+        self.assertEqual(groups[0].member_user_count, 100)
+
+        self.assertEqual(groups[1].id, 456)
+        self.assertEqual(groups[1].title, 'Test Group 2')
+        self.assertEqual(groups[1].description, 'This is a test group 2')
+        self.assertEqual(groups[1].image_url, 'https://test.connpass.com')
+        self.assertEqual(groups[1].website_url, 'https://test.connpass.com')
+        self.assertEqual(groups[1].x_username, 'test')
+        self.assertEqual(groups[1].facebook_url, 'https://test.connpass.com')
+        self.assertEqual(groups[1].member_user_count, 100)
 
 
 if __name__ == '__main__':
