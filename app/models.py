@@ -141,7 +141,7 @@ class Group:
     website_url: str
     x_username: str
     facebook_url: str
-    member_user_count: int
+    member_users_count: int
 
     @staticmethod
     def from_json(data: any):
@@ -161,7 +161,7 @@ class Group:
                 website_url=data["website_url"],
                 x_username=data["x_username"],
                 facebook_url=data["facebook_url"],
-                member_user_count=data["member_user_count"]
+                member_users_count=data["member_users_count"]
             )
 
         raise ValueError("data must be Group or List[Group]")
@@ -184,7 +184,7 @@ class Group:
                 "website_url": data.website_url,
                 "x_username": data.x_username,
                 "facebook_url": data.facebook_url,
-                "member_user_count": data.member_user_count
+                "member_users_count": data.member_users_count
             }
 
         raise ValueError("data must be Group or List[Group]")

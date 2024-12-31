@@ -174,7 +174,7 @@ class TestConnpassGroupRequest(unittest.TestCase):
                     'website_url': 'https://test.connpass.com',
                     'twitter_username': 'test',
                     'facebook_url': 'https://test.connpass.com',
-                    'member_user_count': 100
+                    'member_users_count': 100
                 }
             ],
             'results_returned': 1
@@ -206,7 +206,7 @@ class TestConnpassGroupRequest(unittest.TestCase):
         self.assertEqual(group.website_url, 'https://test.connpass.com')
         self.assertEqual(group.x_username, 'test')
         self.assertEqual(group.facebook_url, 'https://test.connpass.com')
-        self.assertEqual(group.member_user_count, 100)
+        self.assertEqual(group.member_users_count, 100)
     
     def test_get_groups(self):
         # Create a mock response with multiple groups
@@ -225,7 +225,7 @@ class TestConnpassGroupRequest(unittest.TestCase):
                     'website_url': 'https://test.connpass.com',
                     'twitter_username': 'test',
                     'facebook_url': 'https://test.connpass.com',
-                    'member_user_count': 100
+                    'member_users_count': 100
                 },
                 {
                     'id': 456,
@@ -239,7 +239,7 @@ class TestConnpassGroupRequest(unittest.TestCase):
                     'website_url': 'https://test.connpass.com',
                     'twitter_username': 'test',
                     'facebook_url': 'https://test.connpass.com',
-                    'member_user_count': 100
+                    'member_users_count': 100
                 }
             ],
             'results_returned': 2
@@ -273,7 +273,7 @@ class TestConnpassGroupRequest(unittest.TestCase):
         self.assertEqual(groups[0].website_url, 'https://test.connpass.com')
         self.assertEqual(groups[0].x_username, 'test')
         self.assertEqual(groups[0].facebook_url, 'https://test.connpass.com')
-        self.assertEqual(groups[0].member_user_count, 100)
+        self.assertEqual(groups[0].member_users_count, 100)
 
         self.assertEqual(groups[1].id, 456)
         self.assertEqual(groups[1].title, 'Test Group 2')
@@ -282,7 +282,7 @@ class TestConnpassGroupRequest(unittest.TestCase):
         self.assertEqual(groups[1].website_url, 'https://test.connpass.com')
         self.assertEqual(groups[1].x_username, 'test')
         self.assertEqual(groups[1].facebook_url, 'https://test.connpass.com')
-        self.assertEqual(groups[1].member_user_count, 100)
+        self.assertEqual(groups[1].member_users_count, 100)
 
 
 if __name__ == '__main__':

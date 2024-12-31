@@ -261,7 +261,7 @@ class ConnpassGroupRequest:
                     website_url=item["website_url"],
                     x_username=item["twitter_username"],
                     facebook_url=item["facebook_url"],
-                    member_user_count=item["member_user_count"]
+                    member_users_count=item["member_users_count"]
                 )
             )
         return groups

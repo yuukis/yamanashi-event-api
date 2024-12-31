@@ -177,7 +177,7 @@ class TestGroup(unittest.TestCase):
             "website_url": "Website URL",
             "x_username": "X Username",
             "facebook_url": "Facebook URL",
-            "member_user_count": 100
+            "member_users_count": 100
         }
 
         # Call the from_json method
@@ -196,7 +196,7 @@ class TestGroup(unittest.TestCase):
         self.assertEqual(group.website_url, "Website URL")
         self.assertEqual(group.x_username, "X Username")
         self.assertEqual(group.facebook_url, "Facebook URL")
-        self.assertEqual(group.member_user_count, 100)
+        self.assertEqual(group.member_users_count, 100)
 
     def test_to_json_with_list(self):
         # Create a list of group objects
@@ -205,12 +205,12 @@ class TestGroup(unittest.TestCase):
                   url="URL", description="Description", owner_text="Owner Text",
                   image_url="Image URL", website_url="Website URL",
                   x_username="X Username", facebook_url="Facebook URL",
-                  member_user_count=100),
+                  member_users_count=100),
             Group(id=2, key="Key", title="Title", sub_title="Sub Title",
                   url="URL", description="Description", owner_text="Owner Text",
                   image_url="Image URL", website_url="Website URL",
                   x_username="X Username", facebook_url="Facebook URL",
-                  member_user_count=100)
+                  member_users_count=100)
         ]
 
         # Call the to_json method

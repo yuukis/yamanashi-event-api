@@ -82,7 +82,7 @@ class MockConnpassGroupRequest:
                 "website_url": "Website URL",
                 "x_username": "X Username",
                 "facebook_url": "Facebook URL",
-                "member_user_count": 100
+                "member_users_count": 100
             }
         ]
         groups = Group.from_json(json)
