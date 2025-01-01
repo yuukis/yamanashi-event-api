@@ -126,3 +126,65 @@ class EventDetail(Event):
             }
 
         raise ValueError("data must be EventDetail or List[EventDetail]")
+
+
+@dataclass
+class Group:
+    id: int
+    key: str
+    title: str
+    sub_title: str
+    url: str
+    description: str
+    owner_text: str
+    image_url: str
+    website_url: str
+    x_username: str
+    facebook_url: str
+    member_users_count: int
+
+    @staticmethod
+    def from_json(data: any):
+        if isinstance(data, list):
+            return [Group.from_json(item) for item in data]
+
+        if isinstance(data, dict):
+            return Group(
+                id=data["id"],
+                key=data["key"],
+                title=data["title"],
+                sub_title=data["sub_title"],
+                url=data["url"],
+                description=data["description"],
+                owner_text=data["owner_text"],
+                image_url=data["image_url"],
+                website_url=data["website_url"],
+                x_username=data["x_username"],
+                facebook_url=data["facebook_url"],
+                member_users_count=data["member_users_count"]
+            )
+
+        raise ValueError("data must be Group or List[Group]")
+
+    @staticmethod
+    def to_json(data: any):
+        if isinstance(data, list):
+            return [Group.to_json(item) for item in data]
+
+        if isinstance(data, Group):
+            return {
+                "id": data.id,
+                "key": data.key,
+                "title": data.title,
+                "sub_title": data.sub_title,
+                "url": data.url,
+                "description": data.description,
+                "owner_text": data.owner_text,
+                "image_url": data.image_url,
+                "website_url": data.website_url,
+                "x_username": data.x_username,
+                "facebook_url": data.facebook_url,
+                "member_users_count": data.member_users_count
+            }
+
+        raise ValueError("data must be Group or List[Group]")

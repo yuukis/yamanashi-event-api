@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 from unittest.mock import patch
 from app.main import app, get_user_agent
-from app.models import EventDetail
+from app.models import EventDetail, Group
 from datetime import datetime, timezone
 
 client = TestClient(app)
@@ -59,6 +59,35 @@ class MockConnpassEventRequest:
         events = EventDetail.from_json(json)
         return events
 
+    def get_last_modified(self):
+        last_modified = datetime.fromtimestamp(123, timezone.utc)
+        return last_modified
+
+
+class MockConnpassGroupRequest:
+    def __init__(self, **kwargs):
+        pass
+
+    def get_groups(self):
+        json = [
+            {
+                "id": 1,
+                "key": "Key",
+                "title": "Title",
+                "sub_title": "Sub Title",
+                "url": "URL",
+                "description": "Description",
+                "owner_text": "Owner Text",
+                "image_url": "Image URL",
+                "website_url": "Website URL",
+                "x_username": "X Username",
+                "facebook_url": "Facebook URL",
+                "member_users_count": 100
+            }
+        ]
+        groups = Group.from_json(json)
+        return groups
+    
     def get_last_modified(self):
         last_modified = datetime.fromtimestamp(123, timezone.utc)
         return last_modified
@@ -170,6 +199,14 @@ def test_read_events_full_fromto_year_month():
 def test_read_events_full_fromto_year_month_invalid():
     response = client.get("/events/full/from/2023/12/to/2022/11")
     assert response.status_code == 400
+
+
+@patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequest)
+def test_read_group():
+    response = client.get("/groups")
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+    assert len(response.json()) == 1
 
 
 def test_get_user_agent():
