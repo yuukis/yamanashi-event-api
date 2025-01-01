@@ -8,23 +8,23 @@ class TestEvent(unittest.TestCase):
         events = [
             Event(event_id=1, title="Event 1", catch="", hash_tag="",
                   event_url="", started_at="", ended_at="", updated_at="",
-                  owner_name="", place="", address="",
+                  owner_name="", place="", address="", group_key="",
                   group_name="", group_url=""),
             Event(event_id=2, title="Event 2", catch="", hash_tag="",
                   event_url="", started_at="", ended_at="", updated_at="",
-                  owner_name="", place="", address="",
+                  owner_name="", place="", address="", group_key="",
                   group_name="", group_url=""),
             Event(event_id=1, title="Event 3", catch="", hash_tag="",
                   event_url="", started_at="", ended_at="", updated_at="",
-                  owner_name="", place="", address="",
+                  owner_name="", place="", address="", group_key="",
                   group_name="", group_url=""),
             Event(event_id=3, title="Event 4", catch="", hash_tag="",
                   event_url="", started_at="", ended_at="", updated_at="",
-                  owner_name="", place="", address="",
+                  owner_name="", place="", address="", group_key="",
                   group_name="", group_url=""),
             Event(event_id=2, title="Event 5", catch="", hash_tag="",
                   event_url="", started_at="", ended_at="", updated_at="",
-                  owner_name="", place="", address="",
+                  owner_name="", place="", address="", group_key="",
                   group_name="", group_url=""),
         ]
 
@@ -45,7 +45,7 @@ class TestEvent(unittest.TestCase):
                             limit=0, accepted=0, waiting=0,
                             owner_name="Owner 1",
                             place="Place", address="Address",
-                            group_name="", group_url="",
+                            group_key="", group_name="", group_url="",
                             description="Description",
                             lat="", lon="")
 
@@ -93,6 +93,7 @@ class TestEvent(unittest.TestCase):
             "owner_name": "Owner 1",
             "place": "Place",
             "address": "Address",
+            "group_key": "Group Key",
             "group_name": "Group Name",
             "group_url": "Group URL",
             "description": "Description",
@@ -119,6 +120,7 @@ class TestEvent(unittest.TestCase):
         self.assertEqual(event.owner_name, "Owner 1")
         self.assertEqual(event.place, "Place")
         self.assertEqual(event.address, "Address")
+        self.assertEqual(event.group_key, "Group Key")
         self.assertEqual(event.group_name, "Group Name")
         self.assertEqual(event.group_url, "Group URL")
         self.assertEqual(event.description, "Description")
@@ -135,7 +137,7 @@ class TestEvent(unittest.TestCase):
                         updated_at="2022-01-01T00:00:00+09:00",
                         limit=0, accepted=0, waiting=0,
                         owner_name="Owner 1",
-                        place="Place", address="Address",
+                        place="Place", address="Address", group_key="Group Key",
                         group_name="Group Name", group_url="Group URL",
                         description="Description",
                         lat="35.6895", lon="139.6917"),
@@ -146,7 +148,7 @@ class TestEvent(unittest.TestCase):
                         updated_at="2022-01-01T00:00:00+09:00",
                         limit=0, accepted=0, waiting=0,
                         owner_name="Owner 2",
-                        place="Place", address="Address",
+                        place="Place", address="Address", group_key="Group Key",
                         group_name="Group Name", group_url="Group URL",
                         description="Description",
                         lat="35.6895", lon="139.6917")

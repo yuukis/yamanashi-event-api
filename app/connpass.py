@@ -140,6 +140,7 @@ class ConnpassEventRequest:
             series_title = None
             series_url = None
             if item["series"] is not None:
+                series_subdomain = item["series"]["subdomain"]
                 series_title = item["series"]["title"]
                 series_url = item["series"]["url"]
 
@@ -159,6 +160,7 @@ class ConnpassEventRequest:
                     owner_name=item["owner_display_name"],
                     place=item["place"],
                     address=item["address"],
+                    group_key=series_subdomain,
                     group_name=series_title,
                     group_url=series_url,
                     description=item["description"],
