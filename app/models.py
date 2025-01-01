@@ -15,6 +15,7 @@ class Event:
     owner_name: str
     place: Optional[str]
     address: Optional[str]
+    group_key: Optional[str]
     group_name: Optional[str]
     group_url: Optional[str]
 
@@ -39,6 +40,7 @@ class EventDetail(Event):
     owner_name: str
     place: Optional[str]
     address: Optional[str]
+    group_key: Optional[str]
     group_name: Optional[str]
     group_url: Optional[str]
     description: str
@@ -60,6 +62,7 @@ class EventDetail(Event):
                 k in self.owner_name.lower(),
                 k in (self.place.lower() if self.place else ""),
                 k in (self.address.lower() if self.address else ""),
+                k in (self.group_key.lower() if self.group_key else ""),
                 k in (self.group_name.lower() if self.group_name else ""),
                 k in self.description.lower(),
             ]):
@@ -88,6 +91,7 @@ class EventDetail(Event):
                 owner_name=data["owner_name"],
                 place=data["place"],
                 address=data["address"],
+                group_key=data["group_key"],
                 group_name=data["group_name"],
                 group_url=data["group_url"],
                 description=data["description"],
@@ -118,6 +122,7 @@ class EventDetail(Event):
                 "owner_name": data.owner_name,
                 "place": data.place,
                 "address": data.address,
+                "group_key": data.group_key,
                 "group_name": data.group_name,
                 "group_url": data.group_url,
                 "description": data.description,
