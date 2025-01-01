@@ -2,8 +2,8 @@ from typing import List, Tuple
 from fastapi import FastAPI, BackgroundTasks, Path, HTTPException
 from fastapi.responses import RedirectResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
-from .connpass import ConnpassEventRequest, ConnpassException
-from .models import Event, EventDetail
+from .connpass import ConnpassEventRequest, ConnpassGroupRequest, ConnpassException
+from .models import Event, EventDetail, Group
 from .cache import EventRequestCache
 import os
 from datetime import datetime, timedelta, timezone
@@ -219,6 +219,20 @@ async def read_events_full_fromto_year_month(
                                                keyword)
 
 
+@app.get("/groups", response_model=List[Group])
+async def read_groups(
+    response: Response,
+    background_tasks: BackgroundTasks
+):
+    groups, last_modified = get_groups({}, background_tasks)
+
+    if last_modified is not None:
+        last_modified_str = last_modified.strftime("%a, %d %b %Y %H:%M:%S GMT")
+        response.headers["Last-Modified"] = last_modified_str
+        response.headers["Cache-Control"] = "public, max-age=3600"
+    return groups
+
+
 def get_events(params,
                background_tasks: BackgroundTasks = None
                ) -> Tuple[List[EventDetail], datetime]:
@@ -311,6 +325,79 @@ def request_events(params) -> Tuple[List[EventDetail], datetime]:
         events = [ev for ev in events if ev.contains_keyword(keyword)]
 
     return events, last_modified
+
+
+def get_groups(params,
+               background_tasks: BackgroundTasks = None
+               ) -> Tuple[List[Group], datetime]:
+    cache = None
+    last_modified = None
+    if redis_url is not None:
+        cache = EventRequestCache(url=redis_url)
+
+    groups = None
+    if cache is not None:
+        groups, last_modified = get_groups_from_cache(cache, params)
+
+    if groups is None:
+        groups, last_modified = request_groups(params)
+
+    if cache is not None:
+        background_tasks.add_task(fetch_groups, params)
+
+    return groups, last_modified
+
+
+def get_groups_from_cache(cache, params) -> Tuple[List[Group], datetime]:
+    response = cache.get(params)
+    if response is None:
+        return None, None
+    json = response["content"]
+    last_modified = response["last_modified"]
+    if json is not None:
+        return Group.from_json(json), last_modified
+    return None, None
+
+
+def fetch_groups(params):
+    groups = None
+    last_modified = None
+    try:
+        groups, last_modified = request_groups(params)
+
+    except ConnpassException:
+        return
+
+    cache = None
+    if redis_url is not None:
+        cache = EventRequestCache(url=redis_url)
+
+    if cache is not None and groups is not None:
+        json = Group.to_json(groups)
+        cache.set(params, json, last_modified=last_modified,
+                  ex=3600*72)  # 72 hours
+
+
+def request_groups(params) -> Tuple[List[Group], datetime]:
+    cache = None
+    if redis_url is not None:
+        cache = EventRequestCache(url=redis_url)
+    user_agent = get_user_agent(config)
+
+    groups = []
+    last_modified = datetime.fromtimestamp(0, timezone.utc)
+    try:
+        if "scope" in config and "subdomain" in config["scope"]:
+            subdomain = config["scope"]["subdomain"]
+            r = ConnpassGroupRequest(subdomain=subdomain,
+                                     cache=cache, user_agent=user_agent)
+            groups += r.get_groups()
+            last_modified = max(last_modified, r.get_last_modified())
+
+    except ConnpassException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+
+    return groups, last_modified
 
 
 def get_user_agent(config):
