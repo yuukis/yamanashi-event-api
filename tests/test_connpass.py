@@ -33,6 +33,7 @@ class TestConnpassEventRequest(unittest.TestCase):
                     'event_type': 'participation',
                     'series': {
                         'id': 1234,
+                        'subdomain': 'test',
                         'title': 'Test Series',
                         'url': 'https://test.connpass.com'
                     }
@@ -92,6 +93,7 @@ class TestConnpassEventRequest(unittest.TestCase):
                     'event_type': 'participation',
                     'series': {
                         'id': 1234,
+                        'subdomain': 'test',
                         'title': 'Test Series',
                         'url': 'https://test.connpass.com'
                     }
