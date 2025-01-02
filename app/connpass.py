@@ -137,6 +137,7 @@ class ConnpassEventRequest:
         events = []
 
         for item in json:
+            series_subdomain = None
             series_title = None
             series_url = None
             if item["series"] is not None:
@@ -190,27 +191,39 @@ class ConnpassGroupRequest:
         if self.subdomain is not None:
             params["subdomain"] = self.subdomain
 
-        json = None
-        if self.cache is not None:
-            response = self.cache.get(params)
-            if response is not None:
-                json = response["content"]
-                last_modified = response["last_modified"]
-        if json is None:
-            try:
-                response = self.__get(params)
-            except ConnpassException as e:
-                raise e
+        page_size = 100
+        params["count"] = page_size
+        page = 0
+        groups = []
+        while True:
+            params["start"] = page * page_size + 1
 
-            json = response.json()
-            last_modified = datetime.now(timezone.utc)
+            json = None
             if self.cache is not None:
-                self.cache.set(params, json, last_modified=last_modified)
+                response = self.cache.get(params)
+                if response is not None:
+                    json = response["content"]
+                    last_modified = response["last_modified"]
+            if json is None:
+                try:
+                    response = self.__get(params)
+                except ConnpassException as e:
+                    raise e
 
-        if last_modified is not None:
-            self.last_modified = last_modified
+                json = response.json()
+                last_modified = datetime.now(timezone.utc)
+                if self.cache is not None:
+                    self.cache.set(params, json, last_modified=last_modified)
+            groups += self.__convert_to_groups(json['groups'])
 
-        return self.__convert_to_groups(json['groups'])
+            if last_modified is not None:
+                self.last_modified = max(self.last_modified, last_modified)
+
+            if json['results_returned'] < page_size:
+                break
+            page += 1
+
+        return groups
 
     def get_last_modified(self):
         return self.last_modified
