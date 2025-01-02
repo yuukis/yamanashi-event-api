@@ -137,6 +137,7 @@ class ConnpassEventRequest:
         events = []
 
         for item in json:
+            series_subdomain = None
             series_title = None
             series_url = None
             if item["series"] is not None:
