@@ -9,7 +9,7 @@ import os
 from datetime import datetime, timedelta, timezone
 import yaml
 from dotenv import load_dotenv
-from mangun import Mangum
+from mangum import Mangum
 
 load_dotenv()
 dirname = os.path.dirname(__file__)
