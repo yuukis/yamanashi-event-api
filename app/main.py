@@ -9,6 +9,7 @@ import os
 from datetime import datetime, timedelta, timezone
 import yaml
 from dotenv import load_dotenv
+from mangum import Mangum
 
 load_dotenv()
 dirname = os.path.dirname(__file__)
@@ -32,6 +33,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+lambda_handler = Mangum(app)
 
 
 @app.get("/", include_in_schema=False)
