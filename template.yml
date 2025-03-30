@@ -1,0 +1,162 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: >
+  FastAPI を AWS Lambda + API Gateway にデプロイするための CloudFormation テンプレート (GitHub Actions 対応)
+
+Resources:
+  # GitHub Actions 用 IAM ロール
+  GitHubActionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: GitHubActionsDeployRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [lambda.amazonaws.com, apigateway.amazonaws.com]
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: GitHubActionsDeployPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                Resource: !Sub arn:aws:s3:::${DeploymentBucket}/*
+              - Effect: Allow
+                Action:
+                  - lambda:UpdateFunctionCode
+                  - lambda:CreateFunction
+                  - lambda:DeleteFunction
+                Resource: !GetAtt FastAPILambda.Arn
+              - Effect: Allow
+                Action:
+                  - apigateway:POST
+                  - apigateway:PUT
+                Resource: !Sub arn:aws:apigateway:${AWS::Region}::/restapis/*
+
+  # S3 バケット（Lambda パッケージ保存用）
+  DeploymentBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub fastapi-lambda-deploy-${AWS::AccountId}
+
+  # VPC 設定
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.2.0/24
+      MapPublicIpOnLaunch: false
+
+  # NAT Gateway（固定IPアクセス用）
+  ElasticIP:
+    Type: AWS::EC2::EIP
+
+  NATGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      AllocationId: !GetAtt ElasticIP.AllocationId
+
+  # ElastiCache サブネットグループ
+  ElastiCacheSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: 'Subnet group for Redis'
+      SubnetIds:
+        - !Ref PrivateSubnet
+
+  # ElastiCache クラスター（Redis）
+  ElastiCacheCluster:
+    Type: AWS::ElastiCache::CacheCluster
+    Properties:
+      Engine: redis
+      CacheNodeType: cache.t4g.micro
+      NumCacheNodes: 1
+      CacheSubnetGroupName: !Ref ElastiCacheSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref LambdaSecurityGroup
+
+  # Lambda 実行ロール
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaExecutionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - elasticache:DescribeCacheClusters
+                  - elasticache:Get*
+                  - elasticache:Put*
+                  - elasticache:ListTagsForResource
+                Resource: '*'
+
+  # Lambda 関数
+  FastAPILambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: FastAPIHandler
+      Runtime: python3.9
+      Handler: app.lambda_handler
+      CodeUri: .
+      Timeout: 30
+      MemorySize: 512
+      Role: !GetAtt LambdaExecutionRole.Arn
+      VpcConfig:
+        SubnetIds:
+          - !Ref PrivateSubnet
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+
+  # API Gateway
+  APIGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: FastAPI-Gateway
+      Description: API Gateway for FastAPI application
+
+Outputs:
+  ApiGatewayInvokeURL:
+    Description: "Invoke URL for API Gateway"
+    Value: !Sub "https://${FastAPILambda}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
