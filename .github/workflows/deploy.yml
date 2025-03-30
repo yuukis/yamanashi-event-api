@@ -28,7 +28,7 @@ jobs:
         run: |
           sam build
           sam deploy --stack-name FastAPI-Stack \
-                     --capabilities CAPABILITY_IAM \
+                     --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
                      --resolve-s3
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
