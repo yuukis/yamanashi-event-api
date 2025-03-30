@@ -32,12 +32,12 @@ Resources:
                   - lambda:UpdateFunctionCode
                   - lambda:CreateFunction
                   - lambda:DeleteFunction
-                Resource: !GetAtt FastAPILambda.Arn
+                Resource: '*'
               - Effect: Allow
                 Action:
                   - apigateway:POST
                   - apigateway:PUT
-                Resource: !Sub arn:aws:apigateway:${AWS::Region}::/restapis/*
+                Resource: '*'
 
   # S3 バケット（Lambda パッケージ保存用）
   DeploymentBucket:
@@ -93,23 +93,18 @@ Resources:
       CacheNodeType: cache.t4g.micro
       NumCacheNodes: 1
       CacheSubnetGroupName: !Ref ElastiCacheSubnetGroup
-      VpcSecurityGroupIds:
-        - !Ref LambdaSecurityGroup
 
-  # Lambda 用セキュリティグループ
+  # Lambda セキュリティグループ
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: "Security group for Lambda functions"
       VpcId: !Ref VPC
+      GroupDescription: Security group for Lambda accessing Redis
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 6379
           ToPort: 6379
-          SourceSecurityGroupId: !Ref LambdaSecurityGroup
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
+          CidrIp: 10.0.0.0/16  # VPC内のアクセスを許可
 
   # Lambda 実行ロール
   LambdaExecutionRole:
