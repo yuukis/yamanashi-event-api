@@ -21,6 +21,9 @@ jobs:
         run: |
           pip install aws-sam-cli
 
+      - name: Set AWS Region
+        run: echo "AWS_DEFAULT_REGION=ap-northeast-1" >> $GITHUB_ENV
+
       - name: Deploy using AWS SAM
         run: |
           sam build
