@@ -96,6 +96,21 @@ Resources:
       VpcSecurityGroupIds:
         - !Ref LambdaSecurityGroup
 
+  # Lambda 用セキュリティグループ
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Security group for Lambda functions"
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
   # Lambda 実行ロール
   LambdaExecutionRole:
     Type: AWS::IAM::Role
