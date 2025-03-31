@@ -21,16 +21,39 @@ jobs:
         run: |
           pip install aws-sam-cli
 
-      - name: Set AWS Region
-        run: echo "AWS_DEFAULT_REGION=ap-northeast-1" >> $GITHUB_ENV
+      - name: Set AWS Environments
+        run: |
+          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
+          echo "AWS_DEFAULT_REGION=ap-northeast-1" >> $GITHUB_ENV
 
       - name: Deploy using AWS SAM
+        continue-on-error: true
         run: |
           sam build
           sam deploy --stack-name FastAPI-Stack \
                      --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
                      --resolve-s3
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ap-northeast-1
+
+      - name: Lambda 関数名の取得
+        id: get_lambda_name
+        run: |
+          FUNCTION_NAME=$(aws cloudformation describe-stack-resources \
+            --stack-name FastAPI-Stack \
+            --query "StackResources[?ResourceType=='AWS::Lambda::Function'].PhysicalResourceId" \
+            --output text)
+          echo "FUNCTION_NAME=${FUNCTION_NAME}" >> $GITHUB_ENV
+
+      - name: Lambda ログの取得
+        run: |
+          aws logs describe-log-groups --query "logGroups[?contains(logGroupName, '${{ env.FUNCTION_NAME }}')].logGroupName" --output text
+          LOG_GROUP_NAME=$(aws logs describe-log-groups --query "logGroups[?contains(logGroupName, '${{ env.FUNCTION_NAME }}')].logGroupName" --output text)
+          echo "ロググループ名: $LOG_GROUP_NAME"
+
+          if [ -n "$LOG_GROUP_NAME" ]; then
+            aws logs tail "$LOG_GROUP_NAME" --follow --since 10m
+          else
+            echo "ロググループが見つかりません。デプロイが正常に完了しているか確認してください。"
+          fi
