@@ -13,8 +13,10 @@ class ConnpassException(Exception):
 
 class ConnpassEventRequest:
     def __init__(self, event_id=None, prefecture=None, subdomain=None,
-                 ym=None, ymd=None, keyword=None, cache=None, user_agent=None):
-        self.url = "https://connpass.com/api/v1/event/"
+                 ym=None, ymd=None, keyword=None, cache=None,
+                 api_key=None, user_agent=None):
+        self.url = "https://connpass.com/api/v2/events/"
+        self.api_key = api_key
         self.event_id = event_id
         self.prefecture = [] if prefecture is None else prefecture
         if keyword is None:
@@ -27,6 +29,7 @@ class ConnpassEventRequest:
         self.ym = [] if ym is None else ym
         self.ymd = [] if ymd is None else ymd
         self.cache = cache
+        self.api_key = api_key
         self.user_agent = user_agent
         self.last_modified = datetime.fromtimestamp(0, timezone.utc)
 
@@ -104,6 +107,8 @@ class ConnpassEventRequest:
         headers = {}
         if self.user_agent is not None:
             headers["User-Agent"] = self.user_agent
+        if self.api_key is not None:
+            headers["X-API-Key"] = self.api_key
 
         date = datetime.now()
         date_str = date.strftime('%Y-%m-%d %H:%M:%S')
@@ -137,13 +142,13 @@ class ConnpassEventRequest:
         events = []
 
         for item in json:
-            series_subdomain = None
-            series_title = None
-            series_url = None
-            if item["series"] is not None:
-                series_subdomain = item["series"]["subdomain"]
-                series_title = item["series"]["title"]
-                series_url = item["series"]["url"]
+            group_subdomain = None
+            group_title = None
+            group_url = None
+            if item["group"] is not None:
+                group_subdomain = item["group"]["subdomain"]
+                group_title = item["group"]["title"]
+                group_url = item["group"]["url"]
 
             events.append(
                 EventDetail(
@@ -161,9 +166,9 @@ class ConnpassEventRequest:
                     owner_name=item["owner_display_name"],
                     place=item["place"],
                     address=item["address"],
-                    group_key=series_subdomain,
-                    group_name=series_title,
-                    group_url=series_url,
+                    group_key=group_subdomain,
+                    group_name=group_title,
+                    group_url=group_url,
                     description=item["description"],
                     lat=item["lat"],
                     lon=item["lon"]
@@ -173,10 +178,12 @@ class ConnpassEventRequest:
 
 
 class ConnpassGroupRequest:
-    def __init__(self, subdomain=None, cache=None, user_agent=None):
-        self.url = "https://connpass.com/api/v1/group/"
+    def __init__(self, subdomain=None, cache=None, api_key=None,
+                 user_agent=None):
+        self.url = "https://connpass.com/api/v2/groups/"
         self.subdomain = subdomain
         self.cache = cache
+        self.api_key = api_key
         self.user_agent = user_agent
         self.last_modified = datetime.fromtimestamp(0, timezone.utc)
 
@@ -240,11 +247,12 @@ class ConnpassGroupRequest:
         headers = {}
         if self.user_agent is not None:
             headers["User-Agent"] = self.user_agent
+        if self.api_key is not None:
+            headers["X-API-Key"] = self.api_key
 
         date = datetime.now()
         date_str = date.strftime('%Y-%m-%d %H:%M:%S')
-        print({"params": params, "headers": headers, "url": self.url,
-               "date": date_str})
+        print({"params": params, "url": self.url, "date": date_str})
         response = requests.get(self.url, headers=headers, params=params)
 
         if self.cache is not None:

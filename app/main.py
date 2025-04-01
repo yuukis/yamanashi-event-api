@@ -302,6 +302,7 @@ def request_events(params) -> Tuple[List[EventDetail], datetime]:
             prefecture = config["scope"]["prefecture"]
             r = ConnpassEventRequest(prefecture=prefecture,
                                      ym=ym, ymd=ymd, cache=cache,
+                                     api_key=connpass_api_key,
                                      user_agent=user_agent
                                      )
             events += r.get_events()
@@ -311,6 +312,7 @@ def request_events(params) -> Tuple[List[EventDetail], datetime]:
             subdomain = config["scope"]["subdomain"]
             r = ConnpassEventRequest(subdomain=subdomain,
                                      ym=ym, ymd=ymd, cache=cache,
+                                     api_key=connpass_api_key,
                                      user_agent=user_agent
                                      )
             events += r.get_events()
@@ -391,7 +393,8 @@ def request_groups(params) -> Tuple[List[Group], datetime]:
         if "scope" in config and "subdomain" in config["scope"]:
             subdomain = config["scope"]["subdomain"]
             r = ConnpassGroupRequest(subdomain=subdomain,
-                                     cache=cache, user_agent=user_agent)
+                                     cache=cache, api_key=connpass_api_key,
+                                     user_agent=user_agent)
             groups += r.get_groups()
             last_modified = max(last_modified, r.get_last_modified())
 
