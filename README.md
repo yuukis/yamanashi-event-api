@@ -34,6 +34,7 @@ https://api.event.yamanashi.dev
 3. Copy `.env.example` to `.env` and set environment variables
     ```ini
     REDIS_URL=redis://localhost:6379
+    CONNPASS_API_KEY=<INPUT CONNPASS_API_KEY>
     ```
 4. Run the app
     ```sh

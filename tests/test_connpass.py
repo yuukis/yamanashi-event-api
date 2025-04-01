@@ -31,10 +31,10 @@ class TestConnpassEventRequest(unittest.TestCase):
                     'lon': 138.1234,
                     'description': 'This is a test event',
                     'event_type': 'participation',
-                    'series': {
+                    'group': {
                         'id': 1234,
                         'subdomain': 'test',
-                        'title': 'Test Series',
+                        'title': 'Test group',
                         'url': 'https://test.connpass.com'
                     }
                 }
@@ -91,10 +91,10 @@ class TestConnpassEventRequest(unittest.TestCase):
                     'lon': 138.1234,
                     'description': 'This is test event 1',
                     'event_type': 'participation',
-                    'series': {
+                    'group': {
                         'id': 1234,
                         'subdomain': 'test',
-                        'title': 'Test Series',
+                        'title': 'Test group',
                         'url': 'https://test.connpass.com'
                     }
                 },
@@ -119,7 +119,7 @@ class TestConnpassEventRequest(unittest.TestCase):
                     'lon': None,
                     'description': 'This is test event 2',
                     'event_type': 'participation',
-                    'series': None
+                    'group': None
                 }
             ],
             'results_returned': 2
