@@ -102,7 +102,7 @@ class ConnpassEventRequest:
                 if wait_sec == 0:
                     break
                 time.sleep(wait_sec)
-            self.cache.set_wait_for_request(5)
+            self.cache.set_wait_for_request(1)
 
         headers = {}
         if self.user_agent is not None:
@@ -117,7 +117,7 @@ class ConnpassEventRequest:
         response = requests.get(self.url, headers=headers, params=params)
 
         if self.cache is not None:
-            self.cache.set_wait_for_request(5)
+            self.cache.set_wait_for_request(1)
 
         if response.status_code != 200:
             status_code = response.status_code
@@ -242,7 +242,7 @@ class ConnpassGroupRequest:
                 if wait_sec == 0:
                     break
                 time.sleep(wait_sec)
-            self.cache.set_wait_for_request(5)
+            self.cache.set_wait_for_request(1)
 
         headers = {}
         if self.user_agent is not None:
@@ -256,7 +256,7 @@ class ConnpassGroupRequest:
         response = requests.get(self.url, headers=headers, params=params)
 
         if self.cache is not None:
-            self.cache.set_wait_for_request(5)
+            self.cache.set_wait_for_request(1)
 
         if response.status_code != 200:
             status_code = response.status_code
