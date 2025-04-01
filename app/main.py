@@ -18,6 +18,7 @@ with open(config_file, "r") as yml:
     config = yaml.safe_load(yml)
 
 redis_url = os.getenv("REDIS_URL")
+connpass_api_key = os.getenv("CONNPASS_API_KEY")
 
 app = FastAPI(
     title=config["metadata"]["title"],
