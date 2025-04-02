@@ -22,12 +22,17 @@ jobs:
         run: |
           pip install aws-sam-cli
 
+      - name: Set AWS Region
+        run: echo "AWS_DEFAULT_REGION=ap-northeast-1" >> $GITHUB_ENV
+
       - name: Build with SAM
         run: sam build
 
       - name: Deploy with SAM
         run: |
           sam deploy --stack-name fastapi-stack \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+            --resolve-s3 \
             --no-confirm-changeset --no-fail-on-empty-changeset \
             --parameter-overrides ConnpassApiKey=${{ secrets.CONNPASS_API_KEY }}
         env:
