@@ -112,8 +112,7 @@ class ConnpassEventRequest:
 
         date = datetime.now()
         date_str = date.strftime('%Y-%m-%d %H:%M:%S')
-        print({"params": params, "headers": headers, "url": self.url,
-               "date": date_str})
+        print({"params": params, "url": self.url, "date": date_str})
         response = requests.get(self.url, headers=headers, params=params)
 
         if self.cache is not None:
