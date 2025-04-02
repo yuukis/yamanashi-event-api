@@ -1,6 +1,5 @@
 requests
 fastapi
-redis
 uvicorn
 pyyaml
 python-dotenv
