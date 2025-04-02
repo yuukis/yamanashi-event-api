@@ -30,7 +30,7 @@ jobs:
 
       - name: Deploy with SAM
         run: |
-          sam deploy --stack-name fastapi-stack \
+          sam deploy --stack-name eventapi-stack \
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
             --resolve-s3 \
             --force-upload \

@@ -10,7 +10,7 @@ Resources:
   FastApiFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: fastapi-lambda
+      FunctionName: eventapi-lambda
       Handler: app.main.lambda_handler
       Runtime: python3.10
       MemorySize: 512
