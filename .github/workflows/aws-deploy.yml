@@ -33,6 +33,7 @@ jobs:
           sam deploy --stack-name fastapi-stack \
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
             --resolve-s3 \
+            --force-upload \
             --no-confirm-changeset --no-fail-on-empty-changeset \
             --parameter-overrides ConnpassApiKey=${{ secrets.CONNPASS_API_KEY }}
         env:
