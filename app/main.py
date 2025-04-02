@@ -14,10 +14,11 @@ load_dotenv()
 dirname = os.path.dirname(__file__)
 config_file = os.path.join(dirname, "config.yaml")
 
+cache = EventRequestCache()
+
 with open(config_file, "r") as yml:
     config = yaml.safe_load(yml)
 
-redis_url = os.getenv("REDIS_URL")
 connpass_api_key = os.getenv("CONNPASS_API_KEY")
 
 app = FastAPI(
@@ -237,20 +238,16 @@ async def read_groups(
 def get_events(params,
                background_tasks: BackgroundTasks = None
                ) -> Tuple[List[EventDetail], datetime]:
-    cache = None
-    last_modified = None
-    if redis_url is not None:
-        cache = EventRequestCache(url=redis_url)
+    global cache
 
-    events = None
-    if cache is not None:
-        events, last_modified = get_events_from_cache(cache, params)
+    last_modified = None
+
+    events, last_modified = get_events_from_cache(cache, params)
 
     if events is None:
         events, last_modified = request_events(params)
 
-    if cache is not None:
-        background_tasks.add_task(fetch_events, params)
+    background_tasks.add_task(fetch_events, params)
 
     return events, last_modified
 
@@ -267,6 +264,8 @@ def get_events_from_cache(cache, params) -> Tuple[List[EventDetail], datetime]:
 
 
 def fetch_events(params):
+    global cache
+
     events = None
     last_modified = None
     try:
@@ -275,24 +274,19 @@ def fetch_events(params):
     except ConnpassException:
         return
 
-    cache = None
-    if redis_url is not None:
-        cache = EventRequestCache(url=redis_url)
-
-    if cache is not None and events is not None:
+    if events is not None:
         json = EventDetail.to_json(events)
         cache.set(params, json, last_modified=last_modified,
                   ex=3600*72)  # 72 hours
 
 
 def request_events(params) -> Tuple[List[EventDetail], datetime]:
+    global cache
+
     ym = params["ym"] if "ym" in params else None
     ymd = params["ymd"] if "ymd" in params else None
     keyword = params["keyword"] if "keyword" in params else None
 
-    cache = None
-    if redis_url is not None:
-        cache = EventRequestCache(url=redis_url)
     user_agent = get_user_agent(config)
 
     events = []
@@ -333,20 +327,16 @@ def request_events(params) -> Tuple[List[EventDetail], datetime]:
 def get_groups(params,
                background_tasks: BackgroundTasks = None
                ) -> Tuple[List[Group], datetime]:
-    cache = None
-    last_modified = None
-    if redis_url is not None:
-        cache = EventRequestCache(url=redis_url)
+    global cache
 
-    groups = None
-    if cache is not None:
-        groups, last_modified = get_groups_from_cache(cache, params)
+    last_modified = None
+
+    groups, last_modified = get_groups_from_cache(cache, params)
 
     if groups is None:
         groups, last_modified = request_groups(params)
 
-    if cache is not None:
-        background_tasks.add_task(fetch_groups, params)
+    background_tasks.add_task(fetch_groups, params)
 
     return groups, last_modified
 
@@ -363,6 +353,8 @@ def get_groups_from_cache(cache, params) -> Tuple[List[Group], datetime]:
 
 
 def fetch_groups(params):
+    global cache
+
     groups = None
     last_modified = None
     try:
@@ -371,20 +363,15 @@ def fetch_groups(params):
     except ConnpassException:
         return
 
-    cache = None
-    if redis_url is not None:
-        cache = EventRequestCache(url=redis_url)
-
-    if cache is not None and groups is not None:
+    if groups is not None:
         json = Group.to_json(groups)
         cache.set(params, json, last_modified=last_modified,
                   ex=3600*72)  # 72 hours
 
 
 def request_groups(params) -> Tuple[List[Group], datetime]:
-    cache = None
-    if redis_url is not None:
-        cache = EventRequestCache(url=redis_url)
+    global cache
+
     user_agent = get_user_agent(config)
 
     groups = []
