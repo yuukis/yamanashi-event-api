@@ -3,7 +3,7 @@ name: DeployToAWS
 on:
   push:
     branches:
-      - aws-lambda
+      - main
 
 jobs:
   deploy:
