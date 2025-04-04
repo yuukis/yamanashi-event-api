@@ -1,5 +1,6 @@
 [![Test](https://github.com/yuukis/yamanashi-event-api/actions/workflows/test.yml/badge.svg?branch=main&event=push)](https://github.com/yuukis/yamanashi-event-api/actions/workflows/test.yml)
 [![DockerHub](https://github.com/yuukis/yamanashi-event-api/actions/workflows/dockerhub.yml/badge.svg?branch=main&event=push)](https://github.com/yuukis/yamanashi-event-api/actions/workflows/dockerhub.yml)
+[![DeployToAWS](https://github.com/yuukis/yamanashi-event-api/actions/workflows/aws-deploy.yml/badge.svg?branch=main&event=push)](https://github.com/yuukis/yamanashi-event-api/actions/workflows/aws-deploy.yml)
 
 # Yamanashi Tech Events API
 
