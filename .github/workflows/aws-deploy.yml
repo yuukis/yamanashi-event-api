@@ -10,6 +10,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Check required secrets
+        run: |
+          missing=""
+          [ -z "${{ secrets.CONNPASS_API_KEY }}" ] && missing="${missing} CONNPASS_API_KEY"
+          [ -z "${{ secrets.AWS_ACCESS_KEY_ID }}" ] && missing="${missing} AWS_ACCESS_KEY_ID"
+          [ -z "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ] && missing="${missing} AWS_SECRET_ACCESS_KEY"
+
+          if [ -n "$missing" ]; then
+            echo "Missing required secrets:${missing}"
+            echo "Skipping."
+            exit 0
+          fi
+
       - name: Checkout code
         uses: actions/checkout@v3
 
