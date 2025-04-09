@@ -12,6 +12,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Check required secrets
+        run: |
+          missing=""
+          [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ] && missing="${missing} DOCKERHUB_USERNAME"
+          [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ] && missing="${missing} DOCKERHUB_TOKEN"
+
+          if [ -n "$missing" ]; then
+            echo "Missing required secrets:${missing}"
+            echo "Skipping."
+            exit 0
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@v3
 
