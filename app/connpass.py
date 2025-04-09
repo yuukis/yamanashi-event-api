@@ -159,6 +159,7 @@ class ConnpassEventRequest:
                     started_at=item["started_at"],
                     ended_at=item["ended_at"],
                     updated_at=item["updated_at"],
+                    open_status=item["open_status"],
                     limit=item["limit"],
                     accepted=item["accepted"],
                     waiting=item["waiting"],

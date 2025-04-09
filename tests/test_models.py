@@ -8,24 +8,24 @@ class TestEvent(unittest.TestCase):
         events = [
             Event(event_id=1, title="Event 1", catch="", hash_tag="",
                   event_url="", started_at="", ended_at="", updated_at="",
-                  owner_name="", place="", address="", group_key="",
-                  group_name="", group_url=""),
+                  open_status="", owner_name="", place="", address="",
+                  group_key="", group_name="", group_url=""),
             Event(event_id=2, title="Event 2", catch="", hash_tag="",
                   event_url="", started_at="", ended_at="", updated_at="",
-                  owner_name="", place="", address="", group_key="",
-                  group_name="", group_url=""),
+                  open_status="", owner_name="", place="", address="",
+                  group_key="", group_name="", group_url=""),
             Event(event_id=1, title="Event 3", catch="", hash_tag="",
                   event_url="", started_at="", ended_at="", updated_at="",
-                  owner_name="", place="", address="", group_key="",
-                  group_name="", group_url=""),
+                  open_status="", owner_name="", place="", address="",
+                  group_key="", group_name="", group_url=""),
             Event(event_id=3, title="Event 4", catch="", hash_tag="",
                   event_url="", started_at="", ended_at="", updated_at="",
-                  owner_name="", place="", address="", group_key="",
-                  group_name="", group_url=""),
+                  open_status="", owner_name="", place="", address="",
+                  group_key="", group_name="", group_url=""),
             Event(event_id=2, title="Event 5", catch="", hash_tag="",
                   event_url="", started_at="", ended_at="", updated_at="",
-                  owner_name="", place="", address="", group_key="",
-                  group_name="", group_url=""),
+                  open_status="", owner_name="", place="", address="",
+                  group_key="", group_name="", group_url=""),
         ]
 
         # Call the distinct_by_id method
@@ -43,7 +43,7 @@ class TestEvent(unittest.TestCase):
                             hash_tag="", event_url="",
                             started_at="", ended_at="", updated_at="",
                             limit=0, accepted=0, waiting=0,
-                            owner_name="Owner 1",
+                            open_status="preopen", owner_name="Owner 1",
                             place="Place", address="Address",
                             group_key="", group_name="", group_url="",
                             description="Description",
@@ -87,6 +87,7 @@ class TestEvent(unittest.TestCase):
             "started_at": "2022-01-01T00:00:00+09:00",
             "ended_at": "2022-01-01T00:00:00+09:00",
             "updated_at": "2022-01-01T00:00:00+09:00",
+            "open_status": "preopen",
             "limit": 0,
             "accepted": 0,
             "waiting": 0,
@@ -114,6 +115,7 @@ class TestEvent(unittest.TestCase):
         self.assertEqual(event.started_at, "2022-01-01T00:00:00+09:00")
         self.assertEqual(event.ended_at, "2022-01-01T00:00:00+09:00")
         self.assertEqual(event.updated_at, "2022-01-01T00:00:00+09:00")
+        self.assertEqual(event.open_status, "preopen")
         self.assertEqual(event.limit, 0)
         self.assertEqual(event.accepted, 0)
         self.assertEqual(event.waiting, 0)
@@ -136,7 +138,7 @@ class TestEvent(unittest.TestCase):
                         ended_at="2022-01-01T00:00:00+09:00",
                         updated_at="2022-01-01T00:00:00+09:00",
                         limit=0, accepted=0, waiting=0,
-                        owner_name="Owner 1",
+                        open_status="preopen", owner_name="Owner 1",
                         place="Place", address="Address", group_key="Group Key",
                         group_name="Group Name", group_url="Group URL",
                         description="Description",
@@ -147,7 +149,7 @@ class TestEvent(unittest.TestCase):
                         ended_at="2022-01-01T00:00:00+09:00",
                         updated_at="2022-01-01T00:00:00+09:00",
                         limit=0, accepted=0, waiting=0,
-                        owner_name="Owner 2",
+                        open_status="open", owner_name="Owner 2",
                         place="Place", address="Address", group_key="Group Key",
                         group_name="Group Name", group_url="Group URL",
                         description="Description",
