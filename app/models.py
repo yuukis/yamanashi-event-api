@@ -12,6 +12,7 @@ class Event:
     started_at: str
     ended_at: str
     updated_at: str
+    open_status: str
     owner_name: str
     place: Optional[str]
     address: Optional[str]
@@ -34,6 +35,7 @@ class EventDetail(Event):
     started_at: str
     ended_at: str
     updated_at: str
+    open_status: str
     limit: Optional[int]
     accepted: Optional[int]
     waiting: Optional[int]
@@ -86,6 +88,7 @@ class EventDetail(Event):
                 ended_at=data["ended_at"],
                 updated_at=data["updated_at"],
                 limit=data["limit"],
+                open_status=data["open_status"],
                 accepted=data["accepted"],
                 waiting=data["waiting"],
                 owner_name=data["owner_name"],
@@ -116,6 +119,7 @@ class EventDetail(Event):
                 "started_at": data.started_at,
                 "ended_at": data.ended_at,
                 "updated_at": data.updated_at,
+                "open_status": data.open_status,
                 "limit": data.limit,
                 "accepted": data.accepted,
                 "waiting": data.waiting,
