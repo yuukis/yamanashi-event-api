@@ -287,7 +287,8 @@ class ConnpassGroupRequest:
                     website_url=item["website_url"],
                     x_username=item["twitter_username"],
                     facebook_url=item["facebook_url"],
-                    member_users_count=item["member_users_count"]
+                    member_users_count=item["member_users_count"],
+                    ical_url=None
                 )
             )
         return groups
