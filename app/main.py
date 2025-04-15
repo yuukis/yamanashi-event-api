@@ -318,7 +318,7 @@ def request_events(params) -> Tuple[List[EventDetail], datetime]:
     except ConnpassException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
 
-    events = Event.distinct_by_id(events)
+    events = Event.distinct_by_uid(events)
     events.sort(key=lambda x: x.started_at, reverse=False)
 
     if keyword is not None:

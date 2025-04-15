@@ -3,7 +3,7 @@ from app.models import Event, EventDetail, Group
 
 
 class TestEvent(unittest.TestCase):
-    def test_distinct_by_id(self):
+    def test_distinct_by_uid(self):
         # Create a list of events with duplicate event_ids
         events = [
             Event(uid="event_1@example.com",
@@ -34,13 +34,13 @@ class TestEvent(unittest.TestCase):
         ]
 
         # Call the distinct_by_id method
-        distinct_events = Event.distinct_by_id(events)
+        distinct_events = Event.distinct_by_uid(events)
 
         # Check if the result contains unique events based on event_id
         self.assertEqual(len(distinct_events), 3)
-        self.assertEqual(distinct_events[0].event_id, 1)
-        self.assertEqual(distinct_events[1].event_id, 2)
-        self.assertEqual(distinct_events[2].event_id, 3)
+        self.assertEqual(distinct_events[0].uid, "event_1@example.com")
+        self.assertEqual(distinct_events[1].uid, "event_2@example.com")
+        self.assertEqual(distinct_events[2].uid, "event_3@example.com")
 
     def test_contains_keyword(self):
         # Create an event object

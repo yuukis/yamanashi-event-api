@@ -22,8 +22,8 @@ class Event:
     group_url: Optional[str]
 
     @staticmethod
-    def distinct_by_id(data):
-        return list({event.event_id: event for event in data}.values())
+    def distinct_by_uid(data):
+        return list({event.uid: event for event in data}.values())
 
 
 @dataclass
