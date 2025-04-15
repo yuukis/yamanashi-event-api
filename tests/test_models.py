@@ -6,23 +6,28 @@ class TestEvent(unittest.TestCase):
     def test_distinct_by_id(self):
         # Create a list of events with duplicate event_ids
         events = [
-            Event(event_id=1, title="Event 1", catch="", hash_tag="",
+            Event(uid="event_1@example.com",
+                  event_id=1, title="Event 1", catch="", hash_tag="",
                   event_url="", started_at="", ended_at="", updated_at="",
                   open_status="", owner_name="", place="", address="",
                   group_key="", group_name="", group_url=""),
-            Event(event_id=2, title="Event 2", catch="", hash_tag="",
+            Event(uid="event_2@example.com",
+                  event_id=2, title="Event 2", catch="", hash_tag="",
                   event_url="", started_at="", ended_at="", updated_at="",
                   open_status="", owner_name="", place="", address="",
                   group_key="", group_name="", group_url=""),
-            Event(event_id=1, title="Event 3", catch="", hash_tag="",
+            Event(uid="event_1@example.com",
+                  event_id=1, title="Event 3", catch="", hash_tag="",
                   event_url="", started_at="", ended_at="", updated_at="",
                   open_status="", owner_name="", place="", address="",
                   group_key="", group_name="", group_url=""),
-            Event(event_id=3, title="Event 4", catch="", hash_tag="",
+            Event(uid="event_3@example.com",
+                  event_id=3, title="Event 4", catch="", hash_tag="",
                   event_url="", started_at="", ended_at="", updated_at="",
                   open_status="", owner_name="", place="", address="",
                   group_key="", group_name="", group_url=""),
-            Event(event_id=2, title="Event 5", catch="", hash_tag="",
+            Event(uid="event_2@example.com",
+                  event_id=2, title="Event 5", catch="", hash_tag="",
                   event_url="", started_at="", ended_at="", updated_at="",
                   open_status="", owner_name="", place="", address="",
                   group_key="", group_name="", group_url=""),
@@ -39,7 +44,8 @@ class TestEvent(unittest.TestCase):
 
     def test_contains_keyword(self):
         # Create an event object
-        event = EventDetail(event_id=1, title="Event 1", catch="Catch 1",
+        event = EventDetail(uid="event_1@example.com",
+                            event_id=1, title="Event 1", catch="Catch 1",
                             hash_tag="", event_url="",
                             started_at="", ended_at="", updated_at="",
                             limit=0, accepted=0, waiting=0,
@@ -79,6 +85,7 @@ class TestEvent(unittest.TestCase):
     def test_from_json_with_data(self):
         # Create a data object
         data = {
+            "uid": "event_1@example.com",
             "event_id": 1,
             "title": "Event 1",
             "catch": "Catch 1",
@@ -107,6 +114,7 @@ class TestEvent(unittest.TestCase):
 
         # Check if the event object is created
         self.assertIsNotNone(event)
+        self.assertEqual(event.uid, "event_1@example.com")
         self.assertEqual(event.event_id, 1)
         self.assertEqual(event.title, "Event 1")
         self.assertEqual(event.catch, "Catch 1")
@@ -132,7 +140,8 @@ class TestEvent(unittest.TestCase):
     def test_to_json_with_list(self):
         # Create a list of event objects
         events = [
-            EventDetail(event_id=1, title="Event 1", catch="Catch 1",
+            EventDetail(uid="event_1@example.com",
+                        event_id=1, title="Event 1", catch="Catch 1",
                         hash_tag="Hash Tag", event_url="Event URL",
                         started_at="2022-01-01T00:00:00+09:00",
                         ended_at="2022-01-01T00:00:00+09:00",
@@ -143,7 +152,8 @@ class TestEvent(unittest.TestCase):
                         group_name="Group Name", group_url="Group URL",
                         description="Description",
                         lat="35.6895", lon="139.6917"),
-            EventDetail(event_id=2, title="Event 2", catch="Catch 2",
+            EventDetail(uid="event_2@example.com",
+                        event_id=2, title="Event 2", catch="Catch 2",
                         hash_tag="Hash Tag", event_url="Event URL",
                         started_at="2022-01-01T00:00:00+09:00",
                         ended_at="2022-01-01T00:00:00+09:00",

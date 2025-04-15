@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 @dataclass
 class Event:
+    uid: str
     event_id: int
     title: str
     catch: str
@@ -27,6 +28,7 @@ class Event:
 
 @dataclass
 class EventDetail(Event):
+    uid: str
     event_id: int
     title: str
     catch: str
@@ -79,6 +81,7 @@ class EventDetail(Event):
 
         if isinstance(data, dict):
             return EventDetail(
+                uid=data["uid"],
                 event_id=data["event_id"],
                 title=data["title"],
                 catch=data["catch"],
@@ -111,6 +114,7 @@ class EventDetail(Event):
 
         if isinstance(data, EventDetail):
             return {
+                "uid": data.uid,
                 "event_id": data.event_id,
                 "title": data.title,
                 "catch": data.catch,

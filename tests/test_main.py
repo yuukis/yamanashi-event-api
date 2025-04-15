@@ -14,6 +14,7 @@ class MockConnpassEventRequest:
     def get_events(self):
         json = [
             {
+                "uid": "UID 1",
                 "event_id": 1,
                 "title": "Event 1",
                 "catch": "Catch 1",
@@ -37,6 +38,7 @@ class MockConnpassEventRequest:
                 "lon": ""
             },
             {
+                "uid": "UID 2",
                 "event_id": 2,
                 "title": "Python Event",
                 "catch": "Python Catch",

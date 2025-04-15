@@ -141,6 +141,8 @@ class ConnpassEventRequest:
         events = []
 
         for item in json:
+            event_id = item["id"]
+            uid = f"event_{event_id}@connpass.com"
             group_subdomain = None
             group_title = None
             group_url = None
@@ -151,7 +153,8 @@ class ConnpassEventRequest:
 
             events.append(
                 EventDetail(
-                    event_id=item["id"],
+                    uid=uid,
+                    event_id=event_id,
                     title=item["title"],
                     catch=item["catch"],
                     hash_tag=item["hash_tag"],
