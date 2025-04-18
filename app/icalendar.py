@@ -12,7 +12,7 @@ class IcalException(Exception):
 
 class IcalEventRequest:
     def __init__(self, url, key, name=None, image_url=None, group_url=None,
-                 ym=None, ymd=None):
+                 ym=None, ymd=None, cache=None):
         self.url = url
         self.key = key
         self.name = name
@@ -20,14 +20,21 @@ class IcalEventRequest:
         self.group_url = group_url
         self.ym = [] if ym is None else ym
         self.ymd = [] if ymd is None else ymd
+        self.cache = cache
         self.last_modified = datetime.fromtimestamp(0, timezone.utc)
 
     def get_events(self):
+        url = self.url
+        cache = self.cache
         ym = self.ym
         ymd = self.ymd
 
         try:
-            content = self.__get_content(self.url)
+            content = self.__get_content_from_cache(url, cache)
+            if content is None:
+                content = self.__get_content(url)
+                last_modified = datetime.now(timezone.utc)
+                self.__set_content_to_cache(url, cache, content, last_modified)
             all_events = self.__parse_icalendar(content)
             selected_events = self.__find_by_ym_ymd(all_events, ym, ymd)
             return selected_events
@@ -55,12 +62,32 @@ class IcalEventRequest:
                 selected.append(event)
         return selected
 
+    def __get_content_from_cache(self, url, cache):
+        if cache is None:
+            return None
+        cache_content = cache.get(url)
+        if cache_content is None:
+            return None
+
+        content_text = cache_content["content"]
+        content = content_text.encode("utf-8")
+        self.last_modified = cache_content["last_modified"]
+
+        return content
+
+    def __set_content_to_cache(self, url, cache, content, last_modified):
+        if cache is None:
+            return
+        content_text = content.decode("utf-8")
+        cache.set(url, content_text, last_modified=last_modified)
+
     def __get_content(self, url):
+        print(f"Fetching content from {url}")
         response = requests.get(url)
         status_code = response.status_code
         if status_code != 200:
             raise IcalException(status_code, "Failed to fetch content")
-        
+
         self.last_modified = datetime.now(timezone.utc)
 
         return response.content

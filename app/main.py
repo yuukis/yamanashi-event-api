@@ -326,9 +326,8 @@ def request_events(params) -> Tuple[List[EventDetail], datetime]:
                 ical_url = group["ical_url"]
                 r = IcalEventRequest(url=ical_url,
                                      key=key, name=name,
-                                     image_url=image_url,
-                                     group_url=group_url,
-                                     ym=ym, ymd=ymd)
+                                     image_url=image_url, group_url=group_url,
+                                     ym=ym, ymd=ymd, cache=cache)
                 events += r.get_events()
                 last_modified = max(last_modified, r.get_last_modified())
 
