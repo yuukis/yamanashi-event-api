@@ -92,3 +92,75 @@ END:VCALENDAR
         self.assertEqual(events[0].open_status, "open")
         self.assertEqual(events[1].open_status, "preopen")
         self.assertEqual(events[2].open_status, "close")
+
+    def test_get_events_by_ym(self):
+        ical_content = b"""
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//JP
+METHOD:PUBLISH
+BEGIN:VEVENT
+SUMMARY:EVENT 1
+DTSTART:20240401T130000
+DTEND:20240401T170000
+DTSTAMP:20240401T000000Z
+UID:event_1@example.com
+LAST-MODIFIED:20240401T000000Z
+END:VEVENT
+END:VCALENDAR
+"""
+        ical_request1 = IcalEventRequest(
+            url="http://example.com",
+            key="test_key",
+            ym=["202404"]
+        )
+        ical_request1._IcalEventRequest__get_content = MagicMock(
+            return_value=ical_content)
+        events = ical_request1.get_events()
+        self.assertEqual(len(events), 1)
+
+        ical_request2 = IcalEventRequest(
+            url="http://example.com",
+            key="test_key",
+            ym=["202403"]
+        )
+        ical_request2._IcalEventRequest__get_content = MagicMock(
+            return_value=ical_content)
+        events = ical_request2.get_events()
+        self.assertEqual(len(events), 0)
+
+    def test_get_events_by_ymd(self):
+        ical_content = b"""
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//JP
+METHOD:PUBLISH
+BEGIN:VEVENT
+SUMMARY:EVENT 1
+DTSTART:20240401T130000
+DTEND:20240401T170000
+DTSTAMP:20240401T000000Z
+UID:event_1@example.com
+LAST-MODIFIED:20240401T000000Z
+END:VEVENT
+END:VCALENDAR
+"""
+        ical_request1 = IcalEventRequest(
+            url="http://example.com",
+            key="test_key",
+            ymd=["20240401"]
+        )
+        ical_request1._IcalEventRequest__get_content = MagicMock(
+            return_value=ical_content)
+        events = ical_request1.get_events()
+        self.assertEqual(len(events), 1)
+
+        ical_request2 = IcalEventRequest(
+            url="http://example.com",
+            key="test_key",
+            ymd=["20240402"]
+        )
+        ical_request2._IcalEventRequest__get_content = MagicMock(
+            return_value=ical_content)
+        events = ical_request2.get_events()
+        self.assertEqual(len(events), 0)

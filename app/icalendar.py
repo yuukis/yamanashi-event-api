@@ -11,19 +11,25 @@ class IcalException(Exception):
 
 
 class IcalEventRequest:
-    def __init__(self, url, key, name=None, image_url=None, group_url=None):
+    def __init__(self, url, key, name=None, image_url=None, group_url=None,
+                 ym=None, ymd=None):
         self.url = url
         self.key = key
         self.name = name
         self.image_url = image_url
         self.group_url = group_url
+        self.ym = [] if ym is None else ym
+        self.ymd = [] if ymd is None else ymd
 
     def get_events(self):
+        ym = self.ym
+        ymd = self.ymd
+
         try:
             content = self.__get_content(self.url)
-            events = []
-            events = self.__parse_icalendar(content)
-            return events
+            all_events = self.__parse_icalendar(content)
+            selected_events = self.__find_by_ym_ymd(all_events, ym, ymd)
+            return selected_events
 
         except requests.RequestException as e:
             raise IcalException(500, str(e))
@@ -33,6 +39,17 @@ class IcalEventRequest:
 
         except Exception as e:
             raise IcalException(500, str(e))
+
+    def __find_by_ym_ymd(self, events, ym, ymd):
+        if len(ym) == 0 and len(ymd) == 0:
+            return events
+
+        selected = []
+        for event in events:
+            event_date = event.started_at[:10].replace("-", "")
+            if event_date[:6] in self.ym or event_date in self.ymd:
+                selected.append(event)
+        return selected
 
     def __get_content(self, url):
         response = requests.get(url)

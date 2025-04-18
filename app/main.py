@@ -325,10 +325,10 @@ def request_events(params) -> Tuple[List[EventDetail], datetime]:
                 group_url = group.get("group_url")
                 ical_url = group["ical_url"]
                 r = IcalEventRequest(url=ical_url,
-                                     key=key,
-                                     name=name,
+                                     key=key, name=name,
                                      image_url=image_url,
-                                     group_url=group_url)
+                                     group_url=group_url,
+                                     ym=ym, ymd=ymd)
                 events += r.get_events()
 
     except ConnpassException as e:

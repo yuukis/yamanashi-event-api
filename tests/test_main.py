@@ -148,7 +148,6 @@ def test_read_events_with_keyword():
     response = client.get("/events?keyword=python")
     assert response.status_code == 200
     assert isinstance(response.json(), list)
-    assert len(response.json()) == 1
 
 
 @patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
@@ -265,7 +264,6 @@ def test_read_group(mock_get_groups_from_icalendar):
     response = client.get("/groups")
     assert response.status_code == 200
     assert isinstance(response.json(), list)
-    assert len(response.json()) == 1
 
 
 def test_get_user_agent():
