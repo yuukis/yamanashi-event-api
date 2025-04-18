@@ -1,5 +1,6 @@
 requests
 fastapi
+icalendar
 uvicorn
 pyyaml
 python-dotenv
