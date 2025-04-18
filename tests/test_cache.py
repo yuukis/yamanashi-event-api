@@ -16,9 +16,11 @@ class TestEventRequestCache(unittest.TestCase):
 
         response = self.cache.get({"param": "value"})
         content = response["content"]
+        json = response["json"]
         last_modified = response["last_modified"]
 
-        self.assertEqual(content, {"key": "value"})
+        self.assertEqual(content, '{"key": "value"}')
+        self.assertEqual(json, {"key": "value"})
         self.assertIsNone(last_modified)
 
     def test_get_existing_key2(self):
@@ -31,9 +33,11 @@ class TestEventRequestCache(unittest.TestCase):
         
         response = self.cache.get({"param": "value"})
         content = response["content"]
+        json = response["json"]
         last_modified = response["last_modified"]
 
-        self.assertEqual(content, {"key": "value"})
+        self.assertEqual(content, '{"key": "value"}')
+        self.assertEqual(json, {"key": "value"})
         self.assertEqual(last_modified, dt)
 
     def test_get_non_existing_key(self):

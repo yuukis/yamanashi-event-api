@@ -3,43 +3,49 @@ from app.models import Event, EventDetail, Group
 
 
 class TestEvent(unittest.TestCase):
-    def test_distinct_by_id(self):
+    def test_distinct_by_uid(self):
         # Create a list of events with duplicate event_ids
         events = [
-            Event(event_id=1, title="Event 1", catch="", hash_tag="",
+            Event(uid="event_1@example.com",
+                  event_id=1, title="Event 1", catch="", hash_tag="",
                   event_url="", started_at="", ended_at="", updated_at="",
                   open_status="", owner_name="", place="", address="",
                   group_key="", group_name="", group_url=""),
-            Event(event_id=2, title="Event 2", catch="", hash_tag="",
+            Event(uid="event_2@example.com",
+                  event_id=2, title="Event 2", catch="", hash_tag="",
                   event_url="", started_at="", ended_at="", updated_at="",
                   open_status="", owner_name="", place="", address="",
                   group_key="", group_name="", group_url=""),
-            Event(event_id=1, title="Event 3", catch="", hash_tag="",
+            Event(uid="event_1@example.com",
+                  event_id=1, title="Event 3", catch="", hash_tag="",
                   event_url="", started_at="", ended_at="", updated_at="",
                   open_status="", owner_name="", place="", address="",
                   group_key="", group_name="", group_url=""),
-            Event(event_id=3, title="Event 4", catch="", hash_tag="",
+            Event(uid="event_3@example.com",
+                  event_id=3, title="Event 4", catch="", hash_tag="",
                   event_url="", started_at="", ended_at="", updated_at="",
                   open_status="", owner_name="", place="", address="",
                   group_key="", group_name="", group_url=""),
-            Event(event_id=2, title="Event 5", catch="", hash_tag="",
+            Event(uid="event_2@example.com",
+                  event_id=2, title="Event 5", catch="", hash_tag="",
                   event_url="", started_at="", ended_at="", updated_at="",
                   open_status="", owner_name="", place="", address="",
                   group_key="", group_name="", group_url=""),
         ]
 
         # Call the distinct_by_id method
-        distinct_events = Event.distinct_by_id(events)
+        distinct_events = Event.distinct_by_uid(events)
 
         # Check if the result contains unique events based on event_id
         self.assertEqual(len(distinct_events), 3)
-        self.assertEqual(distinct_events[0].event_id, 1)
-        self.assertEqual(distinct_events[1].event_id, 2)
-        self.assertEqual(distinct_events[2].event_id, 3)
+        self.assertEqual(distinct_events[0].uid, "event_1@example.com")
+        self.assertEqual(distinct_events[1].uid, "event_2@example.com")
+        self.assertEqual(distinct_events[2].uid, "event_3@example.com")
 
     def test_contains_keyword(self):
         # Create an event object
-        event = EventDetail(event_id=1, title="Event 1", catch="Catch 1",
+        event = EventDetail(uid="event_1@example.com",
+                            event_id=1, title="Event 1", catch="Catch 1",
                             hash_tag="", event_url="",
                             started_at="", ended_at="", updated_at="",
                             limit=0, accepted=0, waiting=0,
@@ -79,6 +85,7 @@ class TestEvent(unittest.TestCase):
     def test_from_json_with_data(self):
         # Create a data object
         data = {
+            "uid": "event_1@example.com",
             "event_id": 1,
             "title": "Event 1",
             "catch": "Catch 1",
@@ -107,6 +114,7 @@ class TestEvent(unittest.TestCase):
 
         # Check if the event object is created
         self.assertIsNotNone(event)
+        self.assertEqual(event.uid, "event_1@example.com")
         self.assertEqual(event.event_id, 1)
         self.assertEqual(event.title, "Event 1")
         self.assertEqual(event.catch, "Catch 1")
@@ -132,7 +140,8 @@ class TestEvent(unittest.TestCase):
     def test_to_json_with_list(self):
         # Create a list of event objects
         events = [
-            EventDetail(event_id=1, title="Event 1", catch="Catch 1",
+            EventDetail(uid="event_1@example.com",
+                        event_id=1, title="Event 1", catch="Catch 1",
                         hash_tag="Hash Tag", event_url="Event URL",
                         started_at="2022-01-01T00:00:00+09:00",
                         ended_at="2022-01-01T00:00:00+09:00",
@@ -143,7 +152,8 @@ class TestEvent(unittest.TestCase):
                         group_name="Group Name", group_url="Group URL",
                         description="Description",
                         lat="35.6895", lon="139.6917"),
-            EventDetail(event_id=2, title="Event 2", catch="Catch 2",
+            EventDetail(uid="event_2@example.com",
+                        event_id=2, title="Event 2", catch="Catch 2",
                         hash_tag="Hash Tag", event_url="Event URL",
                         started_at="2022-01-01T00:00:00+09:00",
                         ended_at="2022-01-01T00:00:00+09:00",
@@ -165,6 +175,34 @@ class TestEvent(unittest.TestCase):
         self.assertEqual(data[0]["event_id"], 1)
         self.assertEqual(data[1]["event_id"], 2)
 
+    def test_is_valid(self):
+        event1 = EventDetail(uid="event_1@example.com",
+                             event_id=1, title="Event 1", catch="Catch 1",
+                             hash_tag="Hash Tag", event_url="Event URL",
+                             started_at="2022-01-01T00:00:00+09:00",
+                             ended_at="2022-01-01T00:00:00+09:00",
+                             updated_at="2022-01-01T00:00:00+09:00",
+                             limit=0, accepted=0, waiting=0,
+                             open_status="preopen", owner_name=None,
+                             place=None, address=None, group_key="Group Key",
+                             group_name="Group Name", group_url="Group URL",
+                             description="Description",
+                             lat=None, lon=None)
+        event2 = EventDetail(uid="event_2@example.com",
+                             event_id=1, title="Event 2", catch="Catch 2",
+                             hash_tag="Hash Tag", event_url=None,
+                             started_at="2022-01-01T00:00:00+09:00",
+                             ended_at="2022-01-01T00:00:00+09:00",
+                             updated_at="2022-01-01T00:00:00+09:00",
+                             limit=0, accepted=0, waiting=0,
+                             open_status="preopen", owner_name=None,
+                             place=None, address=None, group_key="Group Key",
+                             group_name="Group Name", group_url="Group URL",
+                             description="Description",
+                             lat=None, lon=None)
+        self.assertTrue(event1.is_valid())
+        self.assertFalse(event2.is_valid())
+
 
 class TestGroup(unittest.TestCase):
     def test_from_json_with_data(self):
@@ -181,7 +219,8 @@ class TestGroup(unittest.TestCase):
             "website_url": "Website URL",
             "x_username": "X Username",
             "facebook_url": "Facebook URL",
-            "member_users_count": 100
+            "member_users_count": 100,
+            "ical_url": "iCal URL"
         }
 
         # Call the from_json method
@@ -201,6 +240,7 @@ class TestGroup(unittest.TestCase):
         self.assertEqual(group.x_username, "X Username")
         self.assertEqual(group.facebook_url, "Facebook URL")
         self.assertEqual(group.member_users_count, 100)
+        self.assertEqual(group.ical_url, "iCal URL")
 
     def test_to_json_with_list(self):
         # Create a list of group objects
@@ -209,12 +249,12 @@ class TestGroup(unittest.TestCase):
                   url="URL", description="Description", owner_text="Owner Text",
                   image_url="Image URL", website_url="Website URL",
                   x_username="X Username", facebook_url="Facebook URL",
-                  member_users_count=100),
+                  member_users_count=100, ical_url="iCal URL"),
             Group(id=2, key="Key", title="Title", sub_title="Sub Title",
                   url="URL", description="Description", owner_text="Owner Text",
                   image_url="Image URL", website_url="Website URL",
                   x_username="X Username", facebook_url="Facebook URL",
-                  member_users_count=100)
+                  member_users_count=100, ical_url="iCal URL")
         ]
 
         # Call the to_json method

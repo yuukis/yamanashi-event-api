@@ -66,7 +66,7 @@ class ConnpassEventRequest:
             if self.cache is not None:
                 response = self.cache.get(params)
                 if response is not None:
-                    json = response["content"]
+                    json = response["json"]
                     last_modified = response["last_modified"]
             if json is None:
                 try:
@@ -141,6 +141,8 @@ class ConnpassEventRequest:
         events = []
 
         for item in json:
+            event_id = item["id"]
+            uid = f"event_{event_id}@connpass.com"
             group_subdomain = None
             group_title = None
             group_url = None
@@ -151,7 +153,8 @@ class ConnpassEventRequest:
 
             events.append(
                 EventDetail(
-                    event_id=item["id"],
+                    uid=uid,
+                    event_id=event_id,
                     title=item["title"],
                     catch=item["catch"],
                     hash_tag=item["hash_tag"],
@@ -209,7 +212,7 @@ class ConnpassGroupRequest:
             if self.cache is not None:
                 response = self.cache.get(params)
                 if response is not None:
-                    json = response["content"]
+                    json = response["json"]
                     last_modified = response["last_modified"]
             if json is None:
                 try:
@@ -284,7 +287,8 @@ class ConnpassGroupRequest:
                     website_url=item["website_url"],
                     x_username=item["twitter_username"],
                     facebook_url=item["facebook_url"],
-                    member_users_count=item["member_users_count"]
+                    member_users_count=item["member_users_count"],
+                    ical_url=None
                 )
             )
         return groups

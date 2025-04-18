@@ -3,6 +3,7 @@ from fastapi import FastAPI, BackgroundTasks, Path, HTTPException
 from fastapi.responses import RedirectResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from .connpass import ConnpassEventRequest, ConnpassGroupRequest, ConnpassException
+from .icalendar import IcalEventRequest, IcalException
 from .models import Event, EventDetail, Group
 from .cache import EventRequestCache
 import os
@@ -259,7 +260,7 @@ def get_events_from_cache(cache, params) -> Tuple[List[EventDetail], datetime]:
     response = cache.get(params)
     if response is None:
         return None, None
-    json = response["content"]
+    json = response["json"]
     last_modified = response["last_modified"]
     if json is not None:
         return EventDetail.from_json(json), last_modified
@@ -315,10 +316,28 @@ def request_events(params) -> Tuple[List[EventDetail], datetime]:
             events += r.get_events()
             last_modified = max(last_modified, r.get_last_modified())
 
+        if "scope" in config and "icalendar" in config["scope"]:
+            icalendar = config["scope"]["icalendar"]
+            for group in icalendar:
+                key = group["key"]
+                name = group["name"]
+                image_url = group.get("image_url")
+                group_url = group.get("group_url")
+                ical_url = group["ical_url"]
+                r = IcalEventRequest(url=ical_url,
+                                     key=key, name=name,
+                                     image_url=image_url, group_url=group_url,
+                                     ym=ym, ymd=ymd, cache=cache)
+                events += r.get_events()
+                last_modified = max(last_modified, r.get_last_modified())
+
     except ConnpassException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
 
-    events = Event.distinct_by_id(events)
+    except IcalException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+
+    events = Event.distinct_by_uid(events)
     events.sort(key=lambda x: x.started_at, reverse=False)
 
     if keyword is not None:
@@ -348,7 +367,7 @@ def get_groups_from_cache(cache, params) -> Tuple[List[Group], datetime]:
     response = cache.get(params)
     if response is None:
         return None, None
-    json = response["content"]
+    json = response["json"]
     last_modified = response["last_modified"]
     if json is not None:
         return Group.from_json(json), last_modified
@@ -388,6 +407,9 @@ def request_groups(params) -> Tuple[List[Group], datetime]:
             groups += r.get_groups()
             last_modified = max(last_modified, r.get_last_modified())
 
+        if "scope" in config and "icalendar" in config["scope"]:
+            groups += get_groups_from_icalendar(config)
+
     except ConnpassException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
 
@@ -401,3 +423,20 @@ def get_user_agent(config):
         user_agent = user_agent.replace("{version}", version)
         return user_agent
     return None
+
+
+def get_groups_from_icalendar(config):
+    groups = []
+    if "scope" in config and "icalendar" in config["scope"]:
+        icalendar = config["scope"]["icalendar"]
+        for group in icalendar:
+            g = Group.from_json({
+                "key": group["key"],
+                "title": group["name"],
+                "image_url": group.get("image_url"),
+                "url": group["group_url"],
+                "ical_url": group["ical_url"]
+            })
+            groups.append(g)
+
+    return groups

@@ -28,3 +28,10 @@ scope:
     - 'jaws-ug-yamanashi' # JAWS-UG山梨
     - 'houtoupm' # Houtou.pm
     - 'aibase' # AI BASE
+
+  icalendar:
+    - key: 'yamanashi-wordpress-meetup'
+      name: 'Yamanashi WordPress Meetup'
+      image_url: https://secure-content.meetupstatic.com/images/classic-events/488365181/72x72.jpg
+      group_url: https://www.meetup.com/ja-JP/yamanashi-wordpress-meetup/
+      ical_url: https://www.meetup.com/ja-JP/Yamanashi-WordPress-Meetup/events/ical/
