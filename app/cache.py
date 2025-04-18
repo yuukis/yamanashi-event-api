@@ -11,8 +11,8 @@ class EventRequestCache:
         self._store = {}
         self._expiry = {}
 
-    def get(self, request_params) -> dict | None:
-        key = self.generate_key(request_params)
+    def get(self, key_data) -> dict | None:
+        key = self.generate_key(key_data)
         key_content = key + ":content"
         key_last_modified = key + ":last_modified"
 
@@ -30,14 +30,26 @@ class EventRequestCache:
             last_modified_dt = datetime.fromtimestamp(int(last_modified),
                                                       timezone.utc)
 
+        json_data = None
+        try:
+            json_data = json.loads(content)
+        except json.JSONDecodeError:
+            pass
+
         return {
-            "content": json.loads(content),
+            "content": content,
+            "json": json_data,
             "last_modified": last_modified_dt
         }
 
-    def set(self, request_params, response_json, last_modified=None, ex=3600):
-        key = self.generate_key(request_params)
-        content = json.dumps(response_json, sort_keys=True)
+    def set(self, key_data, response_data, last_modified=None, ex=3600):
+        key = self.generate_key(key_data)
+        if isinstance(response_data, dict) or isinstance(response_data, list):
+            content = json.dumps(response_data, sort_keys=True)
+        elif isinstance(response_data, str):
+            content = response_data
+        else:
+            raise ValueError("Invalid data type for cache content")
 
         key_content = key + ":content"
         key_last_modified = key + ":last_modified"
@@ -51,9 +63,15 @@ class EventRequestCache:
             expiry = datetime.now(timezone.utc).timestamp() + ex
             self._expiry[key_last_modified] = expiry
 
-    def generate_key(self, params) -> str:
-        json_text = json.dumps(params, sort_keys=True)
-        key_sha256 = hashlib.sha256(json_text.encode())
+    def generate_key(self, data) -> str:
+        if isinstance(data, dict):
+            text = json.dumps(data, sort_keys=True)
+        elif isinstance(data, str):
+            text = data
+        else:
+            raise ValueError("Invalid data type for key generation")
+
+        key_sha256 = hashlib.sha256(text.encode())
         key = self._prefix + key_sha256.hexdigest()
         return key
 

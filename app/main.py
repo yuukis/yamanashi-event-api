@@ -260,7 +260,7 @@ def get_events_from_cache(cache, params) -> Tuple[List[EventDetail], datetime]:
     response = cache.get(params)
     if response is None:
         return None, None
-    json = response["content"]
+    json = response["json"]
     last_modified = response["last_modified"]
     if json is not None:
         return EventDetail.from_json(json), last_modified
@@ -368,7 +368,7 @@ def get_groups_from_cache(cache, params) -> Tuple[List[Group], datetime]:
     response = cache.get(params)
     if response is None:
         return None, None
-    json = response["content"]
+    json = response["json"]
     last_modified = response["last_modified"]
     if json is not None:
         return Group.from_json(json), last_modified

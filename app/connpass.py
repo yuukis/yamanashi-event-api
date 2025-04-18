@@ -66,7 +66,7 @@ class ConnpassEventRequest:
             if self.cache is not None:
                 response = self.cache.get(params)
                 if response is not None:
-                    json = response["content"]
+                    json = response["json"]
                     last_modified = response["last_modified"]
             if json is None:
                 try:
@@ -212,7 +212,7 @@ class ConnpassGroupRequest:
             if self.cache is not None:
                 response = self.cache.get(params)
                 if response is not None:
-                    json = response["content"]
+                    json = response["json"]
                     last_modified = response["last_modified"]
             if json is None:
                 try:
