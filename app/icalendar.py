@@ -1,7 +1,7 @@
 import requests
 from icalendar import Calendar as IcalCalendar
 from .models import EventDetail
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class IcalException(Exception):
@@ -20,6 +20,7 @@ class IcalEventRequest:
         self.group_url = group_url
         self.ym = [] if ym is None else ym
         self.ymd = [] if ymd is None else ymd
+        self.last_modified = datetime.fromtimestamp(0, timezone.utc)
 
     def get_events(self):
         ym = self.ym
@@ -40,6 +41,9 @@ class IcalEventRequest:
         except Exception as e:
             raise IcalException(500, str(e))
 
+    def get_last_modified(self):
+        return self.last_modified
+
     def __find_by_ym_ymd(self, events, ym, ymd):
         if len(ym) == 0 and len(ymd) == 0:
             return events
@@ -56,6 +60,8 @@ class IcalEventRequest:
         status_code = response.status_code
         if status_code != 200:
             raise IcalException(status_code, "Failed to fetch content")
+        
+        self.last_modified = datetime.now(timezone.utc)
 
         return response.content
 

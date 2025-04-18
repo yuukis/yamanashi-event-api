@@ -133,6 +133,10 @@ class MockICalEventRequest:
         events = EventDetail.from_json(json)
         return events
 
+    def get_last_modified(self):
+        last_modified = datetime.fromtimestamp(123, timezone.utc)
+        return last_modified
+
 
 @patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
 @patch("app.main.IcalEventRequest", MockICalEventRequest)

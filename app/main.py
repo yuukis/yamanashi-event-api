@@ -330,6 +330,7 @@ def request_events(params) -> Tuple[List[EventDetail], datetime]:
                                      group_url=group_url,
                                      ym=ym, ymd=ymd)
                 events += r.get_events()
+                last_modified = max(last_modified, r.get_last_modified())
 
     except ConnpassException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
