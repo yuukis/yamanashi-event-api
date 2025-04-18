@@ -175,6 +175,34 @@ class TestEvent(unittest.TestCase):
         self.assertEqual(data[0]["event_id"], 1)
         self.assertEqual(data[1]["event_id"], 2)
 
+    def test_is_valid(self):
+        event1 = EventDetail(uid="event_1@example.com",
+                             event_id=1, title="Event 1", catch="Catch 1",
+                             hash_tag="Hash Tag", event_url="Event URL",
+                             started_at="2022-01-01T00:00:00+09:00",
+                             ended_at="2022-01-01T00:00:00+09:00",
+                             updated_at="2022-01-01T00:00:00+09:00",
+                             limit=0, accepted=0, waiting=0,
+                             open_status="preopen", owner_name=None,
+                             place=None, address=None, group_key="Group Key",
+                             group_name="Group Name", group_url="Group URL",
+                             description="Description",
+                             lat=None, lon=None)
+        event2 = EventDetail(uid="event_2@example.com",
+                             event_id=1, title="Event 2", catch="Catch 2",
+                             hash_tag="Hash Tag", event_url=None,
+                             started_at="2022-01-01T00:00:00+09:00",
+                             ended_at="2022-01-01T00:00:00+09:00",
+                             updated_at="2022-01-01T00:00:00+09:00",
+                             limit=0, accepted=0, waiting=0,
+                             open_status="preopen", owner_name=None,
+                             place=None, address=None, group_key="Group Key",
+                             group_name="Group Name", group_url="Group URL",
+                             description="Description",
+                             lat=None, lon=None)
+        self.assertTrue(event1.is_valid())
+        self.assertFalse(event2.is_valid())
+
 
 class TestGroup(unittest.TestCase):
     def test_from_json_with_data(self):

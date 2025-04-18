@@ -115,6 +115,8 @@ class IcalEventRequest:
                 "group_name": self.name,
                 "group_url": self.group_url,
             })
+            if not event.is_valid():
+                continue
             events.append(event)
 
         return events

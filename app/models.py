@@ -73,6 +73,17 @@ class EventDetail(Event):
                 return False
 
         return True
+    
+    def is_valid(self):
+        return all([
+            self.uid,
+            self.title,
+            self.event_url,
+            self.started_at,
+            self.ended_at,
+            self.updated_at,
+            self.open_status
+        ])
 
     @staticmethod
     def from_json(data: any):
