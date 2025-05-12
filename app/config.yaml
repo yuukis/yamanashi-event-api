@@ -28,6 +28,7 @@ scope:
     - 'jaws-ug-yamanashi' # JAWS-UG山梨
     - 'houtoupm' # Houtou.pm
     - 'aibase' # AI BASE
+    - 'kofurb' # Kofu.rb
 
   icalendar:
     - key: 'yamanashi-wordpress-meetup'
