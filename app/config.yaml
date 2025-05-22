@@ -29,6 +29,7 @@ scope:
     - 'houtoupm' # Houtou.pm
     - 'aibase' # AI BASE
     - 'kofurb' # Kofu.rb
+    - 'ai-meetup' # 東京-山梨 AI ミートアップ
 
   icalendar:
     - key: 'yamanashi-wordpress-meetup'
