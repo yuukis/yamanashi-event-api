@@ -1,4 +1,5 @@
 import requests
+import re
 from icalendar import Calendar as IcalCalendar
 from .models import EventDetail
 from datetime import datetime, timezone
@@ -115,6 +116,11 @@ class IcalEventRequest:
                 "group_name": self.name,
                 "group_url": self.group_url,
             })
+            if event.event_url is None and event.description is not None:
+                url_pattern = r'(https?://[^\s]+)'
+                match = re.search(url_pattern, event.description)
+                if match:
+                    event.event_url = match.group(0)
             if not event.is_valid():
                 continue
             events.append(event)
