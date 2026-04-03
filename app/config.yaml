@@ -32,6 +32,7 @@ scope:
     - 'ai-meetup' # 東京-山梨 AI ミートアップ
     - 'yamanashi-encareer' # やまなしエンxキャリ（Engineer × Career）
     - 'techmujin' # テック無尽
+    - 'ura-techmujin' # 裏テック無尽
 
   icalendar:
     - key: 'yamanashi-wordpress-meetup'
