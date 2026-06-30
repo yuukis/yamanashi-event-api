@@ -71,6 +71,12 @@ class TestArchiveIndexRequest(unittest.TestCase):
         self.assertEqual(groups[0].title, "山梨Web勉強会")
         self.assertEqual(groups[0].url, "https://example.com/yamanashi-web")
         self.assertEqual(groups[0].ical_url, None)
+        self.assertEqual(groups[0].archive_source,
+                         "yamanashi-it-event-archive")
+        self.assertEqual(
+            groups[0].archive_url,
+            "https://github.com/yuukis/yamanashi-it-event-archive"
+        )
 
     @patch("app.archive.requests.get")
     def test_get_events_http_error(self, mock_get):

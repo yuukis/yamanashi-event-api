@@ -220,7 +220,9 @@ class TestGroup(unittest.TestCase):
             "x_username": "X Username",
             "facebook_url": "Facebook URL",
             "member_users_count": 100,
-            "ical_url": "iCal URL"
+            "ical_url": "iCal URL",
+            "archive_source": "Archive Source",
+            "archive_url": "Archive URL"
         }
 
         # Call the from_json method
@@ -241,6 +243,8 @@ class TestGroup(unittest.TestCase):
         self.assertEqual(group.facebook_url, "Facebook URL")
         self.assertEqual(group.member_users_count, 100)
         self.assertEqual(group.ical_url, "iCal URL")
+        self.assertEqual(group.archive_source, "Archive Source")
+        self.assertEqual(group.archive_url, "Archive URL")
 
     def test_to_json_with_list(self):
         # Create a list of group objects
@@ -249,12 +253,16 @@ class TestGroup(unittest.TestCase):
                   url="URL", description="Description", owner_text="Owner Text",
                   image_url="Image URL", website_url="Website URL",
                   x_username="X Username", facebook_url="Facebook URL",
-                  member_users_count=100, ical_url="iCal URL"),
+                  member_users_count=100, ical_url="iCal URL",
+                  archive_source="Archive Source",
+                  archive_url="Archive URL"),
             Group(id=2, key="Key", title="Title", sub_title="Sub Title",
                   url="URL", description="Description", owner_text="Owner Text",
                   image_url="Image URL", website_url="Website URL",
                   x_username="X Username", facebook_url="Facebook URL",
-                  member_users_count=100, ical_url="iCal URL")
+                  member_users_count=100, ical_url="iCal URL",
+                  archive_source="Archive Source",
+                  archive_url="Archive URL")
         ]
 
         # Call the to_json method
@@ -265,6 +273,8 @@ class TestGroup(unittest.TestCase):
         self.assertEqual(len(data), 2)
         self.assertEqual(data[0]["id"], 1)
         self.assertEqual(data[1]["id"], 2)
+        self.assertEqual(data[0]["archive_source"], "Archive Source")
+        self.assertEqual(data[0]["archive_url"], "Archive URL")
 
 
 if __name__ == '__main__':

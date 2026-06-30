@@ -26,7 +26,8 @@ scope:
 ## JSON Format
 
 The top-level `events` array is converted to `EventDetail`. The top-level
-`communities` array is converted to `Group`.
+`communities` array is converted to `Group`. The API adds `archive_source` and
+`archive_url` to each archive community from `source.name` and `source.url`.
 
 ```json
 {
@@ -51,7 +52,9 @@ The top-level `events` array is converted to `EventDetail`. The top-level
       "x_username": null,
       "facebook_url": null,
       "member_users_count": null,
-      "ical_url": null
+      "ical_url": null,
+      "archive_source": "yamanashi-it-event-archive",
+      "archive_url": "https://github.com/yuukis/yamanashi-it-event-archive"
     }
   ],
   "events": [
@@ -104,4 +107,3 @@ The required event fields are:
 - `ended_at`
 - `updated_at`
 - `open_status`
-

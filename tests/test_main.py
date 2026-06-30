@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 from unittest.mock import patch
 from app.main import app, get_user_agent, get_groups_from_icalendar
 from app.main import request_events, request_groups, get_groups_from_archives
+from app.cache import EventRequestCache
 from app.models import EventDetail, Group
 from datetime import datetime, timezone
 
@@ -188,7 +189,10 @@ class MockArchiveIndexRequest:
                 "x_username": None,
                 "facebook_url": None,
                 "member_users_count": None,
-                "ical_url": None
+                "ical_url": None,
+                "archive_source": "yamanashi-it-event-archive",
+                "archive_url": "https://github.com/yuukis/"
+                "yamanashi-it-event-archive"
             }
         ]
         return Group.from_json(json)
@@ -330,6 +334,36 @@ def test_read_group(mock_get_groups_from_icalendar):
     assert isinstance(response.json(), list)
 
 
+@patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.main.get_groups_from_icalendar")
+@patch("app.main.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "subdomain": ["test"],
+        "archives": [
+            {
+                "url": "https://example.com/archive/index.json"
+            }
+        ]
+    }
+})
+@patch("app.main.ArchiveIndexRequest", MockArchiveIndexRequest)
+@patch("app.main.cache", EventRequestCache(prefix="test_archive_group_"))
+def test_read_group_includes_archive_source(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    response = client.get("/groups")
+
+    assert response.status_code == 200
+    archive_group = [
+        group for group in response.json()
+        if group["key"] == "yamanashi-web"
+    ][0]
+    assert archive_group["archive_source"] == "yamanashi-it-event-archive"
+    assert archive_group["archive_url"] == \
+        "https://github.com/yuukis/yamanashi-it-event-archive"
+
+
 def test_get_user_agent():
     config = {
         "metadata": {
@@ -419,6 +453,9 @@ def test_request_groups_from_archives():
     assert len(groups) == 1
     assert groups[0].key == "yamanashi-web"
     assert groups[0].title == "山梨Web勉強会"
+    assert groups[0].archive_source == "yamanashi-it-event-archive"
+    assert groups[0].archive_url == \
+        "https://github.com/yuukis/yamanashi-it-event-archive"
     assert last_modified == datetime.fromtimestamp(123, timezone.utc)
 
 
@@ -438,3 +475,6 @@ def test_get_groups_from_archives():
 
     assert len(groups) == 1
     assert groups[0].key == "yamanashi-web"
+    assert groups[0].archive_source == "yamanashi-it-event-archive"
+    assert groups[0].archive_url == \
+        "https://github.com/yuukis/yamanashi-it-event-archive"

@@ -45,7 +45,18 @@ class ArchiveIndexRequest:
                 last_modified = datetime.now(timezone.utc)
                 self.__set_json_to_cache(json, last_modified)
 
-            return Group.from_json(json.get("communities", []))
+            source = json.get("source", {})
+            archive_source = source.get("name")
+            archive_url = source.get("url")
+            communities = []
+            for community in json.get("communities", []):
+                item = community.copy()
+                item["archive_source"] = item.get("archive_source",
+                                                  archive_source)
+                item["archive_url"] = item.get("archive_url", archive_url)
+                communities.append(item)
+
+            return Group.from_json(communities)
 
         except requests.RequestException as e:
             raise ArchiveException(500, str(e))

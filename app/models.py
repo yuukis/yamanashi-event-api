@@ -167,6 +167,8 @@ class Group:
     facebook_url: Optional[str]
     member_users_count: Optional[int]
     ical_url: Optional[str]
+    archive_source: Optional[str] = None
+    archive_url: Optional[str] = None
 
     @staticmethod
     def from_json(data: any):
@@ -187,7 +189,9 @@ class Group:
                 x_username=data.get("x_username"),
                 facebook_url=data.get("facebook_url"),
                 member_users_count=data.get("member_users_count"),
-                ical_url=data.get("ical_url")
+                ical_url=data.get("ical_url"),
+                archive_source=data.get("archive_source"),
+                archive_url=data.get("archive_url")
             )
 
         raise ValueError("data must be Group or List[Group]")
@@ -211,7 +215,9 @@ class Group:
                 "x_username": data.x_username,
                 "facebook_url": data.facebook_url,
                 "member_users_count": data.member_users_count,
-                "ical_url": data.ical_url
+                "ical_url": data.ical_url,
+                "archive_source": data.archive_source,
+                "archive_url": data.archive_url
             }
 
         raise ValueError("data must be Group or List[Group]")
