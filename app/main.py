@@ -482,8 +482,16 @@ def get_groups_from_archives(config):
 
 def preload_archive_indexes():
     for url in get_archive_urls(config):
-        r = ArchiveIndexRequest(url=url, cache=cache)
-        r.preload()
+        try:
+            r = ArchiveIndexRequest(url=url, cache=cache)
+            r.preload()
+        except ArchiveException as e:
+            print({
+                "message": "Failed to preload archive index",
+                "url": url,
+                "status_code": e.status_code,
+                "detail": e.message
+            })
 
 
 def get_archive_urls(config):

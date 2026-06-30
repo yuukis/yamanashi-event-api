@@ -5,7 +5,9 @@ outside this API project. The API reads the generated JSON index and merges its
 events with connpass and iCalendar events.
 
 Archive index JSON files are loaded on application startup and kept in memory
-without expiration while the application process is running.
+without expiration while the application process is running. If startup preload
+fails, the application keeps running and retries the archive fetch when an
+archive-backed endpoint is requested.
 
 ## Configuration
 

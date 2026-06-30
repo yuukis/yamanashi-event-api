@@ -5,6 +5,7 @@ from app.main import app, get_user_agent, get_groups_from_icalendar
 from app.main import request_events, request_groups, get_groups_from_archives
 from app.main import get_archive_urls, preload_archive_indexes
 from app.cache import EventRequestCache
+from app.archive import ArchiveException
 from app.models import EventDetail, Group
 from datetime import datetime, timezone
 
@@ -209,6 +210,14 @@ class MockArchiveIndexRequest:
 
     def preload(self):
         MockArchiveIndexRequest.preloaded_urls.append(self.url)
+
+
+class MockFailingPreloadArchiveIndexRequest:
+    def __init__(self, **kwargs):
+        self.url = kwargs.get("url")
+
+    def preload(self):
+        raise ArchiveException(500, "Failed to fetch archive index")
 
 
 @pytest.fixture(autouse=True)
@@ -567,3 +576,21 @@ def test_preload_archive_indexes():
         "https://example.com/archive/index-1.json",
         "https://example.com/archive/index-2.json"
     ]
+
+
+@patch("app.main.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "archives": [
+            {
+                "url": [
+                    "https://example.com/archive/index-1.json"
+                ]
+            }
+        ]
+    }
+})
+def test_preload_archive_indexes_does_not_raise_on_error():
+    with patch("app.main.ArchiveIndexRequest",
+               MockFailingPreloadArchiveIndexRequest):
+        preload_archive_indexes()
