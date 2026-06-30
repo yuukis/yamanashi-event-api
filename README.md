@@ -103,7 +103,7 @@ Add archive index URLs to `app/config.yaml`.
 ```yaml
 scope:
   archives:
-    - url: https://example.github.io/yamanashi-it-event-archive/index.json
+    - url: https://yuukis.github.io/yamanashi-event-archive/index.json
 ```
 
 See [Archive Index](docs/archive-index.md) for the JSON format.

@@ -17,7 +17,7 @@ class TestArchiveIndexRequest(unittest.TestCase):
         self.assertEqual(len(events), 2)
         self.assertEqual(
             events[0].uid,
-            "yamanashi-web-2012-05-19-001@yamanashi-it-event-archive"
+            "yamanashi-web-2012-05-19-001@yamanashi-event-archive"
         )
         self.assertEqual(events[0].event_id, None)
         self.assertEqual(events[0].group_key, "yamanashi-web")
@@ -36,7 +36,7 @@ class TestArchiveIndexRequest(unittest.TestCase):
         self.assertEqual(len(events), 1)
         self.assertEqual(
             events[0].uid,
-            "yamanashi-web-2012-05-19-001@yamanashi-it-event-archive"
+            "yamanashi-web-2012-05-19-001@yamanashi-event-archive"
         )
 
     def test_get_events_by_ymd(self):
@@ -53,7 +53,7 @@ class TestArchiveIndexRequest(unittest.TestCase):
         self.assertEqual(len(events), 1)
         self.assertEqual(
             events[0].uid,
-            "houtoupm-2014-03-08-001@yamanashi-it-event-archive"
+            "houtoupm-2014-03-08-001@yamanashi-event-archive"
         )
 
     def test_get_groups(self):
@@ -72,10 +72,10 @@ class TestArchiveIndexRequest(unittest.TestCase):
         self.assertEqual(groups[0].url, "https://example.com/yamanashi-web")
         self.assertEqual(groups[0].ical_url, None)
         self.assertEqual(groups[0].archive_source,
-                         "yamanashi-it-event-archive")
+                         "yamanashi-event-archive")
         self.assertEqual(
             groups[0].archive_url,
-            "https://github.com/yuukis/yamanashi-it-event-archive"
+            "https://github.com/yuukis/yamanashi-event-archive"
         )
 
     @patch("app.archive.requests.get")
@@ -100,8 +100,8 @@ class TestArchiveIndexRequest(unittest.TestCase):
             "generated_at": "2026-06-30T00:00:00+09:00",
             "source": {
                 "type": "archive_index",
-                "name": "yamanashi-it-event-archive",
-                "url": "https://github.com/yuukis/yamanashi-it-event-archive",
+                "name": "yamanashi-event-archive",
+                "url": "https://github.com/yuukis/yamanashi-event-archive",
                 "ref": "main"
             },
             "communities": [
@@ -128,7 +128,7 @@ class TestArchiveIndexRequest(unittest.TestCase):
             "events": [
                 {
                     "uid": "yamanashi-web-2012-05-19-001"
-                    "@yamanashi-it-event-archive",
+                    "@yamanashi-event-archive",
                     "event_id": None,
                     "title": "山梨Web勉強会 第1回",
                     "catch": "山梨のWeb制作者・開発者が集まる勉強会",
@@ -154,7 +154,7 @@ class TestArchiveIndexRequest(unittest.TestCase):
                 },
                 {
                     "uid": "houtoupm-2014-03-08-001"
-                    "@yamanashi-it-event-archive",
+                    "@yamanashi-event-archive",
                     "event_id": None,
                     "title": "Houtou.pm #1",
                     "event_url": "https://example.com/archive/houtoupm/"

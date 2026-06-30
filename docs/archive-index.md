@@ -11,7 +11,7 @@ Add `scope.archives` to `app/config.yaml`.
 ```yaml
 scope:
   archives:
-    - url: https://example.github.io/yamanashi-it-event-archive/index.json
+    - url: https://yuukis.github.io/yamanashi-event-archive/index.json
 ```
 
 Multiple archive indexes can be configured.
@@ -19,7 +19,7 @@ Multiple archive indexes can be configured.
 ```yaml
 scope:
   archives:
-    - url: https://example.github.io/yamanashi-it-event-archive/index.json
+    - url: https://yuukis.github.io/yamanashi-event-archive/index.json
     - url: https://example.github.io/another-tech-event-archive/index.json
 ```
 
@@ -35,8 +35,8 @@ The top-level `events` array is converted to `EventDetail`. The top-level
   "generated_at": "2026-06-30T00:00:00+09:00",
   "source": {
     "type": "archive_index",
-    "name": "yamanashi-it-event-archive",
-    "url": "https://github.com/yuukis/yamanashi-it-event-archive",
+    "name": "yamanashi-event-archive",
+    "url": "https://github.com/yuukis/yamanashi-event-archive",
     "ref": "main"
   },
   "communities": [
@@ -53,13 +53,13 @@ The top-level `events` array is converted to `EventDetail`. The top-level
       "facebook_url": null,
       "member_users_count": null,
       "ical_url": null,
-      "archive_source": "yamanashi-it-event-archive",
-      "archive_url": "https://github.com/yuukis/yamanashi-it-event-archive"
+      "archive_source": "yamanashi-event-archive",
+      "archive_url": "https://github.com/yuukis/yamanashi-event-archive"
     }
   ],
   "events": [
     {
-      "uid": "yamanashi-web-2012-05-19-001@yamanashi-it-event-archive",
+      "uid": "yamanashi-web-2012-05-19-001@yamanashi-event-archive",
       "event_id": null,
       "title": "山梨Web勉強会 第1回",
       "catch": "山梨のWeb制作者・開発者が集まる勉強会",
@@ -95,7 +95,7 @@ The top-level `events` array is converted to `EventDetail`. The top-level
 For example:
 
 ```text
-yamanashi-web-2012-05-19-001@yamanashi-it-event-archive
+yamanashi-web-2012-05-19-001@yamanashi-event-archive
 ```
 
 The required event fields are:
