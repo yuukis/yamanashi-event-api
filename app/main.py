@@ -276,7 +276,7 @@ def fetch_events(params):
     try:
         events, last_modified = request_events(params)
 
-    except ConnpassException:
+    except (ConnpassException, IcalException, ArchiveException):
         return
 
     if events is not None:
@@ -394,7 +394,7 @@ def fetch_groups(params):
     try:
         groups, last_modified = request_groups(params)
 
-    except ConnpassException:
+    except (ConnpassException, ArchiveException):
         return
 
     if groups is not None:
@@ -423,7 +423,11 @@ def request_groups(params) -> Tuple[List[Group], datetime]:
             groups += get_groups_from_icalendar(config)
 
         if "scope" in config and "archives" in config["scope"]:
-            groups += get_groups_from_archives(config)
+            archives = config["scope"]["archives"]
+            for archive in archives:
+                r = ArchiveIndexRequest(url=archive["url"], cache=cache)
+                groups += r.get_groups()
+                last_modified = max(last_modified, r.get_last_modified())
 
     except ConnpassException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)

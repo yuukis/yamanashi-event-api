@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 from unittest.mock import patch
 from app.main import app, get_user_agent, get_groups_from_icalendar
+from app.main import request_events, request_groups, get_groups_from_archives
 from app.models import EventDetail, Group
 from datetime import datetime, timezone
 
@@ -132,6 +133,65 @@ class MockICalEventRequest:
         ]
         events = EventDetail.from_json(json)
         return events
+
+    def get_last_modified(self):
+        last_modified = datetime.fromtimestamp(123, timezone.utc)
+        return last_modified
+
+
+class MockArchiveIndexRequest:
+    def __init__(self, **kwargs):
+        pass
+
+    def get_events(self):
+        json = [
+            {
+                "uid": "yamanashi-web-2012-05-19-001"
+                "@yamanashi-it-event-archive",
+                "event_id": None,
+                "title": "山梨Web勉強会 第1回",
+                "catch": "山梨のWeb制作者・開発者が集まる勉強会",
+                "hash_tag": "yamanashiweb",
+                "event_url": "https://example.com/archive/yamanashi-web/"
+                "2012-05-19-001",
+                "started_at": "2012-05-19T14:00:00+09:00",
+                "ended_at": "2012-05-19T17:00:00+09:00",
+                "updated_at": "2026-06-30T00:00:00+09:00",
+                "open_status": "close",
+                "limit": None,
+                "accepted": None,
+                "waiting": None,
+                "owner_name": None,
+                "place": "山梨県立図書館",
+                "address": "山梨県甲府市北口2-8-1",
+                "group_key": "yamanashi-web",
+                "group_name": "山梨Web勉強会",
+                "group_url": "https://example.com/yamanashi-web",
+                "description": "山梨Web勉強会の初回イベント。",
+                "lat": None,
+                "lon": None
+            }
+        ]
+        return EventDetail.from_json(json)
+
+    def get_groups(self):
+        json = [
+            {
+                "key": "yamanashi-web",
+                "title": "山梨Web勉強会",
+                "sub_title": "山梨県内のWeb制作者・開発者向け勉強会",
+                "url": "https://example.com/yamanashi-web",
+                "description": "山梨県内のWeb制作・Web開発勉強会です。",
+                "owner_text": None,
+                "image_url": None,
+                "website_url": "https://example.com/yamanashi-web",
+                "x_username": None,
+                "facebook_url": None,
+                "member_users_count": None,
+                "ical_url": None
+            }
+        ]
+        return Group.from_json(json)
 
     def get_last_modified(self):
         last_modified = datetime.fromtimestamp(123, timezone.utc)
@@ -319,3 +379,62 @@ def test_get_groups_from_icalendar():
     assert groups[1].image_url is None
     assert groups[1].ical_url == "http://example.com/ical"
     assert groups[1].description is None
+
+
+@patch("app.main.ArchiveIndexRequest", MockArchiveIndexRequest)
+@patch("app.main.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "archives": [
+            {
+                "url": "https://example.com/archive/index.json"
+            }
+        ]
+    }
+})
+def test_request_events_from_archives():
+    events, last_modified = request_events({"ym": ["201205"]})
+
+    assert len(events) == 1
+    assert events[0].uid == \
+        "yamanashi-web-2012-05-19-001@yamanashi-it-event-archive"
+    assert events[0].group_key == "yamanashi-web"
+    assert last_modified == datetime.fromtimestamp(123, timezone.utc)
+
+
+@patch("app.main.ArchiveIndexRequest", MockArchiveIndexRequest)
+@patch("app.main.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "archives": [
+            {
+                "url": "https://example.com/archive/index.json"
+            }
+        ]
+    }
+})
+def test_request_groups_from_archives():
+    groups, last_modified = request_groups({})
+
+    assert len(groups) == 1
+    assert groups[0].key == "yamanashi-web"
+    assert groups[0].title == "山梨Web勉強会"
+    assert last_modified == datetime.fromtimestamp(123, timezone.utc)
+
+
+@patch("app.main.ArchiveIndexRequest", MockArchiveIndexRequest)
+def test_get_groups_from_archives():
+    config = {
+        "scope": {
+            "archives": [
+                {
+                    "url": "https://example.com/archive/index.json"
+                }
+            ]
+        }
+    }
+
+    groups = get_groups_from_archives(config)
+
+    assert len(groups) == 1
+    assert groups[0].key == "yamanashi-web"
