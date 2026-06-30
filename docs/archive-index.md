@@ -11,7 +11,8 @@ Add `scope.archives` to `app/config.yaml`.
 ```yaml
 scope:
   archives:
-    - url: https://yuukis.github.io/yamanashi-event-archive/index.json
+    - url:
+        - https://yuukis.github.io/yamanashi-event-archive/index.json
 ```
 
 Multiple archive indexes can be configured.
@@ -19,8 +20,9 @@ Multiple archive indexes can be configured.
 ```yaml
 scope:
   archives:
-    - url: https://yuukis.github.io/yamanashi-event-archive/index.json
-    - url: https://example.github.io/another-tech-event-archive/index.json
+    - url:
+        - https://yuukis.github.io/yamanashi-event-archive/index.json
+        - https://example.github.io/another-tech-event-archive/index.json
 ```
 
 ## JSON Format

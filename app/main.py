@@ -333,9 +333,8 @@ def request_events(params) -> Tuple[List[EventDetail], datetime]:
                 last_modified = max(last_modified, r.get_last_modified())
 
         if "scope" in config and "archives" in config["scope"]:
-            archives = config["scope"]["archives"]
-            for archive in archives:
-                r = ArchiveIndexRequest(url=archive["url"],
+            for url in get_archive_urls(config):
+                r = ArchiveIndexRequest(url=url,
                                         ym=ym, ymd=ymd, cache=cache)
                 events += r.get_events()
                 last_modified = max(last_modified, r.get_last_modified())
@@ -423,9 +422,8 @@ def request_groups(params) -> Tuple[List[Group], datetime]:
             groups += get_groups_from_icalendar(config)
 
         if "scope" in config and "archives" in config["scope"]:
-            archives = config["scope"]["archives"]
-            for archive in archives:
-                r = ArchiveIndexRequest(url=archive["url"], cache=cache)
+            for url in get_archive_urls(config):
+                r = ArchiveIndexRequest(url=url, cache=cache)
                 groups += r.get_groups()
                 last_modified = max(last_modified, r.get_last_modified())
 
@@ -466,10 +464,24 @@ def get_groups_from_icalendar(config):
 
 def get_groups_from_archives(config):
     groups = []
-    if "scope" in config and "archives" in config["scope"]:
-        archives = config["scope"]["archives"]
-        for archive in archives:
-            r = ArchiveIndexRequest(url=archive["url"], cache=cache)
-            groups += r.get_groups()
+    for url in get_archive_urls(config):
+        r = ArchiveIndexRequest(url=url, cache=cache)
+        groups += r.get_groups()
 
     return groups
+
+
+def get_archive_urls(config):
+    if "scope" not in config or "archives" not in config["scope"]:
+        return []
+
+    urls = []
+    archives = config["scope"]["archives"]
+    for archive in archives:
+        url = archive["url"]
+        if isinstance(url, list):
+            urls += url
+        else:
+            urls.append(url)
+
+    return urls

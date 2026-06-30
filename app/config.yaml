@@ -42,4 +42,5 @@ scope:
       ical_url: https://www.meetup.com/ja-JP/Yamanashi-WordPress-Meetup/events/ical/
 
   archives:
-    - url: https://yuukis.github.io/yamanashi-event-archive/index.json
+    - url:
+        - https://yuukis.github.io/yamanashi-event-archive/index.json
