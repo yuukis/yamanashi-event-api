@@ -78,6 +78,19 @@ class TestEventRequestCache(unittest.TestCase):
         self.assertEqual(self.cache._store[expected_last_modified], 123)
         self.assertIn(expected_last_modified, self.cache._expiry)
 
+    def test_set_without_expiry(self):
+        self.cache._store = {}
+        self.cache._expiry = {}
+
+        dt = datetime.fromtimestamp(123, timezone.utc)
+
+        self.cache.set({"param": "value"}, {"key": "value"}, last_modified=dt,
+                       ex=None)
+
+        response = self.cache.get({"param": "value"})
+        self.assertEqual(response["json"], {"key": "value"})
+        self.assertEqual(response["last_modified"], dt)
+
     def test_generate_key(self):
         params = {"param": "value"}
 

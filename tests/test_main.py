@@ -1,6 +1,11 @@
 from fastapi.testclient import TestClient
 from unittest.mock import patch
+import pytest
 from app.main import app, get_user_agent, get_groups_from_icalendar
+from app.main import request_events, request_groups, get_groups_from_archives
+from app.main import get_archive_urls, preload_archive_indexes
+from app.cache import EventRequestCache
+from app.archive import ArchiveException
 from app.models import EventDetail, Group
 from datetime import datetime, timezone
 
@@ -138,6 +143,88 @@ class MockICalEventRequest:
         return last_modified
 
 
+class MockArchiveIndexRequest:
+    requested_urls = []
+    preloaded_urls = []
+
+    def __init__(self, **kwargs):
+        self.url = kwargs.get("url")
+        MockArchiveIndexRequest.requested_urls.append(self.url)
+
+    def get_events(self):
+        json = [
+            {
+                "uid": "yamanashi-web-2012-05-19-001@yamanashi-event-archive",
+                "event_id": None,
+                "title": "山梨Web勉強会 第1回",
+                "catch": "山梨のWeb制作者・開発者が集まる勉強会",
+                "hash_tag": "yamanashiweb",
+                "event_url": "https://example.com/archive/yamanashi-web/2012-05-19-001",
+                "started_at": "2012-05-19T14:00:00+09:00",
+                "ended_at": "2012-05-19T17:00:00+09:00",
+                "updated_at": "2026-06-30T00:00:00+09:00",
+                "open_status": "close",
+                "limit": None,
+                "accepted": None,
+                "waiting": None,
+                "owner_name": None,
+                "place": "山梨県立図書館",
+                "address": "山梨県甲府市北口2-8-1",
+                "group_key": "yamanashi-web",
+                "group_name": "山梨Web勉強会",
+                "group_url": "https://example.com/yamanashi-web",
+                "description": "山梨Web勉強会の初回イベント。",
+                "lat": None,
+                "lon": None
+            }
+        ]
+        return EventDetail.from_json(json)
+
+    def get_groups(self):
+        json = [
+            {
+                "key": "yamanashi-web",
+                "title": "山梨Web勉強会",
+                "sub_title": "山梨県内のWeb制作者・開発者向け勉強会",
+                "url": "https://example.com/yamanashi-web",
+                "description": "山梨県内のWeb制作・Web開発勉強会です。",
+                "owner_text": None,
+                "image_url": None,
+                "website_url": "https://example.com/yamanashi-web",
+                "x_username": None,
+                "facebook_url": None,
+                "member_users_count": None,
+                "ical_url": None,
+                "archive_source": "yamanashi-event-archive",
+                "archive_url": "https://github.com/yuukis/yamanashi-event-archive"
+            }
+        ]
+        return Group.from_json(json)
+
+    def get_last_modified(self):
+        last_modified = datetime.fromtimestamp(123, timezone.utc)
+        return last_modified
+
+    def preload(self):
+        MockArchiveIndexRequest.preloaded_urls.append(self.url)
+
+
+class MockFailingPreloadArchiveIndexRequest:
+    def __init__(self, **kwargs):
+        self.url = kwargs.get("url")
+
+    def preload(self):
+        raise ArchiveException(500, "Failed to fetch archive index")
+
+
+@pytest.fixture(autouse=True)
+def mock_archive_index_request():
+    MockArchiveIndexRequest.requested_urls = []
+    MockArchiveIndexRequest.preloaded_urls = []
+    with patch("app.main.ArchiveIndexRequest", MockArchiveIndexRequest):
+        yield
+
+
 @patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
 @patch("app.main.IcalEventRequest", MockICalEventRequest)
 def test_read_events():
@@ -270,6 +357,36 @@ def test_read_group(mock_get_groups_from_icalendar):
     assert isinstance(response.json(), list)
 
 
+@patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.main.get_groups_from_icalendar")
+@patch("app.main.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "subdomain": ["test"],
+        "archives": [
+            {
+                "url": "https://example.com/archive/index.json"
+            }
+        ]
+    }
+})
+@patch("app.main.ArchiveIndexRequest", MockArchiveIndexRequest)
+@patch("app.main.cache", EventRequestCache(prefix="test_archive_group_"))
+def test_read_group_includes_archive_source(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    response = client.get("/groups")
+
+    assert response.status_code == 200
+    archive_group = [
+        group for group in response.json()
+        if group["key"] == "yamanashi-web"
+    ][0]
+    assert archive_group["archive_source"] == "yamanashi-event-archive"
+    assert archive_group["archive_url"] == \
+        "https://github.com/yuukis/yamanashi-event-archive"
+
+
 def test_get_user_agent():
     config = {
         "metadata": {
@@ -319,3 +436,161 @@ def test_get_groups_from_icalendar():
     assert groups[1].image_url is None
     assert groups[1].ical_url == "http://example.com/ical"
     assert groups[1].description is None
+
+
+@patch("app.main.ArchiveIndexRequest", MockArchiveIndexRequest)
+@patch("app.main.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "archives": [
+            {
+                "url": "https://example.com/archive/index.json"
+            }
+        ]
+    }
+})
+def test_request_events_from_archives():
+    events, last_modified = request_events({"ym": ["201205"]})
+
+    assert len(events) == 1
+    assert events[0].uid == \
+        "yamanashi-web-2012-05-19-001@yamanashi-event-archive"
+    assert events[0].group_key == "yamanashi-web"
+    assert last_modified == datetime.fromtimestamp(123, timezone.utc)
+
+
+@patch("app.main.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "archives": [
+            {
+                "url": [
+                    "https://example.com/archive/index-1.json",
+                    "https://example.com/archive/index-2.json"
+                ]
+            }
+        ]
+    }
+})
+def test_request_events_from_archive_urls():
+    events, last_modified = request_events({})
+
+    assert len(events) == 1
+    assert last_modified == datetime.fromtimestamp(123, timezone.utc)
+    assert MockArchiveIndexRequest.requested_urls == [
+        "https://example.com/archive/index-1.json",
+        "https://example.com/archive/index-2.json"
+    ]
+
+
+@patch("app.main.ArchiveIndexRequest", MockArchiveIndexRequest)
+@patch("app.main.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "archives": [
+            {
+                "url": "https://example.com/archive/index.json"
+            }
+        ]
+    }
+})
+def test_request_groups_from_archives():
+    groups, last_modified = request_groups({})
+
+    assert len(groups) == 1
+    assert groups[0].key == "yamanashi-web"
+    assert groups[0].title == "山梨Web勉強会"
+    assert groups[0].archive_source == "yamanashi-event-archive"
+    assert groups[0].archive_url == \
+        "https://github.com/yuukis/yamanashi-event-archive"
+    assert last_modified == datetime.fromtimestamp(123, timezone.utc)
+
+
+@patch("app.main.ArchiveIndexRequest", MockArchiveIndexRequest)
+def test_get_groups_from_archives():
+    config = {
+        "scope": {
+            "archives": [
+                {
+                    "url": "https://example.com/archive/index.json"
+                }
+            ]
+        }
+    }
+
+    groups = get_groups_from_archives(config)
+
+    assert len(groups) == 1
+    assert groups[0].key == "yamanashi-web"
+    assert groups[0].archive_source == "yamanashi-event-archive"
+    assert groups[0].archive_url == \
+        "https://github.com/yuukis/yamanashi-event-archive"
+
+
+def test_get_archive_urls():
+    config = {
+        "scope": {
+            "archives": [
+                {
+                    "url": [
+                        "https://example.com/archive/index-1.json",
+                        "https://example.com/archive/index-2.json"
+                    ]
+                },
+                {
+                    "name": "missing url"
+                },
+                {
+                    "url": "https://example.com/archive/index-3.json"
+                }
+            ]
+        }
+    }
+
+    urls = get_archive_urls(config)
+
+    assert urls == [
+        "https://example.com/archive/index-1.json",
+        "https://example.com/archive/index-2.json",
+        "https://example.com/archive/index-3.json"
+    ]
+
+
+@patch("app.main.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "archives": [
+            {
+                "url": [
+                    "https://example.com/archive/index-1.json",
+                    "https://example.com/archive/index-2.json"
+                ]
+            }
+        ]
+    }
+})
+def test_preload_archive_indexes():
+    preload_archive_indexes()
+
+    assert MockArchiveIndexRequest.preloaded_urls == [
+        "https://example.com/archive/index-1.json",
+        "https://example.com/archive/index-2.json"
+    ]
+
+
+@patch("app.main.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "archives": [
+            {
+                "url": [
+                    "https://example.com/archive/index-1.json"
+                ]
+            }
+        ]
+    }
+})
+def test_preload_archive_indexes_does_not_raise_on_error():
+    with patch("app.main.ArchiveIndexRequest",
+               MockFailingPreloadArchiveIndexRequest):
+        preload_archive_indexes()

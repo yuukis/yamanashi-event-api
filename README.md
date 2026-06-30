@@ -92,6 +92,23 @@ If you have Docker and Docker Compose installed, you can use the following steps
 
 See [API document](https://yuukis.github.io/yamanashi-event-api) for more details.
 
+## Archive Index
+
+Historical events can be loaded from external archive index JSON files. This is
+intended for event data maintained outside this API repository, such as a
+community or regional tech event archive.
+
+Add archive index URLs to `app/config.yaml`.
+
+```yaml
+scope:
+  archives:
+    - url:
+        - https://yuukis.github.io/yamanashi-event-archive/index.json
+```
+
+See [Archive Index](docs/archive-index.md) for the JSON format.
+
 <!-- LICENSE -->
 ## License
 

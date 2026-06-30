@@ -40,3 +40,7 @@ scope:
       image_url: https://secure-content.meetupstatic.com/images/classic-events/488365181/72x72.jpg
       group_url: https://www.meetup.com/ja-JP/yamanashi-wordpress-meetup/
       ical_url: https://www.meetup.com/ja-JP/Yamanashi-WordPress-Meetup/events/ical/
+
+  archives:
+    - url:
+        - https://yuukis.github.io/yamanashi-event-archive/index.json

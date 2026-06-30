@@ -4,9 +4,12 @@ from fastapi.responses import RedirectResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from .connpass import ConnpassEventRequest, ConnpassGroupRequest, ConnpassException
 from .icalendar import IcalEventRequest, IcalException
+from .archive import ArchiveIndexRequest, ArchiveException
 from .models import Event, EventDetail, Group
 from .cache import EventRequestCache
+import asyncio
 import os
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 import yaml
 from dotenv import load_dotenv
@@ -23,10 +26,18 @@ with open(config_file, "r") as yml:
 
 connpass_api_key = os.getenv("CONNPASS_API_KEY")
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await asyncio.to_thread(preload_archive_indexes)
+    yield
+
+
 app = FastAPI(
     title=config["metadata"]["title"],
     description=config["metadata"]["description"],
-    version=config["metadata"]["version"]
+    version=config["metadata"]["version"],
+    lifespan=lifespan
 )
 
 app.add_middleware(
@@ -275,7 +286,7 @@ def fetch_events(params):
     try:
         events, last_modified = request_events(params)
 
-    except ConnpassException:
+    except (ConnpassException, IcalException, ArchiveException):
         return
 
     if events is not None:
@@ -331,10 +342,20 @@ def request_events(params) -> Tuple[List[EventDetail], datetime]:
                 events += r.get_events()
                 last_modified = max(last_modified, r.get_last_modified())
 
+        if "scope" in config and "archives" in config["scope"]:
+            for url in get_archive_urls(config):
+                r = ArchiveIndexRequest(url=url,
+                                        ym=ym, ymd=ymd, cache=cache)
+                events += r.get_events()
+                last_modified = max(last_modified, r.get_last_modified())
+
     except ConnpassException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
 
     except IcalException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+
+    except ArchiveException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
 
     events = Event.distinct_by_uid(events)
@@ -382,7 +403,7 @@ def fetch_groups(params):
     try:
         groups, last_modified = request_groups(params)
 
-    except ConnpassException:
+    except (ConnpassException, ArchiveException):
         return
 
     if groups is not None:
@@ -410,7 +431,16 @@ def request_groups(params) -> Tuple[List[Group], datetime]:
         if "scope" in config and "icalendar" in config["scope"]:
             groups += get_groups_from_icalendar(config)
 
+        if "scope" in config and "archives" in config["scope"]:
+            for url in get_archive_urls(config):
+                r = ArchiveIndexRequest(url=url, cache=cache)
+                groups += r.get_groups()
+                last_modified = max(last_modified, r.get_last_modified())
+
     except ConnpassException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+
+    except ArchiveException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
 
     return groups, last_modified
@@ -440,3 +470,44 @@ def get_groups_from_icalendar(config):
             groups.append(g)
 
     return groups
+
+
+def get_groups_from_archives(config):
+    groups = []
+    for url in get_archive_urls(config):
+        r = ArchiveIndexRequest(url=url, cache=cache)
+        groups += r.get_groups()
+
+    return groups
+
+
+def preload_archive_indexes():
+    for url in get_archive_urls(config):
+        try:
+            r = ArchiveIndexRequest(url=url, cache=cache)
+            r.preload()
+        except ArchiveException as e:
+            print({
+                "message": "Failed to preload archive index",
+                "url": url,
+                "status_code": e.status_code,
+                "detail": e.message
+            })
+
+
+def get_archive_urls(config):
+    if "scope" not in config or "archives" not in config["scope"]:
+        return []
+
+    urls = []
+    archives = config["scope"]["archives"]
+    for archive in archives:
+        if "url" not in archive:
+            continue
+        url = archive["url"]
+        if isinstance(url, list):
+            urls += url
+        else:
+            urls.append(url)
+
+    return urls
