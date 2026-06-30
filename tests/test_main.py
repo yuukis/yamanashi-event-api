@@ -154,14 +154,12 @@ class MockArchiveIndexRequest:
     def get_events(self):
         json = [
             {
-                "uid": "yamanashi-web-2012-05-19-001"
-                "@yamanashi-event-archive",
+                "uid": "yamanashi-web-2012-05-19-001@yamanashi-event-archive",
                 "event_id": None,
                 "title": "山梨Web勉強会 第1回",
                 "catch": "山梨のWeb制作者・開発者が集まる勉強会",
                 "hash_tag": "yamanashiweb",
-                "event_url": "https://example.com/archive/yamanashi-web/"
-                "2012-05-19-001",
+                "event_url": "https://example.com/archive/yamanashi-web/2012-05-19-001",
                 "started_at": "2012-05-19T14:00:00+09:00",
                 "ended_at": "2012-05-19T17:00:00+09:00",
                 "updated_at": "2026-06-30T00:00:00+09:00",
@@ -198,8 +196,7 @@ class MockArchiveIndexRequest:
                 "member_users_count": None,
                 "ical_url": None,
                 "archive_source": "yamanashi-event-archive",
-                "archive_url": "https://github.com/yuukis/"
-                "yamanashi-event-archive"
+                "archive_url": "https://github.com/yuukis/yamanashi-event-archive"
             }
         ]
         return Group.from_json(json)
@@ -539,6 +536,9 @@ def test_get_archive_urls():
                         "https://example.com/archive/index-1.json",
                         "https://example.com/archive/index-2.json"
                     ]
+                },
+                {
+                    "name": "missing url"
                 },
                 {
                     "url": "https://example.com/archive/index-3.json"

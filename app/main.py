@@ -7,6 +7,7 @@ from .icalendar import IcalEventRequest, IcalException
 from .archive import ArchiveIndexRequest, ArchiveException
 from .models import Event, EventDetail, Group
 from .cache import EventRequestCache
+import asyncio
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
@@ -28,7 +29,7 @@ connpass_api_key = os.getenv("CONNPASS_API_KEY")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    preload_archive_indexes()
+    await asyncio.to_thread(preload_archive_indexes)
     yield
 
 
@@ -501,6 +502,8 @@ def get_archive_urls(config):
     urls = []
     archives = config["scope"]["archives"]
     for archive in archives:
+        if "url" not in archive:
+            continue
         url = archive["url"]
         if isinstance(url, list):
             urls += url

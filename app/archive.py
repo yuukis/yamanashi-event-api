@@ -2,6 +2,8 @@ import requests
 from datetime import datetime, timezone
 from .models import EventDetail, Group
 
+ARCHIVE_REQUEST_TIMEOUT = 10
+
 
 class ArchiveException(Exception):
     def __init__(self, status_code, message):
@@ -116,7 +118,7 @@ class ArchiveIndexRequest:
 
     def __get_json(self):
         print(f"Fetching archive index from {self.url}")
-        response = requests.get(self.url)
+        response = requests.get(self.url, timeout=ARCHIVE_REQUEST_TIMEOUT)
         status_code = response.status_code
         if status_code != 200:
             raise ArchiveException(status_code, "Failed to fetch archive index")

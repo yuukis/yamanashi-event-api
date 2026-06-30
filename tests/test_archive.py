@@ -115,6 +115,10 @@ class TestArchiveIndexRequest(unittest.TestCase):
 
         self.assertEqual(context.exception.status_code, 404)
         self.assertEqual(context.exception.message, "Failed to fetch archive index")
+        mock_get.assert_called_once_with(
+            "https://example.com/archive/index.json",
+            timeout=10
+        )
 
     def __archive_index(self):
         return {
@@ -149,14 +153,12 @@ class TestArchiveIndexRequest(unittest.TestCase):
             ],
             "events": [
                 {
-                    "uid": "yamanashi-web-2012-05-19-001"
-                    "@yamanashi-event-archive",
+                    "uid": "yamanashi-web-2012-05-19-001@yamanashi-event-archive",
                     "event_id": None,
                     "title": "山梨Web勉強会 第1回",
                     "catch": "山梨のWeb制作者・開発者が集まる勉強会",
                     "hash_tag": "yamanashiweb",
-                    "event_url": "https://example.com/archive/yamanashi-web/"
-                    "2012-05-19-001",
+                    "event_url": "https://example.com/archive/yamanashi-web/2012-05-19-001",
                     "started_at": "2012-05-19T14:00:00+09:00",
                     "ended_at": "2012-05-19T17:00:00+09:00",
                     "updated_at": "2026-06-30T00:00:00+09:00",
@@ -175,12 +177,10 @@ class TestArchiveIndexRequest(unittest.TestCase):
                     "lon": None
                 },
                 {
-                    "uid": "houtoupm-2014-03-08-001"
-                    "@yamanashi-event-archive",
+                    "uid": "houtoupm-2014-03-08-001@yamanashi-event-archive",
                     "event_id": None,
                     "title": "Houtou.pm #1",
-                    "event_url": "https://example.com/archive/houtoupm/"
-                    "2014-03-08-001",
+                    "event_url": "https://example.com/archive/houtoupm/2014-03-08-001",
                     "started_at": "2014-03-08T14:00:00+09:00",
                     "ended_at": "2014-03-08T17:00:00+09:00",
                     "updated_at": "2026-06-30T00:00:00+09:00",
