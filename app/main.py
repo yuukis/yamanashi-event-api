@@ -8,6 +8,7 @@ from .archive import ArchiveIndexRequest, ArchiveException
 from .models import Event, EventDetail, Group
 from .cache import EventRequestCache
 import os
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 import yaml
 from dotenv import load_dotenv
@@ -24,10 +25,18 @@ with open(config_file, "r") as yml:
 
 connpass_api_key = os.getenv("CONNPASS_API_KEY")
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    preload_archive_indexes()
+    yield
+
+
 app = FastAPI(
     title=config["metadata"]["title"],
     description=config["metadata"]["description"],
-    version=config["metadata"]["version"]
+    version=config["metadata"]["version"],
+    lifespan=lifespan
 )
 
 app.add_middleware(
@@ -469,6 +478,12 @@ def get_groups_from_archives(config):
         groups += r.get_groups()
 
     return groups
+
+
+def preload_archive_indexes():
+    for url in get_archive_urls(config):
+        r = ArchiveIndexRequest(url=url, cache=cache)
+        r.preload()
 
 
 def get_archive_urls(config):

@@ -3,7 +3,7 @@ from unittest.mock import patch
 import pytest
 from app.main import app, get_user_agent, get_groups_from_icalendar
 from app.main import request_events, request_groups, get_groups_from_archives
-from app.main import get_archive_urls
+from app.main import get_archive_urls, preload_archive_indexes
 from app.cache import EventRequestCache
 from app.models import EventDetail, Group
 from datetime import datetime, timezone
@@ -144,6 +144,7 @@ class MockICalEventRequest:
 
 class MockArchiveIndexRequest:
     requested_urls = []
+    preloaded_urls = []
 
     def __init__(self, **kwargs):
         self.url = kwargs.get("url")
@@ -206,10 +207,14 @@ class MockArchiveIndexRequest:
         last_modified = datetime.fromtimestamp(123, timezone.utc)
         return last_modified
 
+    def preload(self):
+        MockArchiveIndexRequest.preloaded_urls.append(self.url)
+
 
 @pytest.fixture(autouse=True)
 def mock_archive_index_request():
     MockArchiveIndexRequest.requested_urls = []
+    MockArchiveIndexRequest.preloaded_urls = []
     with patch("app.main.ArchiveIndexRequest", MockArchiveIndexRequest):
         yield
 
@@ -539,4 +544,26 @@ def test_get_archive_urls():
         "https://example.com/archive/index-1.json",
         "https://example.com/archive/index-2.json",
         "https://example.com/archive/index-3.json"
+    ]
+
+
+@patch("app.main.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "archives": [
+            {
+                "url": [
+                    "https://example.com/archive/index-1.json",
+                    "https://example.com/archive/index-2.json"
+                ]
+            }
+        ]
+    }
+})
+def test_preload_archive_indexes():
+    preload_archive_indexes()
+
+    assert MockArchiveIndexRequest.preloaded_urls == [
+        "https://example.com/archive/index-1.json",
+        "https://example.com/archive/index-2.json"
     ]

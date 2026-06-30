@@ -55,13 +55,19 @@ class EventRequestCache:
         key_last_modified = key + ":last_modified"
 
         self._store[key_content] = content
-        self._expiry[key_content] = datetime.now(timezone.utc).timestamp() + ex
+        if ex is None:
+            self._expiry[key_content] = None
+        else:
+            self._expiry[key_content] = datetime.now(timezone.utc).timestamp() + ex
 
         if last_modified is not None:
             ts = int(last_modified.timestamp())
             self._store[key_last_modified] = ts
-            expiry = datetime.now(timezone.utc).timestamp() + ex
-            self._expiry[key_last_modified] = expiry
+            if ex is None:
+                self._expiry[key_last_modified] = None
+            else:
+                expiry = datetime.now(timezone.utc).timestamp() + ex
+                self._expiry[key_last_modified] = expiry
 
     def generate_key(self, data) -> str:
         if isinstance(data, dict):
@@ -95,6 +101,8 @@ class EventRequestCache:
     def _is_valid(self, key: str) -> bool:
         if key not in self._expiry:
             return False
+        if self._expiry[key] is None:
+            return True
         if datetime.now(timezone.utc).timestamp() > self._expiry[key]:
             self._store.pop(key, None)
             self._expiry.pop(key, None)

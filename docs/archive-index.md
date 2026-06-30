@@ -4,6 +4,9 @@ Archive indexes provide historical event data from a repository or static site
 outside this API project. The API reads the generated JSON index and merges its
 events with connpass and iCalendar events.
 
+Archive index JSON files are loaded on application startup and kept in memory
+without expiration while the application process is running.
+
 ## Configuration
 
 Add `scope.archives` to `app/config.yaml`.

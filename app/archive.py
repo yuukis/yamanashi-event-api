@@ -70,6 +70,23 @@ class ArchiveIndexRequest:
     def get_last_modified(self):
         return self.last_modified
 
+    def preload(self):
+        try:
+            json = self.__get_json_from_cache()
+            if json is None:
+                json = self.__get_json()
+                last_modified = datetime.now(timezone.utc)
+                self.__set_json_to_cache(json, last_modified)
+
+        except requests.RequestException as e:
+            raise ArchiveException(500, str(e))
+
+        except ArchiveException as e:
+            raise e
+
+        except Exception as e:
+            raise ArchiveException(500, str(e))
+
     def __find_by_ym_ymd(self, events):
         if len(self.ym) == 0 and len(self.ymd) == 0:
             return events
@@ -94,7 +111,8 @@ class ArchiveIndexRequest:
     def __set_json_to_cache(self, json, last_modified):
         if self.cache is None:
             return
-        self.cache.set(self.__cache_key(), json, last_modified=last_modified)
+        self.cache.set(self.__cache_key(), json, last_modified=last_modified,
+                       ex=None)
 
     def __get_json(self):
         print(f"Fetching archive index from {self.url}")
