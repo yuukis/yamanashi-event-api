@@ -4,6 +4,7 @@ from fastapi.responses import RedirectResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from .connpass import ConnpassEventRequest, ConnpassGroupRequest, ConnpassException
 from .icalendar import IcalEventRequest, IcalException
+from .archive import ArchiveIndexRequest, ArchiveException
 from .models import Event, EventDetail, Group
 from .cache import EventRequestCache
 import os
@@ -331,10 +332,21 @@ def request_events(params) -> Tuple[List[EventDetail], datetime]:
                 events += r.get_events()
                 last_modified = max(last_modified, r.get_last_modified())
 
+        if "scope" in config and "archives" in config["scope"]:
+            archives = config["scope"]["archives"]
+            for archive in archives:
+                r = ArchiveIndexRequest(url=archive["url"],
+                                        ym=ym, ymd=ymd, cache=cache)
+                events += r.get_events()
+                last_modified = max(last_modified, r.get_last_modified())
+
     except ConnpassException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
 
     except IcalException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+
+    except ArchiveException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
 
     events = Event.distinct_by_uid(events)
@@ -410,7 +422,13 @@ def request_groups(params) -> Tuple[List[Group], datetime]:
         if "scope" in config and "icalendar" in config["scope"]:
             groups += get_groups_from_icalendar(config)
 
+        if "scope" in config and "archives" in config["scope"]:
+            groups += get_groups_from_archives(config)
+
     except ConnpassException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+
+    except ArchiveException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
 
     return groups, last_modified
@@ -438,5 +456,16 @@ def get_groups_from_icalendar(config):
                 "ical_url": group["ical_url"]
             })
             groups.append(g)
+
+    return groups
+
+
+def get_groups_from_archives(config):
+    groups = []
+    if "scope" in config and "archives" in config["scope"]:
+        archives = config["scope"]["archives"]
+        for archive in archives:
+            r = ArchiveIndexRequest(url=archive["url"], cache=cache)
+            groups += r.get_groups()
 
     return groups
