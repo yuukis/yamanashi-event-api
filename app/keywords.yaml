@@ -111,11 +111,9 @@ keywords:
   # --- domains / topics ---
   - keyword: AI
     patterns: ['(?<![a-zA-Z0-9])ai(?![a-zA-Z0-9])', '人工知能', '機械学習',
-               'ディープラーニング', 'deep\s*learning']
-  - keyword: 生成AI
-    patterns: ['生成\s*ai', 'chat\s*gpt', '(?<![a-zA-Z0-9])llm(?![a-zA-Z0-9])',
-               'copilot', 'claude', 'gemini', 'stable\s*diffusion',
-               'プロンプト', '大規模言語モデル']
+               'ディープラーニング', 'deep\s*learning', 'chat\s*gpt',
+               '(?<![a-zA-Z0-9])llm(?![a-zA-Z0-9])', 'copilot', 'claude',
+               'gemini', 'stable\s*diffusion', 'プロンプト', '大規模言語モデル']
   - keyword: DX
     patterns: ['(?<![a-zA-Z0-9])dx(?![a-zA-Z0-9])',
                'デジタルトランスフォーメーション', '業務改善']

@@ -97,7 +97,13 @@ class TestKeywordExtractor(unittest.TestCase):
         keywords = self.extractor.extract(event)
 
         self.assertIn("AI", keywords)
-        self.assertIn("生成AI", keywords)
+
+    def test_extract_normalizes_generative_ai_to_ai(self):
+        event = make_event(title="ChatGPT活用セミナー")
+        keywords = self.extractor.extract(event)
+
+        self.assertIn("AI", keywords)
+        self.assertNotIn("生成AI", keywords)
 
 
 class TestEventDetailKeywords(unittest.TestCase):
