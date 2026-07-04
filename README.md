@@ -92,6 +92,34 @@ If you have Docker and Docker Compose installed, you can use the following steps
 
 See [API document](https://yuukis.github.io/yamanashi-event-api) for more details.
 
+## Event Keywords
+
+Each event in the response contains a `keywords` field with up to 5 normalized
+keywords (e.g. `Python`, `AWS`, `もくもく会`, `初心者歓迎`), so that client
+applications can filter events by keyword without worrying about notation
+variations.
+
+```json
+{
+  "title": "JAWS-UG山梨 【第12回】勉強会",
+  "keywords": ["AWS", "LT会", "初心者歓迎", "オンライン"]
+}
+```
+
+Keywords are extracted from the event title, catch, hash tag, description and
+group key / group name using the dictionary defined in `app/keywords.yaml`.
+The dictionary maps canonical keywords to notation patterns (regular
+expressions), so no external API is used. Community naming conventions
+(e.g. `*.py` Python communities, `JAWS-UG`, `CoderDojo`) are covered by
+generic patterns matched against the group fields, so no per-community
+configuration is needed. To add a new keyword, edit `app/keywords.yaml`.
+
+Events loaded from an archive index inherit the `keywords` field of the
+archive as is. If an archive event has no `keywords` field, keywords are
+extracted with the dictionary in the same way as other events.
+
+The `keyword` query parameter also matches the extracted keywords.
+
 ## Archive Index
 
 Historical events can be loaded from external archive index JSON files. This is
