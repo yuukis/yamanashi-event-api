@@ -23,7 +23,7 @@ config_file = os.path.join(dirname, "config.yaml")
 cache = EventRequestCache()
 keyword_extractor = KeywordExtractor()
 
-with open(config_file, "r") as yml:
+with open(config_file, "r", encoding="utf-8") as yml:
     config = yaml.safe_load(yml)
 
 connpass_api_key = os.getenv("CONNPASS_API_KEY")

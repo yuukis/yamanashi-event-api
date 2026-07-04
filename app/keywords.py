@@ -18,7 +18,7 @@ HTML_TAG_PATTERN = re.compile(r"<[^>]+>")
 
 class KeywordExtractor:
     def __init__(self, keywords_file=DEFAULT_KEYWORDS_FILE):
-        with open(keywords_file, "r") as yml:
+        with open(keywords_file, "r", encoding="utf-8") as yml:
             config = yaml.safe_load(yml)
 
         self.rules = []
