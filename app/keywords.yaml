@@ -1,0 +1,183 @@
+# Keyword dictionary for event keyword extraction.
+#
+# keywords:
+#   - keyword: canonical keyword returned in API responses
+#     patterns: case-insensitive regular expressions matched against
+#               event title, catch, hash_tag, description and
+#               group key / group name
+#
+# Notes:
+# - Short English terms use (?<![a-zA-Z0-9]) / (?![a-zA-Z0-9]) instead of \b
+#   so that they match even when surrounded by Japanese characters
+#   (e.g. "生成AIとは" contains no \b boundary around "AI").
+# - Community naming conventions (e.g. "*.py" Python communities, "JAWS-UG",
+#   "CoderDojo") are covered by generic patterns matched against the group
+#   fields, so no per-community configuration is needed.
+
+keywords:
+  # --- programming languages ---
+  - keyword: Python
+    patterns: ['python', 'パイソン', 'pycon', '\.py(?![a-zA-Z0-9])']
+  - keyword: JavaScript
+    patterns: ['javascript', 'ジャバスクリプト', 'node\.?js']
+  - keyword: TypeScript
+    patterns: ['typescript']
+  - keyword: Java
+    patterns: ['(?<![a-zA-Z0-9])java(?!script)(?![a-zA-Z0-9])']
+  - keyword: PHP
+    patterns: ['(?<![a-zA-Z0-9])php(?![a-zA-Z0-9])']
+  - keyword: Ruby
+    patterns: ['(?<![a-zA-Z0-9])ruby(?![a-zA-Z0-9])', 'ルビー',
+               '(?<![a-zA-Z0-9])rails(?![a-zA-Z0-9])', '\.rb(?![a-zA-Z0-9])']
+  - keyword: Go
+    patterns: ['golang', 'go言語']
+  - keyword: C#
+    patterns: ['c#', 'csharp']
+  - keyword: Swift
+    patterns: ['(?<![a-zA-Z0-9])swift(?![a-zA-Z0-9])']
+  - keyword: Kotlin
+    patterns: ['kotlin']
+  - keyword: Rust
+    patterns: ['(?<![a-zA-Z0-9])rust(?![a-zA-Z0-9])']
+  - keyword: Perl
+    patterns: ['(?<![a-zA-Z0-9])perl(?![a-zA-Z0-9])', '\.pm(?![a-zA-Z0-9])']
+  - keyword: Scratch
+    patterns: ['scratch', 'スクラッチ']
+  - keyword: HTML/CSS
+    patterns: ['(?<![a-zA-Z0-9])html(?![a-zA-Z0-9])',
+               '(?<![a-zA-Z0-9])css(?![a-zA-Z0-9])']
+  - keyword: データベース
+    patterns: ['データベース', '(?<![a-zA-Z0-9])sql(?![a-zA-Z0-9])',
+               'mysql', 'postgresql']
+
+  # --- tools / products ---
+  - keyword: WordPress
+    patterns: ['wordpress', 'ワードプレス', 'wordbench', 'wordcamp']
+  - keyword: kintone
+    patterns: ['kintone', 'キントーン']
+  - keyword: Photoshop
+    patterns: ['photoshop', 'フォトショップ']
+  - keyword: Illustrator
+    patterns: ['illustrator', 'イラストレーター']
+  - keyword: Figma
+    patterns: ['figma']
+  - keyword: Unity
+    patterns: ['(?<![a-zA-Z0-9])unity(?![a-zA-Z0-9])']
+  - keyword: Docker
+    patterns: ['docker']
+  - keyword: Kubernetes
+    patterns: ['kubernetes', '(?<![a-zA-Z0-9])k8s(?![a-zA-Z0-9])']
+  - keyword: GitHub
+    patterns: ['github', '(?<![a-zA-Z0-9])git(?![a-zA-Z0-9])']
+  - keyword: Redmine
+    patterns: ['redmine']
+  - keyword: Excel
+    patterns: ['excel', 'エクセル']
+  - keyword: Notion
+    patterns: ['notion']
+  - keyword: Raspberry Pi
+    patterns: ['raspberry\s*pi', 'ラズベリーパイ', 'ラズパイ']
+  - keyword: micro:bit
+    patterns: ['micro:?bit', 'マイクロビット']
+  - keyword: Arduino
+    patterns: ['arduino']
+  - keyword: M5Stack
+    patterns: ['m5stack']
+  - keyword: Flutter
+    patterns: ['flutter']
+  - keyword: React
+    patterns: ['(?<![a-zA-Z0-9])react(?![a-zA-Z0-9])']
+  - keyword: Vue.js
+    patterns: ['vue\.?js', '(?<![a-zA-Z0-9])vue(?![a-zA-Z0-9])']
+  - keyword: Django
+    patterns: ['django']
+  - keyword: Power Platform
+    patterns: ['power\s*(?:platform|apps|automate|bi)']
+  - keyword: SORACOM
+    patterns: ['soracom']
+
+  # --- cloud ---
+  - keyword: AWS
+    patterns: ['(?<![a-zA-Z0-9])aws(?![a-zA-Z0-9])', 'amazon web services',
+               'jaws-?ug']
+  - keyword: Azure
+    patterns: ['azure']
+  - keyword: Google Cloud
+    patterns: ['google\s*cloud', '(?<![a-zA-Z0-9])gcp(?![a-zA-Z0-9])',
+               '(?<![a-zA-Z0-9])gdg(?![a-zA-Z0-9])']
+  - keyword: Firebase
+    patterns: ['firebase']
+
+  # --- domains / topics ---
+  - keyword: AI
+    patterns: ['(?<![a-zA-Z0-9])ai(?![a-zA-Z0-9])', '人工知能', '機械学習',
+               'ディープラーニング', 'deep\s*learning']
+  - keyword: 生成AI
+    patterns: ['生成\s*ai', 'chat\s*gpt', '(?<![a-zA-Z0-9])llm(?![a-zA-Z0-9])',
+               'copilot', 'claude', 'gemini', 'stable\s*diffusion',
+               'プロンプト', '大規模言語モデル']
+  - keyword: DX
+    patterns: ['(?<![a-zA-Z0-9])dx(?![a-zA-Z0-9])',
+               'デジタルトランスフォーメーション', '業務改善']
+  - keyword: IoT
+    patterns: ['(?<![a-zA-Z0-9])iot(?![a-zA-Z0-9])']
+  - keyword: 電子工作
+    patterns: ['電子工作', 'はんだ']
+  - keyword: ロボット
+    patterns: ['ロボット', '(?<![a-zA-Z0-9])pepper(?![a-zA-Z0-9])']
+  - keyword: Android
+    patterns: ['android', 'アンドロイド']
+  - keyword: iOS
+    patterns: ['(?<![a-zA-Z0-9])ios(?![a-zA-Z0-9])', 'iphone', 'ipad']
+  - keyword: Web制作
+    patterns: ['web制作', 'webデザイン', 'ホームページ制作', 'web勉強会',
+               'フロントエンド', 'css\s*nite']
+  - keyword: セキュリティ
+    patterns: ['セキュリティ', 'security', '(?<![a-zA-Z0-9])ctf(?![a-zA-Z0-9])']
+  - keyword: データ分析
+    patterns: ['データ分析', 'データサイエンス', 'data\s*science']
+  - keyword: ゲーム開発
+    patterns: ['ゲーム開発', 'ゲーム制作', 'ゲームプログラミング']
+  - keyword: ノーコード
+    patterns: ['ノーコード', 'no-?code', 'ローコード', 'low-?code']
+  - keyword: VR/AR
+    patterns: ['(?<![a-zA-Z0-9])vr(?![a-zA-Z0-9])',
+               '(?<![a-zA-Z0-9])ar(?![a-zA-Z0-9])',
+               '(?<![a-zA-Z0-9])xr(?![a-zA-Z0-9])', 'メタバース', 'metaverse']
+  - keyword: ブロックチェーン
+    patterns: ['ブロックチェーン', 'blockchain',
+               '(?<![a-zA-Z0-9])web3(?![a-zA-Z0-9])',
+               '(?<![a-zA-Z0-9])nft(?![a-zA-Z0-9])']
+  - keyword: アジャイル
+    patterns: ['アジャイル', 'agile', 'スクラム', 'scrum']
+  - keyword: 3Dプリンタ
+    patterns: ['3dプリンタ']
+  - keyword: Linux
+    patterns: ['linux']
+
+  # --- event style / atmosphere ---
+  - keyword: もくもく会
+    patterns: ['もくもく']
+  - keyword: ハンズオン
+    patterns: ['ハンズオン', 'hands-?on']
+  - keyword: LT会
+    patterns: ['(?<![a-zA-Z0-9])lt(?![a-zA-Z0-9])', 'ライトニングトーク',
+               'lightning\s*talks?']
+  - keyword: ハッカソン
+    patterns: ['ハッカソン', 'hackathon']
+  - keyword: 初心者歓迎
+    patterns: ['初心者', '未経験', '入門', 'はじめて', '初めて', 'ビギナー',
+               'beginner']
+  - keyword: 子ども向け
+    patterns: ['子ども', '子供', 'こども', '小学生', '中学生', '親子',
+               'coderdojo', 'コーダー道場']
+  - keyword: プログラミング教育
+    patterns: ['プログラミング教育', 'プログラミング学習', 'プログラミング教室',
+               'coderdojo', 'コーダー道場']
+  - keyword: オンライン
+    patterns: ['オンライン', '(?<![a-zA-Z0-9])online(?![a-zA-Z0-9])',
+               'リモート開催', '(?<![a-zA-Z0-9])zoom(?![a-zA-Z0-9])']
+  - keyword: 交流会
+    patterns: ['交流会', '懇親会', '新年会', '忘年会']
+  - keyword: キャリア
+    patterns: ['キャリア', '転職', '働き方']
