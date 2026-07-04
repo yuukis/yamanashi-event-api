@@ -87,11 +87,17 @@ The top-level `events` array is converted to `EventDetail`. The top-level
       "group_url": "https://example.com/yamanashi-web",
       "description": "山梨Web勉強会の初回イベント。",
       "lat": null,
-      "lon": null
+      "lon": null,
+      "keywords": ["Web制作", "初心者歓迎"]
     }
   ]
 }
 ```
+
+`keywords` is optional. When present, the API returns it as is (up to 5
+normalized keywords are recommended). When absent, the API extracts keywords
+from the event title, catch, hash tag and description using its own keyword
+dictionary (`app/keywords.yaml`).
 
 `uid` should follow the same shape as connpass events:
 

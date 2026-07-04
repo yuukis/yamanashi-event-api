@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 from dataclasses import dataclass
 
 
@@ -20,6 +20,7 @@ class Event:
     group_key: Optional[str]
     group_name: Optional[str]
     group_url: Optional[str]
+    keywords: Optional[List[str]] = None
 
     @staticmethod
     def distinct_by_uid(data):
@@ -38,18 +39,18 @@ class EventDetail(Event):
     ended_at: str
     updated_at: str
     open_status: str
-    limit: Optional[int]
-    accepted: Optional[int]
-    waiting: Optional[int]
-    owner_name: Optional[str]
-    place: Optional[str]
-    address: Optional[str]
-    group_key: Optional[str]
-    group_name: Optional[str]
-    group_url: Optional[str]
-    description: Optional[str]
-    lat: Optional[str]
-    lon: Optional[str]
+    limit: Optional[int] = None
+    accepted: Optional[int] = None
+    waiting: Optional[int] = None
+    owner_name: Optional[str] = None
+    place: Optional[str] = None
+    address: Optional[str] = None
+    group_key: Optional[str] = None
+    group_name: Optional[str] = None
+    group_url: Optional[str] = None
+    description: Optional[str] = None
+    lat: Optional[str] = None
+    lon: Optional[str] = None
 
     def contains_keyword(self, keyword: str):
         if keyword is None:
@@ -69,6 +70,8 @@ class EventDetail(Event):
                 k in (self.group_key.lower() if self.group_key else ""),
                 k in (self.group_name.lower() if self.group_name else ""),
                 k in (self.description.lower() if self.description else ""),
+                k in (" ".join(self.keywords).lower()
+                      if self.keywords else ""),
             ]):
                 return False
 
@@ -113,10 +116,21 @@ class EventDetail(Event):
                 group_url=data.get("group_url"),
                 description=data.get("description"),
                 lat=data.get("lat"),
-                lon=data.get("lon")
+                lon=data.get("lon"),
+                keywords=EventDetail.sanitize_keywords(data.get("keywords"))
             )
 
         raise ValueError("data must be EventDetail or List[EventDetail]")
+
+    @staticmethod
+    def sanitize_keywords(data: any) -> Optional[List[str]]:
+        # None means "not provided" and triggers keyword extraction
+        if not isinstance(data, list):
+            return None
+        keywords = [k for k in data if isinstance(k, str)]
+        if len(keywords) == 0:
+            return None
+        return keywords
 
     @staticmethod
     def to_json(data: any):
@@ -146,7 +160,8 @@ class EventDetail(Event):
                 "group_url": data.group_url,
                 "description": data.description,
                 "lat": data.lat,
-                "lon": data.lon
+                "lon": data.lon,
+                "keywords": data.keywords
             }
 
         raise ValueError("data must be EventDetail or List[EventDetail]")
