@@ -138,6 +138,38 @@ class TestEventDetailKeywords(unittest.TestCase):
 
         self.assertIsNone(event.keywords)
 
+    def test_from_json_sanitizes_non_string_keywords(self):
+        data = {
+            "uid": "event_1@example.com",
+            "title": "Event 1",
+            "event_url": "https://example.com/event/1",
+            "started_at": "2026-07-01T19:00:00+09:00",
+            "ended_at": "2026-07-01T21:00:00+09:00",
+            "updated_at": "2026-07-01T00:00:00+09:00",
+            "open_status": "close",
+            "keywords": [123, "Python", None]
+        }
+
+        event = EventDetail.from_json(data)
+
+        self.assertEqual(event.keywords, ["Python"])
+
+    def test_from_json_with_invalid_keywords(self):
+        base = {
+            "uid": "event_1@example.com",
+            "title": "Event 1",
+            "event_url": "https://example.com/event/1",
+            "started_at": "2026-07-01T19:00:00+09:00",
+            "ended_at": "2026-07-01T21:00:00+09:00",
+            "updated_at": "2026-07-01T00:00:00+09:00",
+            "open_status": "close"
+        }
+
+        # non-list and empty keywords fall back to extraction (None)
+        for keywords in ["Python", 123, {}, [], [123, None]]:
+            event = EventDetail.from_json({**base, "keywords": keywords})
+            self.assertIsNone(event.keywords)
+
     def test_to_json_contains_keywords(self):
         event = make_event(title="Event 1", keywords=["Python"])
 

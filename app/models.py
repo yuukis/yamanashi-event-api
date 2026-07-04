@@ -117,10 +117,20 @@ class EventDetail(Event):
                 description=data.get("description"),
                 lat=data.get("lat"),
                 lon=data.get("lon"),
-                keywords=data.get("keywords")
+                keywords=EventDetail.sanitize_keywords(data.get("keywords"))
             )
 
         raise ValueError("data must be EventDetail or List[EventDetail]")
+
+    @staticmethod
+    def sanitize_keywords(data: any) -> Optional[List[str]]:
+        # None means "not provided" and triggers keyword extraction
+        if not isinstance(data, list):
+            return None
+        keywords = [k for k in data if isinstance(k, str)]
+        if len(keywords) == 0:
+            return None
+        return keywords
 
     @staticmethod
     def to_json(data: any):
