@@ -7,6 +7,7 @@ from .icalendar import IcalEventRequest, IcalException
 from .archive import ArchiveIndexRequest, ArchiveException
 from .models import Event, EventDetail, Group
 from .cache import EventRequestCache
+from .keywords import KeywordExtractor
 import asyncio
 import os
 from contextlib import asynccontextmanager
@@ -20,6 +21,7 @@ dirname = os.path.dirname(__file__)
 config_file = os.path.join(dirname, "config.yaml")
 
 cache = EventRequestCache()
+keyword_extractor = KeywordExtractor()
 
 with open(config_file, "r") as yml:
     config = yaml.safe_load(yml)
@@ -360,6 +362,11 @@ def request_events(params) -> Tuple[List[EventDetail], datetime]:
 
     events = Event.distinct_by_uid(events)
     events.sort(key=lambda x: x.started_at, reverse=False)
+
+    # Archive events inherit their own keywords; extract for the rest
+    for event in events:
+        if event.keywords is None:
+            event.keywords = keyword_extractor.extract(event)
 
     if keyword is not None:
         events = [ev for ev in events if ev.contains_keyword(keyword)]
