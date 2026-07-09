@@ -279,7 +279,15 @@ async def read_groups(
     return groups
 
 
-mcp = FastApiMCP(app)
+mcp = FastApiMCP(app, include_operations=[
+    "list_events_full",
+    "list_events_full_today",
+    "list_events_full_by_year",
+    "list_events_full_by_month",
+    "list_events_full_by_day",
+    "list_events_full_by_range",
+    "list_groups",
+])
 mcp.mount_http()
 
 
