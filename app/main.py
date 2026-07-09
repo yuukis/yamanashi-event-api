@@ -15,6 +15,7 @@ from datetime import datetime, timedelta, timezone
 import yaml
 from dotenv import load_dotenv
 from mangum import Mangum
+from fastapi_mcp import FastApiMCP
 
 load_dotenv()
 dirname = os.path.dirname(__file__)
@@ -276,6 +277,10 @@ async def read_groups(
         response.headers["Last-Modified"] = last_modified_str
         response.headers["Cache-Control"] = "public, max-age=3600"
     return groups
+
+
+mcp = FastApiMCP(app)
+mcp.mount_http()
 
 
 def get_events(params,
