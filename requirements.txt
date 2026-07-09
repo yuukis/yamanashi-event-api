@@ -7,4 +7,4 @@ python-dotenv
 pytest
 httpx
 mangum
-fastapi-mcp
+fastapi-mcp>=0.4.0
