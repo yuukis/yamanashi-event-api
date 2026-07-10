@@ -347,6 +347,45 @@ def test_read_events_full_fromto_year_month_invalid():
     assert response.status_code == 400
 
 
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.main.get_groups_from_icalendar")
+def test_read_events_summary(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    response = client.get("/events/summary")
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "public, max-age=3600"
+    assert "Last-Modified" in response.headers
+
+    data = response.json()
+    assert data["from_year"] == 2010
+    assert data["granularity"] == "month"
+    assert len(data["years"]) == data["to_year"] - data["from_year"] + 1
+
+    # Archive mock event: 2012-05-19, group_key "yamanashi-web" (present in group directory)
+    year_2012 = next(y for y in data["years"] if y["year"] == 2012)
+    assert year_2012["event_count"] == 1
+    assert year_2012["groups"][0]["key"] == "yamanashi-web"
+    assert year_2012["groups"][0]["name"] == "山梨Web勉強会"
+    assert year_2012["groups"][0]["url"] == "https://example.com/yamanashi-web"
+
+    # Ical mock event: 2022-01-01, group_key "Group Key 1" (absent from group directory,
+    # falls back to the event's own group_name/group_url)
+    year_2022 = next(y for y in data["years"] if y["year"] == 2022)
+    fallback_group = next(g for g in year_2022["groups"] if g["key"] == "Group Key 1")
+    assert fallback_group["name"] == "Group Name 1"
+    assert fallback_group["url"] == "Group URL 1"
+
+    # Connpass mock events have an empty group_key and must not appear as a group
+    assert all(g["key"] != "" for y in data["years"] for g in y["groups"])
+
+    heatmap_by_period = {h["period"]: h["count"] for h in data["heatmap"]}
+    assert heatmap_by_period["2012-05"] == 1
+    assert heatmap_by_period["2010-01"] == 0
+
+
 @patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequest)
 @patch("app.main.get_groups_from_icalendar")
 def test_read_group(mock_get_groups_from_icalendar):
