@@ -15,6 +15,7 @@ from datetime import datetime, timedelta, timezone
 import yaml
 from dotenv import load_dotenv
 from mangum import Mangum
+from fastapi_mcp import FastApiMCP
 
 load_dotenv()
 dirname = os.path.dirname(__file__)
@@ -58,7 +59,9 @@ def docs_redirect():
     return RedirectResponse(url="/docs")
 
 
-@app.get("/events", response_model=List[Event])
+@app.get("/events", response_model=List[Event],
+         operation_id="list_events",
+         summary="List recent events")
 async def read_events(
     response: Response,
     background_tasks: BackgroundTasks,
@@ -74,7 +77,9 @@ async def read_events(
                                                keyword)
 
 
-@app.get("/events/today", response_model=List[Event])
+@app.get("/events/today", response_model=List[Event],
+         operation_id="list_events_today",
+         summary="List today's events")
 async def read_events_today(
     response: Response,
     background_tasks: BackgroundTasks,
@@ -86,7 +91,9 @@ async def read_events_today(
                                                now.day, keyword)
 
 
-@app.get("/events/in/{year}", response_model=List[Event])
+@app.get("/events/in/{year}", response_model=List[Event],
+         operation_id="list_events_by_year",
+         summary="List events in a specific year")
 async def read_events_in_year(
     response: Response,
     background_tasks: BackgroundTasks,
@@ -98,7 +105,9 @@ async def read_events_in_year(
                                                keyword)
 
 
-@app.get("/events/in/{year}/{month}", response_model=List[Event])
+@app.get("/events/in/{year}/{month}", response_model=List[Event],
+         operation_id="list_events_by_month",
+         summary="List events in a specific year and month")
 async def read_events_in_year_month(
     response: Response,
     background_tasks: BackgroundTasks,
@@ -111,7 +120,9 @@ async def read_events_in_year_month(
                                                keyword)
 
 
-@app.get("/events/in/{year}/{month}/{day}", response_model=List[Event])
+@app.get("/events/in/{year}/{month}/{day}", response_model=List[Event],
+         operation_id="list_events_by_day",
+         summary="List events on a specific day")
 async def read_events_in_year_month_day(
     response: Response,
     background_tasks: BackgroundTasks,
@@ -132,7 +143,9 @@ async def read_events_in_year_month_day(
 
 
 @app.get("/events/from/{from_year}/{from_month}/to/{to_year}/{to_month}",
-         response_model=List[Event])
+         response_model=List[Event],
+         operation_id="list_events_by_range",
+         summary="List events within a date range")
 async def read_events_fromto_year_month(
     response: Response,
     background_tasks: BackgroundTasks,
@@ -167,7 +180,9 @@ async def read_events_fromto_year_month(
     return events
 
 
-@app.get("/events/full", response_model=List[EventDetail])
+@app.get("/events/full", response_model=List[EventDetail],
+         operation_id="list_events_full",
+         summary="List recent events with full details")
 async def read_events_full(
     response: Response,
     background_tasks: BackgroundTasks,
@@ -176,7 +191,9 @@ async def read_events_full(
     return await read_events(response, background_tasks, keyword)
 
 
-@app.get("/events/full/today", response_model=List[EventDetail])
+@app.get("/events/full/today", response_model=List[EventDetail],
+         operation_id="list_events_full_today",
+         summary="List today's events with full details")
 async def read_events_full_today(
     response: Response,
     background_tasks: BackgroundTasks,
@@ -185,7 +202,9 @@ async def read_events_full_today(
     return await read_events_today(response, background_tasks, keyword)
 
 
-@app.get("/events/full/in/{year}", response_model=List[EventDetail])
+@app.get("/events/full/in/{year}", response_model=List[EventDetail],
+         operation_id="list_events_full_by_year",
+         summary="List events in a specific year with full details")
 async def read_events_full_in_year(
     response: Response,
     background_tasks: BackgroundTasks,
@@ -195,7 +214,9 @@ async def read_events_full_in_year(
     return await read_events_in_year(response, background_tasks, year, keyword)
 
 
-@app.get("/events/full/in/{year}/{month}", response_model=List[EventDetail])
+@app.get("/events/full/in/{year}/{month}", response_model=List[EventDetail],
+         operation_id="list_events_full_by_month",
+         summary="List events in a specific year and month with full details")
 async def read_events_full_in_year_month(
     response: Response,
     background_tasks: BackgroundTasks,
@@ -208,7 +229,9 @@ async def read_events_full_in_year_month(
 
 
 @app.get("/events/full/in/{year}/{month}/{day}",
-         response_model=List[EventDetail])
+         response_model=List[EventDetail],
+         operation_id="list_events_full_by_day",
+         summary="List events on a specific day with full details")
 async def read_events_full_in_year_month_day(
     response: Response,
     background_tasks: BackgroundTasks,
@@ -222,7 +245,9 @@ async def read_events_full_in_year_month_day(
 
 
 @app.get("/events/full/from/{from_year}/{from_month}/to/{to_year}/{to_month}",
-         response_model=List[EventDetail])
+         response_model=List[EventDetail],
+         operation_id="list_events_full_by_range",
+         summary="List events within a date range with full details")
 async def read_events_full_fromto_year_month(
     response: Response,
     background_tasks: BackgroundTasks,
@@ -238,7 +263,9 @@ async def read_events_full_fromto_year_month(
                                                keyword)
 
 
-@app.get("/groups", response_model=List[Group])
+@app.get("/groups", response_model=List[Group],
+         operation_id="list_groups",
+         summary="List community groups")
 async def read_groups(
     response: Response,
     background_tasks: BackgroundTasks
@@ -250,6 +277,18 @@ async def read_groups(
         response.headers["Last-Modified"] = last_modified_str
         response.headers["Cache-Control"] = "public, max-age=3600"
     return groups
+
+
+mcp = FastApiMCP(app, include_operations=[
+    "list_events_full",
+    "list_events_full_today",
+    "list_events_full_by_year",
+    "list_events_full_by_month",
+    "list_events_full_by_day",
+    "list_events_full_by_range",
+    "list_groups",
+])
+mcp.mount_http()
 
 
 def get_events(params,
