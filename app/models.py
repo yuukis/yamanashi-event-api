@@ -236,3 +236,34 @@ class Group:
             }
 
         raise ValueError("data must be Group or List[Group]")
+
+
+@dataclass
+class GroupActivity:
+    key: str
+    name: Optional[str]
+    image_url: Optional[str]
+    url: Optional[str]
+    event_count: int
+
+
+@dataclass
+class YearSummary:
+    year: int
+    event_count: int
+    groups: List[GroupActivity]
+
+
+@dataclass
+class HeatmapBucket:
+    period: str
+    count: int
+
+
+@dataclass
+class EventsSummary:
+    from_year: int
+    to_year: int
+    granularity: str
+    years: List[YearSummary]
+    heatmap: List[HeatmapBucket]
