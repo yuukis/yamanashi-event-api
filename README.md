@@ -95,42 +95,29 @@ See [API document](https://yuukis.github.io/yamanashi-event-api) for more detail
 ## MCP Server
 
 This API also exposes an [MCP](https://modelcontextprotocol.io) server at
-`/mcp` (Streamable HTTP transport), so MCP-compatible clients (e.g. Claude,
-Claude Code) can call it as tools instead of plain HTTP requests.
-
-Add the hosted server directly, no local setup required:
+`/mcp` (Streamable HTTP transport) for MCP-compatible clients (e.g. Claude,
+Claude Code).
 
 ```sh
 claude mcp add --transport http yamanashi-event-api https://api.event.yamanashi.dev/mcp
 ```
 
-Or, against a local instance:
+For a local instance, use `http://localhost:8000/mcp` instead.
 
-```sh
-claude mcp add --transport http yamanashi-event-api http://localhost:8000/mcp
-```
+Only the full-detail tools (`list_events_full`, `list_events_full_by_day`,
+`list_groups`) are exposed, so results always include the `description`
+field. The compact `/events` endpoints remain REST-only.
 
-Only the full-detail event operations (e.g. `list_events_full`,
-`list_events_full_by_day`) and `list_groups` are exposed as MCP tools, so
-that the `description` field is always present in tool results. The
-compact `/events` endpoints remain REST-only.
-
-You can try it out interactively with
-[MCP Inspector](https://github.com/modelcontextprotocol/inspector):
-
-```sh
-npx @modelcontextprotocol/inspector
-```
-
-Connect with Transport Type `Streamable HTTP` and URL
-`http://localhost:8000/mcp`.
+You can also try it with
+[MCP Inspector](https://github.com/modelcontextprotocol/inspector)
+(`npx @modelcontextprotocol/inspector`, Transport Type `Streamable HTTP`,
+URL `http://localhost:8000/mcp`).
 
 ## Event Keywords
 
-Each event in the response contains a `keywords` field with up to 5 normalized
-keywords (e.g. `Python`, `AWS`, `もくもく会`, `初心者歓迎`), so that client
-applications can filter events by keyword without worrying about notation
-variations.
+Each event includes a `keywords` field with up to 5 normalized keywords
+(e.g. `Python`, `AWS`, `もくもく会`, `初心者歓迎`), so clients can filter
+events without worrying about notation variations.
 
 ```json
 {
@@ -139,19 +126,13 @@ variations.
 }
 ```
 
-Keywords are extracted from the event title, catch, hash tag, description and
-group key / group name using the dictionary defined in `app/keywords.yaml`.
-The dictionary maps canonical keywords to notation patterns (regular
-expressions), so no external API is used. Community naming conventions
-(e.g. `*.py` Python communities, `JAWS-UG`, `CoderDojo`) are covered by
-generic patterns matched against the group fields, so no per-community
-configuration is needed. To add a new keyword, edit `app/keywords.yaml`.
+Keywords are extracted from the title, catch, hash tag, description and
+group info using the regex-based dictionary in `app/keywords.yaml` (no
+external API). Add new keywords by editing that file.
 
-Events loaded from an archive index inherit the `keywords` field of the
-archive as is. If an archive event has no `keywords` field, keywords are
-extracted with the dictionary in the same way as other events.
-
-The `keyword` query parameter also matches the extracted keywords.
+Archive events inherit their own `keywords` field if present; otherwise
+they're extracted the same way. The `keyword` query parameter matches
+extracted keywords too.
 
 ## Archive Index
 
