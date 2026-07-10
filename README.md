@@ -98,6 +98,14 @@ This API also exposes an [MCP](https://modelcontextprotocol.io) server at
 `/mcp` (Streamable HTTP transport), so MCP-compatible clients (e.g. Claude,
 Claude Code) can call it as tools instead of plain HTTP requests.
 
+Add the hosted server directly, no local setup required:
+
+```sh
+claude mcp add --transport http yamanashi-event-api https://api.event.yamanashi.dev/mcp
+```
+
+Or, against a local instance:
+
 ```sh
 claude mcp add --transport http yamanashi-event-api http://localhost:8000/mcp
 ```
