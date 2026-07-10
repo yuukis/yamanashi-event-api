@@ -4,6 +4,7 @@ import pytest
 from app.main import app, get_user_agent, get_groups_from_icalendar
 from app.main import request_events, request_groups, get_groups_from_archives
 from app.main import get_archive_urls, preload_archive_indexes
+from app.main import get_events
 from app.cache import EventRequestCache
 from app.archive import ArchiveException
 from app.models import EventDetail, Group
@@ -347,6 +348,114 @@ def test_read_events_full_fromto_year_month_invalid():
     assert response.status_code == 400
 
 
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.main.get_groups_from_icalendar")
+def test_read_events_summary(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    response = client.get("/events/summary")
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "public, max-age=3600"
+    assert "Last-Modified" in response.headers
+
+    data = response.json()
+    assert data["from_year"] == 2010
+    assert data["granularity"] == "month"
+    assert len(data["years"]) == data["to_year"] - data["from_year"] + 1
+
+    # Archive mock event: 2012-05-19, group_key "yamanashi-web" (present in group directory)
+    year_2012 = next(y for y in data["years"] if y["year"] == 2012)
+    assert year_2012["event_count"] == 1
+    assert year_2012["groups"][0]["key"] == "yamanashi-web"
+    assert year_2012["groups"][0]["name"] == "山梨Web勉強会"
+    assert year_2012["groups"][0]["url"] == "https://example.com/yamanashi-web"
+
+    # Ical mock event: 2022-01-01, group_key "Group Key 1" is absent from the
+    # group directory (/groups), so it must not appear even though the event exists
+    year_2022 = next(y for y in data["years"] if y["year"] == 2022)
+    assert year_2022["event_count"] == 2
+    assert all(g["key"] != "Group Key 1" for g in year_2022["groups"])
+
+    # Connpass mock events have an empty group_key and must not appear as a group
+    assert all(g["key"] != "" for y in data["years"] for g in y["groups"])
+
+    heatmap_by_period = {h["period"]: h["count"] for h in data["heatmap"]}
+    assert heatmap_by_period["2012-05"] == 1
+    assert heatmap_by_period["2010-01"] == 0
+
+
+class MockConnpassGroupRequestNewerLastModified(MockConnpassGroupRequest):
+    def get_last_modified(self):
+        return datetime.fromtimestamp(999999, timezone.utc)
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequestNewerLastModified)
+@patch("app.main.get_groups_from_icalendar")
+@patch("app.main.cache", EventRequestCache(prefix="test_summary_last_modified_"))
+def test_read_events_summary_last_modified_reflects_newer_groups(
+        mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    response = client.get("/events/summary")
+    assert response.status_code == 200
+
+    expected = datetime.fromtimestamp(999999, timezone.utc) \
+        .strftime("%a, %d %b %Y %H:%M:%S GMT")
+    assert response.headers["Last-Modified"] == expected
+
+
+class MockConnpassEventRequestCapturingTTL:
+    received_cache_ttl = []
+
+    def __init__(self, **kwargs):
+        MockConnpassEventRequestCapturingTTL.received_cache_ttl.append(
+            kwargs.get("cache_ttl"))
+
+    def get_events(self):
+        return []
+
+    def get_last_modified(self):
+        return datetime.fromtimestamp(123, timezone.utc)
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequestCapturingTTL)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.main.get_groups_from_icalendar")
+@patch("app.main.cache", EventRequestCache(prefix="test_summary_ttl_"))
+def test_read_events_summary_uses_extended_ttls(mock_get_groups_from_icalendar):
+    import app.main as main_module
+
+    mock_get_groups_from_icalendar.return_value = []
+    MockConnpassEventRequestCapturingTTL.received_cache_ttl = []
+
+    response = client.get("/events/summary")
+    assert response.status_code == 200
+
+    # The low-level connpass cache_ttl (24h) must reach every
+    # ConnpassEventRequest call triggered by the summary endpoint.
+    assert len(MockConnpassEventRequestCapturingTTL.received_cache_ttl) > 0
+    assert all(ttl == 3600 * 24
+              for ttl in MockConnpassEventRequestCapturingTTL.received_cache_ttl)
+
+    # The cached raw EventDetail list (get_events()'s EventRequestCache
+    # entry) must use a 7 day expiry, not the default 72 hours used by
+    # the other /events endpoints. The years/heatmap payload built from
+    # it is not itself cached and is recomputed on every request.
+    from_year = 2010
+    to_year = datetime.now().year
+    ym = [f"{y:04}{m:02}" for y in range(from_year, to_year + 1) for m in range(1, 13)]
+    params = {"ym": ym, "keyword": None}
+    key = main_module.cache.generate_key(params) + ":content"
+    expiry = main_module.cache._expiry[key]
+    remaining = expiry - datetime.now(timezone.utc).timestamp()
+    assert 3600 * 24 * 6 < remaining <= 3600 * 24 * 7
+
+
 @patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequest)
 @patch("app.main.get_groups_from_icalendar")
 def test_read_group(mock_get_groups_from_icalendar):
@@ -436,6 +545,16 @@ def test_get_groups_from_icalendar():
     assert groups[1].image_url is None
     assert groups[1].ical_url == "http://example.com/ical"
     assert groups[1].description is None
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.main.cache", EventRequestCache(prefix="test_get_events_no_bg_"))
+def test_get_events_without_background_tasks():
+    events, last_modified = get_events({"ym": ["202201"], "keyword": None})
+
+    assert isinstance(events, list)
+    assert len(events) > 0
 
 
 @patch("app.main.ArchiveIndexRequest", MockArchiveIndexRequest)
