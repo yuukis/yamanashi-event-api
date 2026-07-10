@@ -6,6 +6,7 @@ from .connpass import ConnpassEventRequest, ConnpassGroupRequest, ConnpassExcept
 from .icalendar import IcalEventRequest, IcalException
 from .archive import ArchiveIndexRequest, ArchiveException
 from .models import Event, EventDetail, Group
+from .models import GroupActivity, YearSummary, HeatmapBucket, EventsSummary
 from .cache import EventRequestCache
 from .keywords import KeywordExtractor
 import asyncio
@@ -277,6 +278,78 @@ async def read_groups(
         response.headers["Last-Modified"] = last_modified_str
         response.headers["Cache-Control"] = "public, max-age=3600"
     return groups
+
+
+@app.get("/events/summary", response_model=EventsSummary,
+         operation_id="summary_events_by_year",
+         summary="Get yearly event summary with group highlights and activity heatmap")
+async def read_events_summary(
+    response: Response,
+    background_tasks: BackgroundTasks
+):
+    from_year = 2010
+    to_year = datetime.now().year
+
+    ym = [f"{y:04}{m:02}" for y in range(from_year, to_year + 1) for m in range(1, 13)]
+
+    events, last_modified = get_events({"ym": ym, "keyword": None},
+                                       background_tasks)
+    groups, _ = get_groups({}, background_tasks)
+    group_by_key = {g.key: g for g in groups}
+
+    year_stats = {
+        y: {"event_count": 0, "group_counts": {}, "group_names": {}, "group_urls": {}}
+        for y in range(from_year, to_year + 1)
+    }
+    heatmap_counts = {
+        f"{y:04}-{m:02}": 0
+        for y in range(from_year, to_year + 1) for m in range(1, 13)
+    }
+
+    for ev in events:
+        year = int(ev.started_at[:4])
+        period = ev.started_at[:7]
+        if period in heatmap_counts:
+            heatmap_counts[period] += 1
+        if year not in year_stats:
+            continue
+        stats = year_stats[year]
+        stats["event_count"] += 1
+        if ev.group_key:
+            stats["group_counts"][ev.group_key] = \
+                stats["group_counts"].get(ev.group_key, 0) + 1
+            stats["group_names"].setdefault(ev.group_key, ev.group_name)
+            stats["group_urls"].setdefault(ev.group_key, ev.group_url)
+
+    years = []
+    for year in range(from_year, to_year + 1):
+        stats = year_stats[year]
+        group_activities = []
+        sorted_keys = sorted(stats["group_counts"].items(),
+                             key=lambda kv: kv[1], reverse=True)
+        for key, count in sorted_keys:
+            g = group_by_key.get(key)
+            group_activities.append(GroupActivity(
+                key=key,
+                name=g.title if g else stats["group_names"].get(key),
+                image_url=g.image_url if g else None,
+                url=g.url if g else stats["group_urls"].get(key),
+                event_count=count
+            ))
+        years.append(YearSummary(year=year, event_count=stats["event_count"],
+                                 groups=group_activities))
+
+    heatmap = [HeatmapBucket(period=p, count=c)
+              for p, c in sorted(heatmap_counts.items())]
+
+    summary = EventsSummary(from_year=from_year, to_year=to_year,
+                            granularity="month", years=years, heatmap=heatmap)
+
+    if last_modified is not None:
+        last_modified_str = last_modified.strftime("%a, %d %b %Y %H:%M:%S GMT")
+        response.headers["Last-Modified"] = last_modified_str
+        response.headers["Cache-Control"] = "public, max-age=3600"
+    return summary
 
 
 mcp = FastApiMCP(app, include_operations=[
