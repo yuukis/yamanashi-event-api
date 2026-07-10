@@ -385,6 +385,52 @@ def test_read_events_summary(mock_get_groups_from_icalendar):
     assert heatmap_by_period["2010-01"] == 0
 
 
+class MockConnpassEventRequestCapturingTTL:
+    received_cache_ttl = []
+
+    def __init__(self, **kwargs):
+        MockConnpassEventRequestCapturingTTL.received_cache_ttl.append(
+            kwargs.get("cache_ttl"))
+
+    def get_events(self):
+        return []
+
+    def get_last_modified(self):
+        return datetime.fromtimestamp(123, timezone.utc)
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequestCapturingTTL)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.main.get_groups_from_icalendar")
+@patch("app.main.cache", EventRequestCache(prefix="test_summary_ttl_"))
+def test_read_events_summary_uses_extended_ttls(mock_get_groups_from_icalendar):
+    import app.main as main_module
+
+    mock_get_groups_from_icalendar.return_value = []
+    MockConnpassEventRequestCapturingTTL.received_cache_ttl = []
+
+    response = client.get("/events/summary")
+    assert response.status_code == 200
+
+    # The low-level connpass cache_ttl (24h) must reach every
+    # ConnpassEventRequest call triggered by the summary endpoint.
+    assert len(MockConnpassEventRequestCapturingTTL.received_cache_ttl) > 0
+    assert all(ttl == 3600 * 24
+              for ttl in MockConnpassEventRequestCapturingTTL.received_cache_ttl)
+
+    # The high-level aggregated response must be cached for 7 days,
+    # not the default 72 hours used by the other /events endpoints.
+    from_year = 2010
+    to_year = datetime.now().year
+    ym = [f"{y:04}{m:02}" for y in range(from_year, to_year + 1) for m in range(1, 13)]
+    params = {"ym": ym, "keyword": None}
+    key = main_module.cache.generate_key(params) + ":content"
+    expiry = main_module.cache._expiry[key]
+    remaining = expiry - datetime.now(timezone.utc).timestamp()
+    assert 3600 * 24 * 6 < remaining <= 3600 * 24 * 7
+
+
 @patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequest)
 @patch("app.main.get_groups_from_icalendar")
 def test_read_group(mock_get_groups_from_icalendar):
