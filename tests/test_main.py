@@ -4,6 +4,7 @@ import pytest
 from app.main import app, get_user_agent, get_groups_from_icalendar
 from app.main import request_events, request_groups, get_groups_from_archives
 from app.main import get_archive_urls, preload_archive_indexes
+from app.main import get_events
 from app.cache import EventRequestCache
 from app.archive import ArchiveException
 from app.models import EventDetail, Group
@@ -520,6 +521,16 @@ def test_get_groups_from_icalendar():
     assert groups[1].image_url is None
     assert groups[1].ical_url == "http://example.com/ical"
     assert groups[1].description is None
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.main.cache", EventRequestCache(prefix="test_get_events_no_bg_"))
+def test_get_events_without_background_tasks():
+    events, last_modified = get_events({"ym": ["202201"], "keyword": None})
+
+    assert isinstance(events, list)
+    assert len(events) > 0
 
 
 @patch("app.main.ArchiveIndexRequest", MockArchiveIndexRequest)

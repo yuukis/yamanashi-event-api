@@ -378,7 +378,8 @@ def get_events(params,
     if events is None:
         events, last_modified = request_events(params, cache_ttl=cache_ttl)
 
-    background_tasks.add_task(fetch_events, params, ex, cache_ttl)
+    if background_tasks is not None:
+        background_tasks.add_task(fetch_events, params, ex, cache_ttl)
 
     return events, last_modified
 
