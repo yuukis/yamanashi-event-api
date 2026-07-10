@@ -92,6 +92,31 @@ If you have Docker and Docker Compose installed, you can use the following steps
 
 See [API document](https://yuukis.github.io/yamanashi-event-api) for more details.
 
+## MCP Server
+
+This API also exposes an [MCP](https://modelcontextprotocol.io) server at
+`/mcp` (Streamable HTTP transport), so MCP-compatible clients (e.g. Claude,
+Claude Code) can call it as tools instead of plain HTTP requests.
+
+```sh
+claude mcp add --transport http yamanashi-event-api http://localhost:8000/mcp
+```
+
+Only the full-detail event operations (e.g. `list_events_full`,
+`list_events_full_by_day`) and `list_groups` are exposed as MCP tools, so
+that the `description` field is always present in tool results. The
+compact `/events` endpoints remain REST-only.
+
+You can try it out interactively with
+[MCP Inspector](https://github.com/modelcontextprotocol/inspector):
+
+```sh
+npx @modelcontextprotocol/inspector
+```
+
+Connect with Transport Type `Streamable HTTP` and URL
+`http://localhost:8000/mcp`.
+
 ## Event Keywords
 
 Each event in the response contains a `keywords` field with up to 5 normalized
