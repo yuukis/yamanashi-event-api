@@ -296,8 +296,12 @@ async def read_events_summary(
                                        background_tasks,
                                        ex=3600*24*7,  # 7 days
                                        cache_ttl=3600*24)  # 24 hours
-    groups, _ = get_groups({}, background_tasks)
+    groups, groups_last_modified = get_groups({}, background_tasks)
     group_by_key = {g.key: g for g in groups}
+
+    if groups_last_modified is not None:
+        last_modified = (groups_last_modified if last_modified is None
+                         else max(last_modified, groups_last_modified))
 
     year_stats = {
         y: {"event_count": 0, "group_counts": {}}

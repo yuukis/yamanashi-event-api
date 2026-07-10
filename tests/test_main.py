@@ -386,6 +386,28 @@ def test_read_events_summary(mock_get_groups_from_icalendar):
     assert heatmap_by_period["2010-01"] == 0
 
 
+class MockConnpassGroupRequestNewerLastModified(MockConnpassGroupRequest):
+    def get_last_modified(self):
+        return datetime.fromtimestamp(999999, timezone.utc)
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequestNewerLastModified)
+@patch("app.main.get_groups_from_icalendar")
+@patch("app.main.cache", EventRequestCache(prefix="test_summary_last_modified_"))
+def test_read_events_summary_last_modified_reflects_newer_groups(
+        mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    response = client.get("/events/summary")
+    assert response.status_code == 200
+
+    expected = datetime.fromtimestamp(999999, timezone.utc) \
+        .strftime("%a, %d %b %Y %H:%M:%S GMT")
+    assert response.headers["Last-Modified"] == expected
+
+
 class MockConnpassEventRequestCapturingTTL:
     received_cache_ttl = []
 
@@ -420,8 +442,10 @@ def test_read_events_summary_uses_extended_ttls(mock_get_groups_from_icalendar):
     assert all(ttl == 3600 * 24
               for ttl in MockConnpassEventRequestCapturingTTL.received_cache_ttl)
 
-    # The high-level aggregated response must be cached for 7 days,
-    # not the default 72 hours used by the other /events endpoints.
+    # The cached raw EventDetail list (get_events()'s EventRequestCache
+    # entry) must use a 7 day expiry, not the default 72 hours used by
+    # the other /events endpoints. The years/heatmap payload built from
+    # it is not itself cached and is recomputed on every request.
     from_year = 2010
     to_year = datetime.now().year
     ym = [f"{y:04}{m:02}" for y in range(from_year, to_year + 1) for m in range(1, 13)]
