@@ -293,7 +293,9 @@ async def read_events_summary(
     ym = [f"{y:04}{m:02}" for y in range(from_year, to_year + 1) for m in range(1, 13)]
 
     events, last_modified = get_events({"ym": ym, "keyword": None},
-                                       background_tasks)
+                                       background_tasks,
+                                       ex=3600*24*7,  # 7 days
+                                       cache_ttl=3600*24)  # 24 hours
     groups, _ = get_groups({}, background_tasks)
     group_by_key = {g.key: g for g in groups}
 
@@ -363,7 +365,9 @@ mcp.mount_http()
 
 
 def get_events(params,
-               background_tasks: BackgroundTasks = None
+               background_tasks: BackgroundTasks = None,
+               ex: int = 3600*72,  # 72 hours
+               cache_ttl: int = None
                ) -> Tuple[List[EventDetail], datetime]:
     global cache
 
@@ -372,9 +376,9 @@ def get_events(params,
     events, last_modified = get_events_from_cache(cache, params)
 
     if events is None:
-        events, last_modified = request_events(params)
+        events, last_modified = request_events(params, cache_ttl=cache_ttl)
 
-    background_tasks.add_task(fetch_events, params)
+    background_tasks.add_task(fetch_events, params, ex, cache_ttl)
 
     return events, last_modified
 
@@ -390,29 +394,29 @@ def get_events_from_cache(cache, params) -> Tuple[List[EventDetail], datetime]:
     return None, None
 
 
-def fetch_events(params):
+def fetch_events(params, ex: int = 3600*72, cache_ttl: int = None):  # 72 hours
     global cache
 
     events = None
     last_modified = None
     try:
-        events, last_modified = request_events(params)
+        events, last_modified = request_events(params, cache_ttl=cache_ttl)
 
     except (ConnpassException, IcalException, ArchiveException):
         return
 
     if events is not None:
         json = EventDetail.to_json(events)
-        cache.set(params, json, last_modified=last_modified,
-                  ex=3600*72)  # 72 hours
+        cache.set(params, json, last_modified=last_modified, ex=ex)
 
 
-def request_events(params) -> Tuple[List[EventDetail], datetime]:
+def request_events(params, cache_ttl: int = None) -> Tuple[List[EventDetail], datetime]:
     global cache
 
     ym = params["ym"] if "ym" in params else None
     ymd = params["ymd"] if "ymd" in params else None
     keyword = params["keyword"] if "keyword" in params else None
+    connpass_cache_ttl = cache_ttl if cache_ttl is not None else 3600
 
     user_agent = get_user_agent(config)
 
@@ -424,7 +428,8 @@ def request_events(params) -> Tuple[List[EventDetail], datetime]:
             r = ConnpassEventRequest(prefecture=prefecture,
                                      ym=ym, ymd=ymd, cache=cache,
                                      api_key=connpass_api_key,
-                                     user_agent=user_agent
+                                     user_agent=user_agent,
+                                     cache_ttl=connpass_cache_ttl
                                      )
             events += r.get_events()
             last_modified = max(last_modified, r.get_last_modified())
@@ -434,7 +439,8 @@ def request_events(params) -> Tuple[List[EventDetail], datetime]:
             r = ConnpassEventRequest(subdomain=subdomain,
                                      ym=ym, ymd=ymd, cache=cache,
                                      api_key=connpass_api_key,
-                                     user_agent=user_agent
+                                     user_agent=user_agent,
+                                     cache_ttl=connpass_cache_ttl
                                      )
             events += r.get_events()
             last_modified = max(last_modified, r.get_last_modified())
