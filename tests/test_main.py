@@ -371,12 +371,11 @@ def test_read_events_summary(mock_get_groups_from_icalendar):
     assert year_2012["groups"][0]["name"] == "山梨Web勉強会"
     assert year_2012["groups"][0]["url"] == "https://example.com/yamanashi-web"
 
-    # Ical mock event: 2022-01-01, group_key "Group Key 1" (absent from group directory,
-    # falls back to the event's own group_name/group_url)
+    # Ical mock event: 2022-01-01, group_key "Group Key 1" is absent from the
+    # group directory (/groups), so it must not appear even though the event exists
     year_2022 = next(y for y in data["years"] if y["year"] == 2022)
-    fallback_group = next(g for g in year_2022["groups"] if g["key"] == "Group Key 1")
-    assert fallback_group["name"] == "Group Name 1"
-    assert fallback_group["url"] == "Group URL 1"
+    assert year_2022["event_count"] == 2
+    assert all(g["key"] != "Group Key 1" for g in year_2022["groups"])
 
     # Connpass mock events have an empty group_key and must not appear as a group
     assert all(g["key"] != "" for y in data["years"] for g in y["groups"])

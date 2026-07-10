@@ -298,7 +298,7 @@ async def read_events_summary(
     group_by_key = {g.key: g for g in groups}
 
     year_stats = {
-        y: {"event_count": 0, "group_counts": {}, "group_names": {}, "group_urls": {}}
+        y: {"event_count": 0, "group_counts": {}}
         for y in range(from_year, to_year + 1)
     }
     heatmap_counts = {
@@ -315,27 +315,25 @@ async def read_events_summary(
             continue
         stats = year_stats[year]
         stats["event_count"] += 1
-        if ev.group_key:
+        if ev.group_key and ev.group_key in group_by_key:
             stats["group_counts"][ev.group_key] = \
                 stats["group_counts"].get(ev.group_key, 0) + 1
-            stats["group_names"].setdefault(ev.group_key, ev.group_name)
-            stats["group_urls"].setdefault(ev.group_key, ev.group_url)
 
     years = []
     for year in range(from_year, to_year + 1):
         stats = year_stats[year]
-        group_activities = []
         sorted_keys = sorted(stats["group_counts"].items(),
                              key=lambda kv: kv[1], reverse=True)
-        for key, count in sorted_keys:
-            g = group_by_key.get(key)
-            group_activities.append(GroupActivity(
+        group_activities = [
+            GroupActivity(
                 key=key,
-                name=g.title if g else stats["group_names"].get(key),
-                image_url=g.image_url if g else None,
-                url=g.url if g else stats["group_urls"].get(key),
+                name=group_by_key[key].title,
+                image_url=group_by_key[key].image_url,
+                url=group_by_key[key].url,
                 event_count=count
-            ))
+            )
+            for key, count in sorted_keys
+        ]
         years.append(YearSummary(year=year, event_count=stats["event_count"],
                                  groups=group_activities))
 
