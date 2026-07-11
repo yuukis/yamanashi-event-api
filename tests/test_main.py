@@ -407,6 +407,17 @@ def test_read_events_full_in_year_month_with_uid():
 
 @patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
 @patch("app.main.IcalEventRequest", MockICalEventRequest)
+def test_read_events_full_in_year_month_with_padded_uid():
+    response = client.get("/events/full/in/2023/12",
+                          params={"uid": "  UID 2  "})
+    assert response.status_code == 200
+    events = response.json()
+    assert len(events) == 1
+    assert events[0]["uid"] == "UID 2"
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
 def test_read_events_full_in_year_month_with_unmatched_uid():
     response = client.get("/events/full/in/2023/12",
                           params={"uid": "No Such UID"})
@@ -416,11 +427,15 @@ def test_read_events_full_in_year_month_with_unmatched_uid():
 
 @patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
 @patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.main.cache", EventRequestCache(prefix="test_uid_noop_"))
 def test_read_events_full_in_year_month_with_empty_uid_is_noop():
+    # Uses an isolated cache so this comparison isn't polluted by other
+    # tests' cache entries for the same year/month.
+    baseline = client.get("/events/full/in/2023/12")
     response = client.get("/events/full/in/2023/12",
                           params={"uid": ""})
     assert response.status_code == 200
-    assert len(response.json()) > 0
+    assert response.json() == baseline.json()
 
 
 @patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
