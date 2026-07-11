@@ -232,7 +232,10 @@ def mock_archive_index_request():
 def test_read_events():
     response = client.get("/events")
     assert response.status_code == 200
-    assert isinstance(response.json(), list)
+    events = response.json()
+    assert isinstance(events, list)
+    # /events now returns full details by default (no more /events/full split)
+    assert "description" in events[0]
 
 
 @patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
@@ -248,7 +251,9 @@ def test_read_events_with_keyword():
 def test_read_events_today():
     response = client.get("/events/today")
     assert response.status_code == 200
-    assert isinstance(response.json(), list)
+    events = response.json()
+    assert isinstance(events, list)
+    assert "description" in events[0]
 
 
 class MockConnpassEventRequestCapturingYmd:
@@ -277,7 +282,9 @@ def test_read_events_this_week():
 
     response = client.get("/events/week/this")
     assert response.status_code == 200
-    assert isinstance(response.json(), list)
+    events = response.json()
+    assert isinstance(events, list)
+    assert "description" in events[0]
 
     today = datetime.now().date()
     this_monday = today - timedelta(days=today.weekday())
@@ -293,7 +300,9 @@ def test_read_events_next_week():
 
     response = client.get("/events/week/next")
     assert response.status_code == 200
-    assert isinstance(response.json(), list)
+    events = response.json()
+    assert isinstance(events, list)
+    assert "description" in events[0]
 
     today = datetime.now().date()
     this_monday = today - timedelta(days=today.weekday())
@@ -308,7 +317,9 @@ def test_read_events_next_week():
 def test_read_events_in_year():
     response = client.get("/events/in/2023")
     assert response.status_code == 200
-    assert isinstance(response.json(), list)
+    events = response.json()
+    assert isinstance(events, list)
+    assert "description" in events[0]
 
 
 @patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
@@ -316,82 +327,9 @@ def test_read_events_in_year():
 def test_read_events_in_year_month():
     response = client.get("/events/in/2023/12")
     assert response.status_code == 200
-    assert isinstance(response.json(), list)
-
-
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
-def test_read_events_in_year_month_day():
-    response = client.get("/events/in/2024/01/28")
-    assert response.status_code == 200
-    assert isinstance(response.json(), list)
-
-
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
-def test_read_events_fromto_year_month():
-    response = client.get("/events/from/2023/12/to/2024/01")
-    assert response.status_code == 200
-    assert isinstance(response.json(), list)
-
-
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
-def test_read_events_fromto_year_month_invalid():
-    response = client.get("/events/from/2023/12/to/2022/11")
-    assert response.status_code == 400
-
-
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
-def test_read_events_full():
-    response = client.get("/events/full")
-    assert response.status_code == 200
-    assert isinstance(response.json(), list)
-
-
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
-def test_read_events_full_today():
-    response = client.get("/events/full/today")
-    assert response.status_code == 200
-    assert isinstance(response.json(), list)
-
-
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
-def test_read_events_full_this_week():
-    response = client.get("/events/full/week/this")
-    assert response.status_code == 200
-    assert isinstance(response.json(), list)
-    assert "description" in response.json()[0]
-
-
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
-def test_read_events_full_next_week():
-    response = client.get("/events/full/week/next")
-    assert response.status_code == 200
-    assert isinstance(response.json(), list)
-    assert "description" in response.json()[0]
-
-
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
-def test_read_events_full_in_year():
-    response = client.get("/events/full/in/2023")
-    assert response.status_code == 200
-    assert isinstance(response.json(), list)
-    assert "description" in response.json()[0]
-
-
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
-def test_read_events_full_in_year_month():
-    response = client.get("/events/full/in/2023/12")
-    assert response.status_code == 200
-    assert isinstance(response.json(), list)
-    assert "description" in response.json()[0]
+    events = response.json()
+    assert isinstance(events, list)
+    assert "description" in events[0]
 
 
 def test_normalize_event_params_shares_cache_key_across_equivalent_uid():
@@ -413,8 +351,8 @@ def test_normalize_event_params_shares_cache_key_across_equivalent_uid():
 
 @patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
 @patch("app.main.IcalEventRequest", MockICalEventRequest)
-def test_read_events_full_in_year_month_with_uid():
-    response = client.get("/events/full/in/2023/12",
+def test_read_events_in_year_month_with_uid():
+    response = client.get("/events/in/2023/12",
                           params={"uid": "UID 2"})
     assert response.status_code == 200
     events = response.json()
@@ -425,8 +363,8 @@ def test_read_events_full_in_year_month_with_uid():
 
 @patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
 @patch("app.main.IcalEventRequest", MockICalEventRequest)
-def test_read_events_full_in_year_month_with_padded_uid():
-    response = client.get("/events/full/in/2023/12",
+def test_read_events_in_year_month_with_padded_uid():
+    response = client.get("/events/in/2023/12",
                           params={"uid": "  UID 2  "})
     assert response.status_code == 200
     events = response.json()
@@ -436,8 +374,8 @@ def test_read_events_full_in_year_month_with_padded_uid():
 
 @patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
 @patch("app.main.IcalEventRequest", MockICalEventRequest)
-def test_read_events_full_in_year_month_with_unmatched_uid():
-    response = client.get("/events/full/in/2023/12",
+def test_read_events_in_year_month_with_unmatched_uid():
+    response = client.get("/events/in/2023/12",
                           params={"uid": "No Such UID"})
     assert response.status_code == 200
     assert response.json() == []
@@ -446,14 +384,14 @@ def test_read_events_full_in_year_month_with_unmatched_uid():
 @patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
 @patch("app.main.IcalEventRequest", MockICalEventRequest)
 @patch("app.main.cache", EventRequestCache(prefix="test_uid_noop_"))
-def test_read_events_full_in_year_month_with_empty_uid_is_noop():
+def test_read_events_in_year_month_with_empty_uid_is_noop():
     # Uses an isolated cache so this comparison isn't polluted by other
     # tests' cache entries for the same year/month. Compares uids rather
     # than full response bodies since uid="" now normalizes to the same
     # cache key as no uid at all, and a cache hit vs. a fresh computation
     # can otherwise disagree on unrelated fields (e.g. keywords).
-    baseline = client.get("/events/full/in/2023/12")
-    response = client.get("/events/full/in/2023/12",
+    baseline = client.get("/events/in/2023/12")
+    response = client.get("/events/in/2023/12",
                           params={"uid": ""})
     assert response.status_code == 200
     baseline_uids = sorted(ev["uid"] for ev in baseline.json())
@@ -464,16 +402,16 @@ def test_read_events_full_in_year_month_with_empty_uid_is_noop():
 
 @patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
 @patch("app.main.IcalEventRequest", MockICalEventRequest)
-def test_read_events_full_in_year_month_with_uid_and_keyword():
+def test_read_events_in_year_month_with_uid_and_keyword():
     # "UID 1" is overwritten by the iCal source's non-matching event during
     # dedup, so combining it with a keyword that only the connpass version
     # would match must yield no results (AND semantics).
-    response = client.get("/events/full/in/2023/12",
+    response = client.get("/events/in/2023/12",
                           params={"uid": "UID 1", "keyword": "python"})
     assert response.status_code == 200
     assert response.json() == []
 
-    response = client.get("/events/full/in/2023/12",
+    response = client.get("/events/in/2023/12",
                           params={"uid": "UID 2", "keyword": "python"})
     assert response.status_code == 200
     events = response.json()
@@ -483,26 +421,70 @@ def test_read_events_full_in_year_month_with_uid_and_keyword():
 
 @patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
 @patch("app.main.IcalEventRequest", MockICalEventRequest)
-def test_read_events_full_in_year_month_day():
-    response = client.get("/events/full/in/2024/01/28")
+def test_read_events_in_year_month_with_fields():
+    response = client.get("/events/in/2023/12",
+                          params={"uid": "UID 2", "fields": "uid,description"})
     assert response.status_code == 200
-    assert isinstance(response.json(), list)
-    assert "description" in response.json()[0]
+    events = response.json()
+    assert len(events) == 1
+    assert events[0] == {"uid": "UID 2", "description": "Description"}
 
 
 @patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
 @patch("app.main.IcalEventRequest", MockICalEventRequest)
-def test_read_events_full_fromto_year_month():
-    response = client.get("/events/full/from/2023/12/to/2024/01")
+def test_read_events_in_year_month_with_fields_ignores_unknown_names():
+    response = client.get("/events/in/2023/12",
+                          params={"uid": "UID 2", "fields": "uid,bogus"})
     assert response.status_code == 200
-    assert isinstance(response.json(), list)
-    assert "description" in response.json()[0]
+    events = response.json()
+    assert len(events) == 1
+    assert events[0] == {"uid": "UID 2"}
 
 
 @patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
 @patch("app.main.IcalEventRequest", MockICalEventRequest)
-def test_read_events_full_fromto_year_month_invalid():
-    response = client.get("/events/full/from/2023/12/to/2022/11")
+def test_read_events_in_year_month_with_empty_fields_is_noop():
+    baseline = client.get("/events/in/2023/12", params={"uid": "UID 2"})
+    response = client.get("/events/in/2023/12",
+                          params={"uid": "UID 2", "fields": ""})
+    assert response.status_code == 200
+    assert response.json() == baseline.json()
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+def test_read_events_in_year_month_with_fields_keeps_cache_headers():
+    response = client.get("/events/in/2023/12",
+                          params={"uid": "UID 2", "fields": "uid"})
+    assert response.status_code == 200
+    assert "Last-Modified" in response.headers
+    assert response.headers["Cache-Control"] == "public, max-age=3600"
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+def test_read_events_in_year_month_day():
+    response = client.get("/events/in/2024/01/28")
+    assert response.status_code == 200
+    events = response.json()
+    assert isinstance(events, list)
+    assert "description" in events[0]
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+def test_read_events_fromto_year_month():
+    response = client.get("/events/from/2023/12/to/2024/01")
+    assert response.status_code == 200
+    events = response.json()
+    assert isinstance(events, list)
+    assert "description" in events[0]
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+def test_read_events_fromto_year_month_invalid():
+    response = client.get("/events/from/2023/12/to/2022/11")
     assert response.status_code == 400
 
 
