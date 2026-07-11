@@ -402,9 +402,13 @@ def test_normalize_event_params_shares_cache_key_across_equivalent_uid():
         {"ym": ["202312"], "keyword": None, "uid": "UID 2"})
     empty = normalize_event_params({"ym": ["202312"], "keyword": None, "uid": ""})
 
+    # /events/summary omits the "uid" key entirely rather than passing None
+    no_uid_key = normalize_event_params({"ym": ["202312"], "keyword": None})
+
     cache = EventRequestCache()
     assert cache.generate_key(padded) == cache.generate_key(canonical)
     assert cache.generate_key(empty) == cache.generate_key(base)
+    assert cache.generate_key(no_uid_key) == cache.generate_key(base)
 
 
 @patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
@@ -603,7 +607,7 @@ def test_read_events_summary_uses_extended_ttls(mock_get_groups_from_icalendar):
     from_year = 2010
     to_year = datetime.now().year
     ym = [f"{y:04}{m:02}" for y in range(from_year, to_year + 1) for m in range(1, 13)]
-    params = {"ym": ym, "keyword": None}
+    params = normalize_event_params({"ym": ym, "keyword": None})
     key = main_module.cache.generate_key(params) + ":content"
     expiry = main_module.cache._expiry[key]
     remaining = expiry - datetime.now(timezone.utc).timestamp()
