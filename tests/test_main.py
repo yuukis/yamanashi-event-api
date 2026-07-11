@@ -5,6 +5,7 @@ from app.main import app, get_user_agent, get_groups_from_icalendar
 from app.main import request_events, request_groups, get_groups_from_archives
 from app.main import get_archive_urls, preload_archive_indexes
 from app.main import get_events, get_max_age_until_next_period
+from app.main import normalize_event_params
 from app.cache import EventRequestCache
 from app.archive import ArchiveException
 from app.models import EventDetail, Group
@@ -393,6 +394,93 @@ def test_read_events_full_in_year_month():
     assert "description" in response.json()[0]
 
 
+def test_normalize_event_params_shares_cache_key_across_equivalent_uid():
+    base = normalize_event_params({"ym": ["202312"], "keyword": None, "uid": None})
+    padded = normalize_event_params(
+        {"ym": ["202312"], "keyword": None, "uid": "  UID 2  "})
+    canonical = normalize_event_params(
+        {"ym": ["202312"], "keyword": None, "uid": "UID 2"})
+    empty = normalize_event_params({"ym": ["202312"], "keyword": None, "uid": ""})
+
+    # /events/summary omits the "uid" key entirely rather than passing None
+    no_uid_key = normalize_event_params({"ym": ["202312"], "keyword": None})
+
+    cache = EventRequestCache()
+    assert cache.generate_key(padded) == cache.generate_key(canonical)
+    assert cache.generate_key(empty) == cache.generate_key(base)
+    assert cache.generate_key(no_uid_key) == cache.generate_key(base)
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+def test_read_events_full_in_year_month_with_uid():
+    response = client.get("/events/full/in/2023/12",
+                          params={"uid": "UID 2"})
+    assert response.status_code == 200
+    events = response.json()
+    assert len(events) == 1
+    assert events[0]["uid"] == "UID 2"
+    assert events[0]["title"] == "Python Event"
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+def test_read_events_full_in_year_month_with_padded_uid():
+    response = client.get("/events/full/in/2023/12",
+                          params={"uid": "  UID 2  "})
+    assert response.status_code == 200
+    events = response.json()
+    assert len(events) == 1
+    assert events[0]["uid"] == "UID 2"
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+def test_read_events_full_in_year_month_with_unmatched_uid():
+    response = client.get("/events/full/in/2023/12",
+                          params={"uid": "No Such UID"})
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.main.cache", EventRequestCache(prefix="test_uid_noop_"))
+def test_read_events_full_in_year_month_with_empty_uid_is_noop():
+    # Uses an isolated cache so this comparison isn't polluted by other
+    # tests' cache entries for the same year/month. Compares uids rather
+    # than full response bodies since uid="" now normalizes to the same
+    # cache key as no uid at all, and a cache hit vs. a fresh computation
+    # can otherwise disagree on unrelated fields (e.g. keywords).
+    baseline = client.get("/events/full/in/2023/12")
+    response = client.get("/events/full/in/2023/12",
+                          params={"uid": ""})
+    assert response.status_code == 200
+    baseline_uids = sorted(ev["uid"] for ev in baseline.json())
+    response_uids = sorted(ev["uid"] for ev in response.json())
+    assert response_uids == baseline_uids
+    assert len(response_uids) > 0
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+def test_read_events_full_in_year_month_with_uid_and_keyword():
+    # "UID 1" is overwritten by the iCal source's non-matching event during
+    # dedup, so combining it with a keyword that only the connpass version
+    # would match must yield no results (AND semantics).
+    response = client.get("/events/full/in/2023/12",
+                          params={"uid": "UID 1", "keyword": "python"})
+    assert response.status_code == 200
+    assert response.json() == []
+
+    response = client.get("/events/full/in/2023/12",
+                          params={"uid": "UID 2", "keyword": "python"})
+    assert response.status_code == 200
+    events = response.json()
+    assert len(events) == 1
+    assert events[0]["uid"] == "UID 2"
+
+
 @patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
 @patch("app.main.IcalEventRequest", MockICalEventRequest)
 def test_read_events_full_in_year_month_day():
@@ -519,7 +607,7 @@ def test_read_events_summary_uses_extended_ttls(mock_get_groups_from_icalendar):
     from_year = 2010
     to_year = datetime.now().year
     ym = [f"{y:04}{m:02}" for y in range(from_year, to_year + 1) for m in range(1, 13)]
-    params = {"ym": ym, "keyword": None}
+    params = normalize_event_params({"ym": ym, "keyword": None})
     key = main_module.cache.generate_key(params) + ":content"
     expiry = main_module.cache._expiry[key]
     remaining = expiry - datetime.now(timezone.utc).timestamp()
