@@ -8,7 +8,7 @@ from app.main import get_events, get_max_age_until_next_period
 from app.cache import EventRequestCache
 from app.archive import ArchiveException
 from app.models import EventDetail, Group
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 client = TestClient(app)
 
@@ -250,20 +250,56 @@ def test_read_events_today():
     assert isinstance(response.json(), list)
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+class MockConnpassEventRequestCapturingYmd:
+    received_ymd = []
+
+    def __init__(self, **kwargs):
+        MockConnpassEventRequestCapturingYmd.received_ymd.append(kwargs.get("ymd"))
+
+    def get_events(self):
+        return []
+
+    def get_last_modified(self):
+        return datetime.fromtimestamp(123, timezone.utc)
+
+
+def _assert_consecutive_week_starting_monday(ymd, expected_monday):
+    dates = [datetime.strptime(d, "%Y%m%d").date() for d in ymd]
+    assert dates == [expected_monday + timedelta(days=i) for i in range(7)]
+    assert dates[0].weekday() == 0
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequestCapturingYmd)
 @patch("app.main.IcalEventRequest", MockICalEventRequest)
 def test_read_events_this_week():
+    MockConnpassEventRequestCapturingYmd.received_ymd = []
+
     response = client.get("/events/week/this")
     assert response.status_code == 200
     assert isinstance(response.json(), list)
 
+    today = datetime.now().date()
+    this_monday = today - timedelta(days=today.weekday())
+    assert len(MockConnpassEventRequestCapturingYmd.received_ymd) > 0
+    for ymd in MockConnpassEventRequestCapturingYmd.received_ymd:
+        _assert_consecutive_week_starting_monday(ymd, this_monday)
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequestCapturingYmd)
 @patch("app.main.IcalEventRequest", MockICalEventRequest)
 def test_read_events_next_week():
+    MockConnpassEventRequestCapturingYmd.received_ymd = []
+
     response = client.get("/events/week/next")
     assert response.status_code == 200
     assert isinstance(response.json(), list)
+
+    today = datetime.now().date()
+    this_monday = today - timedelta(days=today.weekday())
+    next_monday = this_monday + timedelta(days=7)
+    assert len(MockConnpassEventRequestCapturingYmd.received_ymd) > 0
+    for ymd in MockConnpassEventRequestCapturingYmd.received_ymd:
+        _assert_consecutive_week_starting_monday(ymd, next_monday)
 
 
 @patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
@@ -558,6 +594,11 @@ def test_get_max_age_until_next_period_uses_default_far_from_boundary():
     with patch("app.main.datetime", FixedDatetimeMidWeek):
         assert get_max_age_until_next_period(1) == 3600
         assert get_max_age_until_next_period(7) == 3600
+
+
+def test_get_max_age_until_next_period_rejects_unsupported_days():
+    with pytest.raises(ValueError):
+        get_max_age_until_next_period(3)
 
 
 def test_get_user_agent():

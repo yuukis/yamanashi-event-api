@@ -232,6 +232,9 @@ def get_max_age_until_next_period(days: int, max_age: int = 3600) -> int:
     describes, otherwise a response cached just before midnight (or a week
     boundary) could still be served as "today"/"this week" after it rolls
     over."""
+    if days not in (1, 7):
+        raise ValueError(f"Unsupported days for cache boundary clamping: {days}")
+
     now = datetime.now()
     today = now.date()
     period_start = today - timedelta(days=today.weekday()) if days == 7 else today
