@@ -100,7 +100,7 @@ class Event:
                 keywords=Event.sanitize_keywords(data.get("keywords"))
             )
 
-        raise ValueError("data must be Event or List[Event]")
+        raise ValueError("data must be dict or List[dict]")
 
     @staticmethod
     def sanitize_keywords(data: any) -> Optional[List[str]]:
