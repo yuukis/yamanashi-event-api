@@ -5,6 +5,7 @@ from app.main import app, get_user_agent, get_groups_from_icalendar
 from app.main import request_events, request_groups, get_groups_from_archives
 from app.main import get_archive_urls, preload_archive_indexes
 from app.main import get_events, get_max_age_until_next_period
+from app.main import normalize_event_params
 from app.cache import EventRequestCache
 from app.archive import ArchiveException
 from app.models import EventDetail, Group
@@ -393,6 +394,19 @@ def test_read_events_full_in_year_month():
     assert "description" in response.json()[0]
 
 
+def test_normalize_event_params_shares_cache_key_across_equivalent_uid():
+    base = normalize_event_params({"ym": ["202312"], "keyword": None, "uid": None})
+    padded = normalize_event_params(
+        {"ym": ["202312"], "keyword": None, "uid": "  UID 2  "})
+    canonical = normalize_event_params(
+        {"ym": ["202312"], "keyword": None, "uid": "UID 2"})
+    empty = normalize_event_params({"ym": ["202312"], "keyword": None, "uid": ""})
+
+    cache = EventRequestCache()
+    assert cache.generate_key(padded) == cache.generate_key(canonical)
+    assert cache.generate_key(empty) == cache.generate_key(base)
+
+
 @patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
 @patch("app.main.IcalEventRequest", MockICalEventRequest)
 def test_read_events_full_in_year_month_with_uid():
@@ -430,12 +444,18 @@ def test_read_events_full_in_year_month_with_unmatched_uid():
 @patch("app.main.cache", EventRequestCache(prefix="test_uid_noop_"))
 def test_read_events_full_in_year_month_with_empty_uid_is_noop():
     # Uses an isolated cache so this comparison isn't polluted by other
-    # tests' cache entries for the same year/month.
+    # tests' cache entries for the same year/month. Compares uids rather
+    # than full response bodies since uid="" now normalizes to the same
+    # cache key as no uid at all, and a cache hit vs. a fresh computation
+    # can otherwise disagree on unrelated fields (e.g. keywords).
     baseline = client.get("/events/full/in/2023/12")
     response = client.get("/events/full/in/2023/12",
                           params={"uid": ""})
     assert response.status_code == 200
-    assert response.json() == baseline.json()
+    baseline_uids = sorted(ev["uid"] for ev in baseline.json())
+    response_uids = sorted(ev["uid"] for ev in response.json())
+    assert response_uids == baseline_uids
+    assert len(response_uids) > 0
 
 
 @patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
