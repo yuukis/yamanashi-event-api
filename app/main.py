@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 from fastapi import FastAPI, BackgroundTasks, Path, HTTPException
 from fastapi.responses import RedirectResponse, Response, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -424,7 +424,9 @@ def get_events(params,
     return events, last_modified
 
 
-def get_events_from_cache(cache, params) -> Tuple[List[Event], datetime]:
+def get_events_from_cache(
+    cache, params
+) -> Tuple[Optional[List[Event]], Optional[datetime]]:
     response = cache.get(params)
     if response is None:
         return None, None
@@ -552,7 +554,9 @@ def get_groups(params,
     return groups, last_modified
 
 
-def get_groups_from_cache(cache, params) -> Tuple[List[Group], datetime]:
+def get_groups_from_cache(
+    cache, params
+) -> Tuple[Optional[List[Group]], Optional[datetime]]:
     response = cache.get(params)
     if response is None:
         return None, None
