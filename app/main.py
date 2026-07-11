@@ -12,7 +12,7 @@ from .keywords import KeywordExtractor
 import asyncio
 import os
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, time as time_of_day
 import yaml
 from dotenv import load_dotenv
 from mangum import Mangum
@@ -86,10 +86,37 @@ async def read_events_today(
     background_tasks: BackgroundTasks,
     keyword: str = None
 ):
-    now = datetime.now()
-    return await read_events_in_year_month_day(response, background_tasks,
-                                               now.year, now.month,
-                                               now.day, keyword)
+    today = datetime.now().date()
+    return await read_events_for_days(response, background_tasks,
+                                      today, 1, keyword)
+
+
+@app.get("/events/week/this", response_model=List[Event],
+         operation_id="list_events_this_week",
+         summary="List this week's events")
+async def read_events_this_week(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    keyword: str = None
+):
+    today = datetime.now().date()
+    monday = today - timedelta(days=today.weekday())
+    return await read_events_for_days(response, background_tasks,
+                                      monday, 7, keyword)
+
+
+@app.get("/events/week/next", response_model=List[Event],
+         operation_id="list_events_next_week",
+         summary="List next week's events")
+async def read_events_next_week(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    keyword: str = None
+):
+    today = datetime.now().date()
+    next_monday = today - timedelta(days=today.weekday()) + timedelta(days=7)
+    return await read_events_for_days(response, background_tasks,
+                                      next_monday, 7, keyword)
 
 
 @app.get("/events/in/{year}", response_model=List[Event],
@@ -181,6 +208,41 @@ async def read_events_fromto_year_month(
     return events
 
 
+async def read_events_for_days(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    base_date,
+    days: int,
+    keyword: str = None
+):
+    ymd = [(base_date + timedelta(days=i)).strftime("%Y%m%d") for i in range(days)]
+    events, last_modified = get_events({"ymd": ymd, "keyword": keyword},
+                                       background_tasks)
+
+    if last_modified is not None:
+        last_modified_str = last_modified.strftime("%a, %d %b %Y %H:%M:%S GMT")
+        response.headers["Last-Modified"] = last_modified_str
+        max_age = get_max_age_until_next_period(days)
+        response.headers["Cache-Control"] = f"public, max-age={max_age}"
+    return events
+
+
+def get_max_age_until_next_period(days: int, max_age: int = 3600) -> int:
+    """Clamp max_age so an HTTP cache can't outlive the day/week the response
+    describes, otherwise a response cached just before midnight (or a week
+    boundary) could still be served as "today"/"this week" after it rolls
+    over."""
+    if days not in (1, 7):
+        raise ValueError(f"Unsupported days for cache boundary clamping: {days}")
+
+    now = datetime.now()
+    today = now.date()
+    period_start = today - timedelta(days=today.weekday()) if days == 7 else today
+    boundary = datetime.combine(period_start + timedelta(days=days), time_of_day.min)
+    seconds_until_boundary = int((boundary - now).total_seconds())
+    return max(0, min(max_age, seconds_until_boundary))
+
+
 @app.get("/events/full", response_model=List[EventDetail],
          operation_id="list_events_full",
          summary="List recent events with full details")
@@ -201,6 +263,28 @@ async def read_events_full_today(
     keyword: str = None
 ):
     return await read_events_today(response, background_tasks, keyword)
+
+
+@app.get("/events/full/week/this", response_model=List[EventDetail],
+         operation_id="list_events_full_this_week",
+         summary="List this week's events with full details")
+async def read_events_full_this_week(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    keyword: str = None
+):
+    return await read_events_this_week(response, background_tasks, keyword)
+
+
+@app.get("/events/full/week/next", response_model=List[EventDetail],
+         operation_id="list_events_full_next_week",
+         summary="List next week's events with full details")
+async def read_events_full_next_week(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    keyword: str = None
+):
+    return await read_events_next_week(response, background_tasks, keyword)
 
 
 @app.get("/events/full/in/{year}", response_model=List[EventDetail],
@@ -359,6 +443,8 @@ async def read_events_summary(
 mcp = FastApiMCP(app, include_operations=[
     "list_events_full",
     "list_events_full_today",
+    "list_events_full_this_week",
+    "list_events_full_next_week",
     "list_events_full_by_year",
     "list_events_full_by_month",
     "list_events_full_by_day",
