@@ -1,11 +1,11 @@
 import unittest
 from app.keywords import KeywordExtractor
-from app.models import EventDetail
+from app.models import Event
 
 
 def make_event(title="", catch=None, hash_tag=None, description=None,
                group_key=None, group_name=None, keywords=None):
-    return EventDetail(
+    return Event(
         uid="event_1@example.com",
         event_id=1, title=title, catch=catch, hash_tag=hash_tag,
         event_url="https://example.com/event/1",
@@ -106,7 +106,7 @@ class TestKeywordExtractor(unittest.TestCase):
         self.assertNotIn("生成AI", keywords)
 
 
-class TestEventDetailKeywords(unittest.TestCase):
+class TestEventKeywords(unittest.TestCase):
     def test_from_json_inherits_keywords(self):
         data = {
             "uid": "event_1@example.com",
@@ -119,7 +119,7 @@ class TestEventDetailKeywords(unittest.TestCase):
             "keywords": ["Python", "初心者歓迎"]
         }
 
-        event = EventDetail.from_json(data)
+        event = Event.from_json(data)
 
         self.assertEqual(event.keywords, ["Python", "初心者歓迎"])
 
@@ -134,7 +134,7 @@ class TestEventDetailKeywords(unittest.TestCase):
             "open_status": "close"
         }
 
-        event = EventDetail.from_json(data)
+        event = Event.from_json(data)
 
         self.assertIsNone(event.keywords)
 
@@ -150,7 +150,7 @@ class TestEventDetailKeywords(unittest.TestCase):
             "keywords": [123, "Python", None]
         }
 
-        event = EventDetail.from_json(data)
+        event = Event.from_json(data)
 
         self.assertEqual(event.keywords, ["Python"])
 
@@ -167,13 +167,13 @@ class TestEventDetailKeywords(unittest.TestCase):
 
         # non-list and empty keywords fall back to extraction (None)
         for keywords in ["Python", 123, {}, [], [123, None]]:
-            event = EventDetail.from_json({**base, "keywords": keywords})
+            event = Event.from_json({**base, "keywords": keywords})
             self.assertIsNone(event.keywords)
 
     def test_to_json_contains_keywords(self):
         event = make_event(title="Event 1", keywords=["Python"])
 
-        data = EventDetail.to_json(event)
+        data = Event.to_json(event)
 
         self.assertEqual(data["keywords"], ["Python"])
 

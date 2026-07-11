@@ -1,5 +1,5 @@
 import unittest
-from app.models import Event, EventDetail, Group
+from app.models import Event, Group
 
 
 class TestEvent(unittest.TestCase):
@@ -44,7 +44,7 @@ class TestEvent(unittest.TestCase):
 
     def test_contains_keyword(self):
         # Create an event object
-        event = EventDetail(uid="event_1@example.com",
+        event = Event(uid="event_1@example.com",
                             event_id=1, title="Event 1", catch="Catch 1",
                             hash_tag="", event_url="",
                             started_at="", ended_at="", updated_at="",
@@ -110,7 +110,7 @@ class TestEvent(unittest.TestCase):
         }
 
         # Call the from_json method
-        event = EventDetail.from_json(data)
+        event = Event.from_json(data)
 
         # Check if the event object is created
         self.assertIsNotNone(event)
@@ -140,7 +140,7 @@ class TestEvent(unittest.TestCase):
     def test_to_json_with_list(self):
         # Create a list of event objects
         events = [
-            EventDetail(uid="event_1@example.com",
+            Event(uid="event_1@example.com",
                         event_id=1, title="Event 1", catch="Catch 1",
                         hash_tag="Hash Tag", event_url="Event URL",
                         started_at="2022-01-01T00:00:00+09:00",
@@ -152,7 +152,7 @@ class TestEvent(unittest.TestCase):
                         group_name="Group Name", group_url="Group URL",
                         description="Description",
                         lat="35.6895", lon="139.6917"),
-            EventDetail(uid="event_2@example.com",
+            Event(uid="event_2@example.com",
                         event_id=2, title="Event 2", catch="Catch 2",
                         hash_tag="Hash Tag", event_url="Event URL",
                         started_at="2022-01-01T00:00:00+09:00",
@@ -167,7 +167,7 @@ class TestEvent(unittest.TestCase):
         ]
 
         # Call the to_json method
-        data = EventDetail.to_json(events)
+        data = Event.to_json(events)
 
         # Check if the data object is created
         self.assertIsNotNone(data)
@@ -176,7 +176,7 @@ class TestEvent(unittest.TestCase):
         self.assertEqual(data[1]["event_id"], 2)
 
     def test_is_valid(self):
-        event1 = EventDetail(uid="event_1@example.com",
+        event1 = Event(uid="event_1@example.com",
                              event_id=1, title="Event 1", catch="Catch 1",
                              hash_tag="Hash Tag", event_url="Event URL",
                              started_at="2022-01-01T00:00:00+09:00",
@@ -188,7 +188,7 @@ class TestEvent(unittest.TestCase):
                              group_name="Group Name", group_url="Group URL",
                              description="Description",
                              lat=None, lon=None)
-        event2 = EventDetail(uid="event_2@example.com",
+        event2 = Event(uid="event_2@example.com",
                              event_id=1, title="Event 2", catch="Catch 2",
                              hash_tag="Hash Tag", event_url=None,
                              started_at="2022-01-01T00:00:00+09:00",

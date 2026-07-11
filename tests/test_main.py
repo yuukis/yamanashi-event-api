@@ -8,7 +8,7 @@ from app.main import get_events, get_max_age_until_next_period
 from app.main import normalize_event_params
 from app.cache import EventRequestCache
 from app.archive import ArchiveException
-from app.models import EventDetail, Group
+from app.models import Event, Group
 from datetime import datetime, timedelta, timezone
 
 client = TestClient(app)
@@ -69,7 +69,7 @@ class MockConnpassEventRequest:
                 "lon": ""
             }
         ]
-        events = EventDetail.from_json(json)
+        events = Event.from_json(json)
         return events
 
     def get_last_modified(self):
@@ -137,7 +137,7 @@ class MockICalEventRequest:
                 "lon": None
             }
         ]
-        events = EventDetail.from_json(json)
+        events = Event.from_json(json)
         return events
 
     def get_last_modified(self):
@@ -180,7 +180,7 @@ class MockArchiveIndexRequest:
                 "lon": None
             }
         ]
-        return EventDetail.from_json(json)
+        return Event.from_json(json)
 
     def get_groups(self):
         json = [
@@ -582,7 +582,7 @@ def test_read_events_summary_uses_extended_ttls(mock_get_groups_from_icalendar):
     assert all(ttl == 3600 * 24
               for ttl in MockConnpassEventRequestCapturingTTL.received_cache_ttl)
 
-    # The cached raw EventDetail list (get_events()'s EventRequestCache
+    # The cached raw Event list (get_events()'s EventRequestCache
     # entry) must use a 7 day expiry, not the default 72 hours used by
     # the other /events endpoints. The years/heatmap payload built from
     # it is not itself cached and is recomputed on every request.
