@@ -643,6 +643,17 @@ def test_read_group_with_empty_fields_is_noop(mock_get_groups_from_icalendar):
 
 @patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequest)
 @patch("app.main.get_groups_from_icalendar")
+def test_read_group_with_fields_keeps_cache_headers(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    response = client.get("/groups", params={"fields": "key"})
+    assert response.status_code == 200
+    assert "Last-Modified" in response.headers
+    assert response.headers["Cache-Control"] == "public, max-age=3600"
+
+
+@patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.main.get_groups_from_icalendar")
 @patch("app.main.config", {
     "metadata": {"version": "1.0.0"},
     "scope": {
