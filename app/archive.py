@@ -1,6 +1,6 @@
 import requests
 from datetime import datetime, timezone
-from .models import EventDetail, Group
+from .models import Event, Group
 
 ARCHIVE_REQUEST_TIMEOUT = 10
 
@@ -27,7 +27,7 @@ class ArchiveIndexRequest:
                 last_modified = datetime.now(timezone.utc)
                 self.__set_json_to_cache(json, last_modified)
 
-            events = EventDetail.from_json(json.get("events", []))
+            events = Event.from_json(json.get("events", []))
             return self.__find_by_ym_ymd(events)
 
         except requests.RequestException as e:

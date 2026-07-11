@@ -2,7 +2,7 @@ import requests
 import re
 import time
 from datetime import datetime, timezone
-from .models import EventDetail, Group
+from .models import Event, Group
 
 
 class ConnpassException(Exception):
@@ -154,7 +154,7 @@ class ConnpassEventRequest:
                 group_url = item["group"]["url"]
 
             events.append(
-                EventDetail(
+                Event(
                     uid=uid,
                     event_id=event_id,
                     title=item["title"],

@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .connpass import ConnpassEventRequest, ConnpassGroupRequest, ConnpassException
 from .icalendar import IcalEventRequest, IcalException
 from .archive import ArchiveIndexRequest, ArchiveException
-from .models import Event, EventDetail, Group
+from .models import Event, Group
 from .models import GroupActivity, YearSummary, HeatmapBucket, EventsSummary
 from .cache import EventRequestCache
 from .keywords import KeywordExtractor
@@ -60,7 +60,7 @@ def docs_redirect():
     return RedirectResponse(url="/docs")
 
 
-@app.get("/events", response_model=List[EventDetail],
+@app.get("/events", response_model=List[Event],
          operation_id="list_events",
          summary="List recent events")
 async def read_events(
@@ -80,7 +80,7 @@ async def read_events(
                                                keyword, uid, fields)
 
 
-@app.get("/events/today", response_model=List[EventDetail],
+@app.get("/events/today", response_model=List[Event],
          operation_id="list_events_today",
          summary="List today's events")
 async def read_events_today(
@@ -95,7 +95,7 @@ async def read_events_today(
                                       today, 1, keyword, uid, fields)
 
 
-@app.get("/events/week/this", response_model=List[EventDetail],
+@app.get("/events/week/this", response_model=List[Event],
          operation_id="list_events_this_week",
          summary="List this week's events")
 async def read_events_this_week(
@@ -111,7 +111,7 @@ async def read_events_this_week(
                                       monday, 7, keyword, uid, fields)
 
 
-@app.get("/events/week/next", response_model=List[EventDetail],
+@app.get("/events/week/next", response_model=List[Event],
          operation_id="list_events_next_week",
          summary="List next week's events")
 async def read_events_next_week(
@@ -127,7 +127,7 @@ async def read_events_next_week(
                                       next_monday, 7, keyword, uid, fields)
 
 
-@app.get("/events/in/{year}", response_model=List[EventDetail],
+@app.get("/events/in/{year}", response_model=List[Event],
          operation_id="list_events_by_year",
          summary="List events in a specific year")
 async def read_events_in_year(
@@ -143,7 +143,7 @@ async def read_events_in_year(
                                                keyword, uid, fields)
 
 
-@app.get("/events/in/{year}/{month}", response_model=List[EventDetail],
+@app.get("/events/in/{year}/{month}", response_model=List[Event],
          operation_id="list_events_by_month",
          summary="List events in a specific year and month")
 async def read_events_in_year_month(
@@ -160,7 +160,7 @@ async def read_events_in_year_month(
                                                keyword, uid, fields)
 
 
-@app.get("/events/in/{year}/{month}/{day}", response_model=List[EventDetail],
+@app.get("/events/in/{year}/{month}/{day}", response_model=List[Event],
          operation_id="list_events_by_day",
          summary="List events on a specific day")
 async def read_events_in_year_month_day(
@@ -182,7 +182,7 @@ async def read_events_in_year_month_day(
 
 
 @app.get("/events/from/{from_year}/{from_month}/to/{to_year}/{to_month}",
-         response_model=List[EventDetail],
+         response_model=List[Event],
          operation_id="list_events_by_range",
          summary="List events within a date range")
 async def read_events_fromto_year_month(
@@ -263,7 +263,7 @@ def filter_event_fields(events, fields: str = None):
         return None
 
     return [{k: v for k, v in d.items() if k in field_names}
-            for d in EventDetail.to_json(events)]
+            for d in Event.to_json(events)]
 
 
 def build_events_response(response: Response, events, last_modified,
@@ -403,7 +403,7 @@ def get_events(params,
                background_tasks: BackgroundTasks = None,
                ex: int = 3600*72,  # 72 hours
                cache_ttl: int = None
-               ) -> Tuple[List[EventDetail], datetime]:
+               ) -> Tuple[List[Event], datetime]:
     global cache
 
     last_modified = None
@@ -421,14 +421,14 @@ def get_events(params,
     return events, last_modified
 
 
-def get_events_from_cache(cache, params) -> Tuple[List[EventDetail], datetime]:
+def get_events_from_cache(cache, params) -> Tuple[List[Event], datetime]:
     response = cache.get(params)
     if response is None:
         return None, None
     json = response["json"]
     last_modified = response["last_modified"]
     if json is not None:
-        return EventDetail.from_json(json), last_modified
+        return Event.from_json(json), last_modified
     return None, None
 
 
@@ -444,11 +444,11 @@ def fetch_events(params, ex: int = 3600*72, cache_ttl: int = None):  # 72 hours
         return
 
     if events is not None:
-        json = EventDetail.to_json(events)
+        json = Event.to_json(events)
         cache.set(params, json, last_modified=last_modified, ex=ex)
 
 
-def request_events(params, cache_ttl: int = None) -> Tuple[List[EventDetail], datetime]:
+def request_events(params, cache_ttl: int = None) -> Tuple[List[Event], datetime]:
     global cache
 
     ym = params["ym"] if "ym" in params else None
