@@ -106,6 +106,20 @@ async def read_events_this_week(
                                       monday, 7, keyword)
 
 
+@app.get("/events/week/next", response_model=List[Event],
+         operation_id="list_events_next_week",
+         summary="List next week's events")
+async def read_events_next_week(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    keyword: str = None
+):
+    today = datetime.now().date()
+    next_monday = today - timedelta(days=today.weekday()) + timedelta(days=7)
+    return await read_events_for_days(response, background_tasks,
+                                      next_monday, 7, keyword)
+
+
 @app.get("/events/in/{year}", response_model=List[Event],
          operation_id="list_events_by_year",
          summary="List events in a specific year")
