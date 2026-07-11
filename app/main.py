@@ -235,6 +235,17 @@ async def read_events_full_today(
     return await read_events_today(response, background_tasks, keyword)
 
 
+@app.get("/events/full/week/this", response_model=List[EventDetail],
+         operation_id="list_events_full_this_week",
+         summary="List this week's events with full details")
+async def read_events_full_this_week(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    keyword: str = None
+):
+    return await read_events_this_week(response, background_tasks, keyword)
+
+
 @app.get("/events/full/in/{year}", response_model=List[EventDetail],
          operation_id="list_events_full_by_year",
          summary="List events in a specific year with full details")
@@ -391,6 +402,7 @@ async def read_events_summary(
 mcp = FastApiMCP(app, include_operations=[
     "list_events_full",
     "list_events_full_today",
+    "list_events_full_this_week",
     "list_events_full_by_year",
     "list_events_full_by_month",
     "list_events_full_by_day",
