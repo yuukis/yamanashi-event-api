@@ -526,6 +526,8 @@ def request_events(params, cache_ttl: int = None) -> Tuple[List[EventDetail], da
     ymd = params["ymd"] if "ymd" in params else None
     keyword = params["keyword"] if "keyword" in params else None
     uid = params["uid"] if "uid" in params else None
+    if uid is not None and uid.strip() == "":
+        uid = None
     connpass_cache_ttl = cache_ttl if cache_ttl is not None else 3600
 
     user_agent = get_user_agent(config)
