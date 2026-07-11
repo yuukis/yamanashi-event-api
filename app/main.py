@@ -12,7 +12,7 @@ from .keywords import KeywordExtractor
 import asyncio
 import os
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, time as time_of_day
 import yaml
 from dotenv import load_dotenv
 from mangum import Mangum
@@ -86,10 +86,9 @@ async def read_events_today(
     background_tasks: BackgroundTasks,
     keyword: str = None
 ):
-    now = datetime.now()
-    return await read_events_in_year_month_day(response, background_tasks,
-                                               now.year, now.month,
-                                               now.day, keyword)
+    today = datetime.now().date()
+    return await read_events_for_days(response, background_tasks,
+                                      today, 1, keyword)
 
 
 @app.get("/events/week/this", response_model=List[Event],
@@ -223,8 +222,22 @@ async def read_events_for_days(
     if last_modified is not None:
         last_modified_str = last_modified.strftime("%a, %d %b %Y %H:%M:%S GMT")
         response.headers["Last-Modified"] = last_modified_str
-        response.headers["Cache-Control"] = "public, max-age=3600"
+        max_age = get_max_age_until_next_period(days)
+        response.headers["Cache-Control"] = f"public, max-age={max_age}"
     return events
+
+
+def get_max_age_until_next_period(days: int, max_age: int = 3600) -> int:
+    """Clamp max_age so an HTTP cache can't outlive the day/week the response
+    describes, otherwise a response cached just before midnight (or a week
+    boundary) could still be served as "today"/"this week" after it rolls
+    over."""
+    now = datetime.now()
+    today = now.date()
+    period_start = today - timedelta(days=today.weekday()) if days == 7 else today
+    boundary = datetime.combine(period_start + timedelta(days=days), time_of_day.min)
+    seconds_until_boundary = int((boundary - now).total_seconds())
+    return max(0, min(max_age, seconds_until_boundary))
 
 
 @app.get("/events/full", response_model=List[EventDetail],

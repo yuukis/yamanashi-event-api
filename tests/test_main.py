@@ -4,7 +4,7 @@ import pytest
 from app.main import app, get_user_agent, get_groups_from_icalendar
 from app.main import request_events, request_groups, get_groups_from_archives
 from app.main import get_archive_urls, preload_archive_indexes
-from app.main import get_events
+from app.main import get_events, get_max_age_until_next_period
 from app.cache import EventRequestCache
 from app.archive import ArchiveException
 from app.models import EventDetail, Group
@@ -528,6 +528,36 @@ def test_read_group_includes_archive_source(mock_get_groups_from_icalendar):
     assert archive_group["archive_source"] == "yamanashi-event-archive"
     assert archive_group["archive_url"] == \
         "https://github.com/yuukis/yamanashi-event-archive"
+
+
+class FixedDatetimeNearBoundary(datetime):
+    # Sunday 23:30, 30 minutes before both the daily and weekly rollover
+    fixed_now = datetime(2026, 7, 12, 23, 30, 0)
+
+    @classmethod
+    def now(cls, tz=None):
+        return cls.fixed_now
+
+
+class FixedDatetimeMidWeek(datetime):
+    # Wednesday 10:00, far from any daily or weekly rollover
+    fixed_now = datetime(2026, 7, 8, 10, 0, 0)
+
+    @classmethod
+    def now(cls, tz=None):
+        return cls.fixed_now
+
+
+def test_get_max_age_until_next_period_clamped_near_boundary():
+    with patch("app.main.datetime", FixedDatetimeNearBoundary):
+        assert get_max_age_until_next_period(1) == 1800
+        assert get_max_age_until_next_period(7) == 1800
+
+
+def test_get_max_age_until_next_period_uses_default_far_from_boundary():
+    with patch("app.main.datetime", FixedDatetimeMidWeek):
+        assert get_max_age_until_next_period(1) == 3600
+        assert get_max_age_until_next_period(7) == 3600
 
 
 def test_get_user_agent():
