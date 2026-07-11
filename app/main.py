@@ -472,6 +472,16 @@ mcp = FastApiMCP(app, include_operations=[
 mcp.mount_http()
 
 
+def normalize_event_params(params):
+    """Normalize filter values so equivalent requests share a cache key."""
+    uid = params.get("uid")
+    if uid is not None:
+        uid = uid.strip()
+        if uid == "":
+            uid = None
+    return {**params, "uid": uid} if "uid" in params else params
+
+
 def get_events(params,
                background_tasks: BackgroundTasks = None,
                ex: int = 3600*72,  # 72 hours
@@ -480,6 +490,8 @@ def get_events(params,
     global cache
 
     last_modified = None
+
+    params = normalize_event_params(params)
 
     events, last_modified = get_events_from_cache(cache, params)
 
@@ -526,10 +538,6 @@ def request_events(params, cache_ttl: int = None) -> Tuple[List[EventDetail], da
     ymd = params["ymd"] if "ymd" in params else None
     keyword = params["keyword"] if "keyword" in params else None
     uid = params["uid"] if "uid" in params else None
-    if uid is not None:
-        uid = uid.strip()
-        if uid == "":
-            uid = None
     connpass_cache_ttl = cache_ttl if cache_ttl is not None else 3600
 
     user_agent = get_user_agent(config)
