@@ -395,6 +395,42 @@ def test_read_events_full_in_year_month():
 
 @patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
 @patch("app.main.IcalEventRequest", MockICalEventRequest)
+def test_read_events_full_in_year_month_with_uid():
+    response = client.get("/events/full/in/2023/12?uid=UID 2")
+    assert response.status_code == 200
+    events = response.json()
+    assert len(events) == 1
+    assert events[0]["uid"] == "UID 2"
+    assert events[0]["title"] == "Python Event"
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+def test_read_events_full_in_year_month_with_unmatched_uid():
+    response = client.get("/events/full/in/2023/12?uid=No Such UID")
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+def test_read_events_full_in_year_month_with_uid_and_keyword():
+    # "UID 1" is overwritten by the iCal source's non-matching event during
+    # dedup, so combining it with a keyword that only the connpass version
+    # would match must yield no results (AND semantics).
+    response = client.get("/events/full/in/2023/12?uid=UID 1&keyword=python")
+    assert response.status_code == 200
+    assert response.json() == []
+
+    response = client.get("/events/full/in/2023/12?uid=UID 2&keyword=python")
+    assert response.status_code == 200
+    events = response.json()
+    assert len(events) == 1
+    assert events[0]["uid"] == "UID 2"
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
 def test_read_events_full_in_year_month_day():
     response = client.get("/events/full/in/2024/01/28")
     assert response.status_code == 200
