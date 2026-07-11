@@ -479,7 +479,7 @@ def normalize_event_params(params):
         uid = uid.strip()
         if uid == "":
             uid = None
-    return {**params, "uid": uid} if "uid" in params else params
+    return {**params, "uid": uid}
 
 
 def get_events(params,
