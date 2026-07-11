@@ -66,7 +66,8 @@ def docs_redirect():
 async def read_events(
     response: Response,
     background_tasks: BackgroundTasks,
-    keyword: str = None
+    keyword: str = None,
+    uid: str = None
 ):
     days = config["recent_days"] if "recent_days" in config else 90
     now = datetime.now()
@@ -75,7 +76,7 @@ async def read_events(
     return await read_events_fromto_year_month(response, background_tasks,
                                                dt_from.year, dt_from.month,
                                                dt_to.year, dt_to.month,
-                                               keyword)
+                                               keyword, uid)
 
 
 @app.get("/events/today", response_model=List[Event],
@@ -84,11 +85,12 @@ async def read_events(
 async def read_events_today(
     response: Response,
     background_tasks: BackgroundTasks,
-    keyword: str = None
+    keyword: str = None,
+    uid: str = None
 ):
     today = datetime.now().date()
     return await read_events_for_days(response, background_tasks,
-                                      today, 1, keyword)
+                                      today, 1, keyword, uid)
 
 
 @app.get("/events/week/this", response_model=List[Event],
@@ -97,12 +99,13 @@ async def read_events_today(
 async def read_events_this_week(
     response: Response,
     background_tasks: BackgroundTasks,
-    keyword: str = None
+    keyword: str = None,
+    uid: str = None
 ):
     today = datetime.now().date()
     monday = today - timedelta(days=today.weekday())
     return await read_events_for_days(response, background_tasks,
-                                      monday, 7, keyword)
+                                      monday, 7, keyword, uid)
 
 
 @app.get("/events/week/next", response_model=List[Event],
@@ -111,12 +114,13 @@ async def read_events_this_week(
 async def read_events_next_week(
     response: Response,
     background_tasks: BackgroundTasks,
-    keyword: str = None
+    keyword: str = None,
+    uid: str = None
 ):
     today = datetime.now().date()
     next_monday = today - timedelta(days=today.weekday()) + timedelta(days=7)
     return await read_events_for_days(response, background_tasks,
-                                      next_monday, 7, keyword)
+                                      next_monday, 7, keyword, uid)
 
 
 @app.get("/events/in/{year}", response_model=List[Event],
@@ -126,11 +130,12 @@ async def read_events_in_year(
     response: Response,
     background_tasks: BackgroundTasks,
     year: int = Path(ge=2010, le=2040),
-    keyword: str = None
+    keyword: str = None,
+    uid: str = None
 ):
     return await read_events_fromto_year_month(response, background_tasks,
                                                year, 1, year, 12,
-                                               keyword)
+                                               keyword, uid)
 
 
 @app.get("/events/in/{year}/{month}", response_model=List[Event],
@@ -141,11 +146,12 @@ async def read_events_in_year_month(
     background_tasks: BackgroundTasks,
     year: int = Path(ge=2010, le=2040),
     month: int = Path(ge=1, le=12),
-    keyword: str = None
+    keyword: str = None,
+    uid: str = None
 ):
     return await read_events_fromto_year_month(response, background_tasks,
                                                year, month, year, month,
-                                               keyword)
+                                               keyword, uid)
 
 
 @app.get("/events/in/{year}/{month}/{day}", response_model=List[Event],
@@ -157,11 +163,12 @@ async def read_events_in_year_month_day(
     year: int = Path(ge=2010, le=2040),
     month: int = Path(ge=1, le=12),
     day: int = Path(ge=1, le=31),
-    keyword: str = None
+    keyword: str = None,
+    uid: str = None
 ):
     ymd = [f"{year:04}{month:02}{day:02}"]
-    events, last_modified = get_events({"ymd": ymd, "keyword": keyword},
-                                       background_tasks)
+    events, last_modified = get_events(
+        {"ymd": ymd, "keyword": keyword, "uid": uid}, background_tasks)
 
     if last_modified is not None:
         last_modified_str = last_modified.strftime("%a, %d %b %Y %H:%M:%S GMT")
@@ -181,7 +188,8 @@ async def read_events_fromto_year_month(
     from_month: int = Path(ge=1, le=12),
     to_year: int = Path(ge=2010, le=2040),
     to_month: int = Path(ge=1, le=12),
-    keyword: str = None
+    keyword: str = None,
+    uid: str = None
 ):
     if from_year > to_year or (from_year == to_year and from_month > to_month):
         raise HTTPException(status_code=400, detail="Invalid date range")
@@ -198,8 +206,8 @@ async def read_events_fromto_year_month(
             y += 1
             m = 1
 
-    events, last_modified = get_events({"ym": ym, "keyword": keyword},
-                                       background_tasks)
+    events, last_modified = get_events(
+        {"ym": ym, "keyword": keyword, "uid": uid}, background_tasks)
 
     if last_modified is not None:
         last_modified_str = last_modified.strftime("%a, %d %b %Y %H:%M:%S GMT")
@@ -213,11 +221,12 @@ async def read_events_for_days(
     background_tasks: BackgroundTasks,
     base_date,
     days: int,
-    keyword: str = None
+    keyword: str = None,
+    uid: str = None
 ):
     ymd = [(base_date + timedelta(days=i)).strftime("%Y%m%d") for i in range(days)]
-    events, last_modified = get_events({"ymd": ymd, "keyword": keyword},
-                                       background_tasks)
+    events, last_modified = get_events(
+        {"ymd": ymd, "keyword": keyword, "uid": uid}, background_tasks)
 
     if last_modified is not None:
         last_modified_str = last_modified.strftime("%a, %d %b %Y %H:%M:%S GMT")
@@ -249,9 +258,10 @@ def get_max_age_until_next_period(days: int, max_age: int = 3600) -> int:
 async def read_events_full(
     response: Response,
     background_tasks: BackgroundTasks,
-    keyword: str = None
+    keyword: str = None,
+    uid: str = None
 ):
-    return await read_events(response, background_tasks, keyword)
+    return await read_events(response, background_tasks, keyword, uid)
 
 
 @app.get("/events/full/today", response_model=List[EventDetail],
@@ -260,9 +270,10 @@ async def read_events_full(
 async def read_events_full_today(
     response: Response,
     background_tasks: BackgroundTasks,
-    keyword: str = None
+    keyword: str = None,
+    uid: str = None
 ):
-    return await read_events_today(response, background_tasks, keyword)
+    return await read_events_today(response, background_tasks, keyword, uid)
 
 
 @app.get("/events/full/week/this", response_model=List[EventDetail],
@@ -271,9 +282,10 @@ async def read_events_full_today(
 async def read_events_full_this_week(
     response: Response,
     background_tasks: BackgroundTasks,
-    keyword: str = None
+    keyword: str = None,
+    uid: str = None
 ):
-    return await read_events_this_week(response, background_tasks, keyword)
+    return await read_events_this_week(response, background_tasks, keyword, uid)
 
 
 @app.get("/events/full/week/next", response_model=List[EventDetail],
@@ -282,9 +294,10 @@ async def read_events_full_this_week(
 async def read_events_full_next_week(
     response: Response,
     background_tasks: BackgroundTasks,
-    keyword: str = None
+    keyword: str = None,
+    uid: str = None
 ):
-    return await read_events_next_week(response, background_tasks, keyword)
+    return await read_events_next_week(response, background_tasks, keyword, uid)
 
 
 @app.get("/events/full/in/{year}", response_model=List[EventDetail],
@@ -294,9 +307,11 @@ async def read_events_full_in_year(
     response: Response,
     background_tasks: BackgroundTasks,
     year: int = Path(ge=2010, le=2040),
-    keyword: str = None
+    keyword: str = None,
+    uid: str = None
 ):
-    return await read_events_in_year(response, background_tasks, year, keyword)
+    return await read_events_in_year(response, background_tasks, year,
+                                     keyword, uid)
 
 
 @app.get("/events/full/in/{year}/{month}", response_model=List[EventDetail],
@@ -307,10 +322,11 @@ async def read_events_full_in_year_month(
     background_tasks: BackgroundTasks,
     year: int = Path(ge=2010, le=2040),
     month: int = Path(ge=1, le=12),
-    keyword: str = None
+    keyword: str = None,
+    uid: str = None
 ):
     return await read_events_in_year_month(response, background_tasks,
-                                           year, month, keyword)
+                                           year, month, keyword, uid)
 
 
 @app.get("/events/full/in/{year}/{month}/{day}",
@@ -323,10 +339,11 @@ async def read_events_full_in_year_month_day(
     year: int = Path(ge=2010, le=2040),
     month: int = Path(ge=1, le=12),
     day: int = Path(ge=1, le=31),
-    keyword: str = None
+    keyword: str = None,
+    uid: str = None
 ):
     return await read_events_in_year_month_day(response, background_tasks,
-                                               year, month, day, keyword)
+                                               year, month, day, keyword, uid)
 
 
 @app.get("/events/full/from/{from_year}/{from_month}/to/{to_year}/{to_month}",
@@ -340,12 +357,13 @@ async def read_events_full_fromto_year_month(
     from_month: int = Path(ge=1, le=12),
     to_year: int = Path(ge=2010, le=2040),
     to_month: int = Path(ge=1, le=12),
-    keyword: str = None
+    keyword: str = None,
+    uid: str = None
 ):
     return await read_events_fromto_year_month(response, background_tasks,
                                                from_year, from_month,
                                                to_year, to_month,
-                                               keyword)
+                                               keyword, uid)
 
 
 @app.get("/groups", response_model=List[Group],
@@ -507,6 +525,7 @@ def request_events(params, cache_ttl: int = None) -> Tuple[List[EventDetail], da
     ym = params["ym"] if "ym" in params else None
     ymd = params["ymd"] if "ymd" in params else None
     keyword = params["keyword"] if "keyword" in params else None
+    uid = params["uid"] if "uid" in params else None
     connpass_cache_ttl = cache_ttl if cache_ttl is not None else 3600
 
     user_agent = get_user_agent(config)
@@ -577,6 +596,9 @@ def request_events(params, cache_ttl: int = None) -> Tuple[List[EventDetail], da
 
     if keyword is not None:
         events = [ev for ev in events if ev.contains_keyword(keyword)]
+
+    if uid is not None:
+        events = [ev for ev in events if ev.uid == uid]
 
     return events, last_modified
 
