@@ -92,6 +92,20 @@ async def read_events_today(
                                                now.day, keyword)
 
 
+@app.get("/events/week/this", response_model=List[Event],
+         operation_id="list_events_this_week",
+         summary="List this week's events")
+async def read_events_this_week(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    keyword: str = None
+):
+    today = datetime.now().date()
+    monday = today - timedelta(days=today.weekday())
+    return await read_events_for_days(response, background_tasks,
+                                      monday, 7, keyword)
+
+
 @app.get("/events/in/{year}", response_model=List[Event],
          operation_id="list_events_by_year",
          summary="List events in a specific year")
@@ -172,6 +186,24 @@ async def read_events_fromto_year_month(
             m = 1
 
     events, last_modified = get_events({"ym": ym, "keyword": keyword},
+                                       background_tasks)
+
+    if last_modified is not None:
+        last_modified_str = last_modified.strftime("%a, %d %b %Y %H:%M:%S GMT")
+        response.headers["Last-Modified"] = last_modified_str
+        response.headers["Cache-Control"] = "public, max-age=3600"
+    return events
+
+
+async def read_events_for_days(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    base_date,
+    days: int,
+    keyword: str = None
+):
+    ymd = [(base_date + timedelta(days=i)).strftime("%Y%m%d") for i in range(days)]
+    events, last_modified = get_events({"ymd": ymd, "keyword": keyword},
                                        background_tasks)
 
     if last_modified is not None:
