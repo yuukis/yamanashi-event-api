@@ -258,7 +258,7 @@ def filter_event_fields(events, fields: str = None):
     if fields is None:
         return None
 
-    field_names = [f.strip() for f in fields.split(",") if f.strip()]
+    field_names = {f.strip() for f in fields.split(",") if f.strip()}
     if not field_names:
         return None
 
@@ -280,6 +280,9 @@ def build_events_response(response: Response, events, last_modified,
             response.headers[key] = value
         return events
 
+    # Returning a JSONResponse here deliberately bypasses response_model
+    # validation/serialization, since the shape is a client-chosen subset
+    # of Event's fields rather than the full declared schema.
     return JSONResponse(content=filtered, headers=headers)
 
 
