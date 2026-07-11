@@ -1,7 +1,7 @@
 import requests
 import re
 from icalendar import Calendar as IcalCalendar
-from .models import EventDetail
+from .models import Event
 from datetime import datetime, timezone
 
 
@@ -102,7 +102,7 @@ class IcalEventRequest:
             dtend = data.get("dtend").dt
             open_status = self.__make_open_status(dtstart, dtend)
 
-            event = EventDetail.from_json({
+            event = Event.from_json({
                 "uid": data.get("uid"),
                 "title": data.get("summary"),
                 "event_url": data.get("url"),

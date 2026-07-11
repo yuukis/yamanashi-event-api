@@ -14,31 +14,6 @@ class Event:
     ended_at: str
     updated_at: str
     open_status: str
-    owner_name: Optional[str]
-    place: Optional[str]
-    address: Optional[str]
-    group_key: Optional[str]
-    group_name: Optional[str]
-    group_url: Optional[str]
-    keywords: Optional[List[str]] = None
-
-    @staticmethod
-    def distinct_by_uid(data):
-        return list({event.uid: event for event in data}.values())
-
-
-@dataclass
-class EventDetail(Event):
-    uid: str
-    event_id: Optional[int]
-    title: str
-    catch: Optional[str]
-    hash_tag: Optional[str]
-    event_url: str
-    started_at: str
-    ended_at: str
-    updated_at: str
-    open_status: str
     limit: Optional[int] = None
     accepted: Optional[int] = None
     waiting: Optional[int] = None
@@ -51,6 +26,11 @@ class EventDetail(Event):
     description: Optional[str] = None
     lat: Optional[str] = None
     lon: Optional[str] = None
+    keywords: Optional[List[str]] = None
+
+    @staticmethod
+    def distinct_by_uid(data):
+        return list({event.uid: event for event in data}.values())
 
     def contains_keyword(self, keyword: str):
         if keyword is None:
@@ -76,7 +56,7 @@ class EventDetail(Event):
                 return False
 
         return True
-    
+
     def is_valid(self):
         return all([
             self.uid,
@@ -91,10 +71,10 @@ class EventDetail(Event):
     @staticmethod
     def from_json(data: any):
         if isinstance(data, list):
-            return [EventDetail.from_json(item) for item in data]
+            return [Event.from_json(item) for item in data]
 
         if isinstance(data, dict):
-            return EventDetail(
+            return Event(
                 uid=data["uid"],
                 event_id=data.get("event_id"),
                 title=data["title"],
@@ -117,10 +97,10 @@ class EventDetail(Event):
                 description=data.get("description"),
                 lat=data.get("lat"),
                 lon=data.get("lon"),
-                keywords=EventDetail.sanitize_keywords(data.get("keywords"))
+                keywords=Event.sanitize_keywords(data.get("keywords"))
             )
 
-        raise ValueError("data must be EventDetail or List[EventDetail]")
+        raise ValueError("data must be dict or List[dict]")
 
     @staticmethod
     def sanitize_keywords(data: any) -> Optional[List[str]]:
@@ -135,9 +115,9 @@ class EventDetail(Event):
     @staticmethod
     def to_json(data: any):
         if isinstance(data, list):
-            return [EventDetail.to_json(item) for item in data]
+            return [Event.to_json(item) for item in data]
 
-        if isinstance(data, EventDetail):
+        if isinstance(data, Event):
             return {
                 "uid": data.uid,
                 "event_id": data.event_id,
@@ -164,7 +144,7 @@ class EventDetail(Event):
                 "keywords": data.keywords
             }
 
-        raise ValueError("data must be EventDetail or List[EventDetail]")
+        raise ValueError("data must be Event or List[Event]")
 
 
 @dataclass

@@ -32,7 +32,7 @@ scope:
 
 ## JSON Format
 
-The top-level `events` array is converted to `EventDetail`. The top-level
+The top-level `events` array is converted to `Event`. The top-level
 `communities` array is converted to `Group`. The API adds `archive_source` and
 `archive_url` to each archive community from `source.name` and `source.url`.
 
