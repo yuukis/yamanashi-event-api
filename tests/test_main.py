@@ -608,6 +608,52 @@ def test_read_group(mock_get_groups_from_icalendar):
 
 @patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequest)
 @patch("app.main.get_groups_from_icalendar")
+def test_read_group_with_fields(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    response = client.get("/groups", params={"fields": "key,title"})
+    assert response.status_code == 200
+    groups = response.json()
+    assert len(groups) > 0
+    assert groups[0] == {"key": "Key", "title": "Title"}
+
+
+@patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.main.get_groups_from_icalendar")
+def test_read_group_with_fields_ignores_unknown_names(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    response = client.get("/groups", params={"fields": "key,bogus"})
+    assert response.status_code == 200
+    groups = response.json()
+    assert len(groups) > 0
+    assert groups[0] == {"key": "Key"}
+
+
+@patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.main.get_groups_from_icalendar")
+def test_read_group_with_empty_fields_is_noop(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    baseline = client.get("/groups")
+    response = client.get("/groups", params={"fields": ""})
+    assert response.status_code == 200
+    assert response.json() == baseline.json()
+
+
+@patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.main.get_groups_from_icalendar")
+def test_read_group_with_fields_keeps_cache_headers(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    response = client.get("/groups", params={"fields": "key"})
+    assert response.status_code == 200
+    assert "Last-Modified" in response.headers
+    assert response.headers["Cache-Control"] == "public, max-age=3600"
+
+
+@patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.main.get_groups_from_icalendar")
 @patch("app.main.config", {
     "metadata": {"version": "1.0.0"},
     "scope": {

@@ -177,8 +177,8 @@ async def read_events_in_year_month_day(
     events, last_modified = get_events(
         {"ymd": ymd, "keyword": keyword, "uid": uid}, background_tasks)
 
-    return build_events_response(response, events, last_modified,
-                                 "public, max-age=3600", fields)
+    return build_list_response(response, events, Event, last_modified,
+                               "public, max-age=3600", fields)
 
 
 @app.get("/events/from/{from_year}/{from_month}/to/{to_year}/{to_month}",
@@ -214,8 +214,8 @@ async def read_events_fromto_year_month(
     events, last_modified = get_events(
         {"ym": ym, "keyword": keyword, "uid": uid}, background_tasks)
 
-    return build_events_response(response, events, last_modified,
-                                 "public, max-age=3600", fields)
+    return build_list_response(response, events, Event, last_modified,
+                               "public, max-age=3600", fields)
 
 
 async def read_events_for_days(
@@ -232,8 +232,8 @@ async def read_events_for_days(
         {"ymd": ymd, "keyword": keyword, "uid": uid}, background_tasks)
 
     max_age = get_max_age_until_next_period(days)
-    return build_events_response(response, events, last_modified,
-                                 f"public, max-age={max_age}", fields)
+    return build_list_response(response, events, Event, last_modified,
+                               f"public, max-age={max_age}", fields)
 
 
 def get_max_age_until_next_period(days: int, max_age: int = 3600) -> int:
@@ -252,9 +252,10 @@ def get_max_age_until_next_period(days: int, max_age: int = 3600) -> int:
     return max(0, min(max_age, seconds_until_boundary))
 
 
-def filter_event_fields(events, fields: str = None):
-    """Return events pruned to the requested comma-separated field names,
-    or None if no filtering should be applied (fields is absent/empty)."""
+def filter_model_fields(items, model, fields: str = None):
+    """Return items pruned to the requested comma-separated field names,
+    or None if no filtering should be applied (fields is absent/empty).
+    model must provide a to_json() static method, e.g. Event or Group."""
     if fields is None:
         return None
 
@@ -263,26 +264,26 @@ def filter_event_fields(events, fields: str = None):
         return None
 
     return [{k: v for k, v in d.items() if k in field_names}
-            for d in Event.to_json(events)]
+            for d in model.to_json(items)]
 
 
-def build_events_response(response: Response, events, last_modified,
-                          cache_control: str, fields: str = None):
+def build_list_response(response: Response, items, model, last_modified,
+                        cache_control: str, fields: str = None):
     headers = {}
     if last_modified is not None:
         headers["Last-Modified"] = last_modified.strftime(
             "%a, %d %b %Y %H:%M:%S GMT")
         headers["Cache-Control"] = cache_control
 
-    filtered = filter_event_fields(events, fields)
+    filtered = filter_model_fields(items, model, fields)
     if filtered is None:
         for key, value in headers.items():
             response.headers[key] = value
-        return events
+        return items
 
     # Returning a JSONResponse here deliberately bypasses response_model
     # validation/serialization, since the shape is a client-chosen subset
-    # of Event's fields rather than the full declared schema.
+    # of the model's fields rather than the full declared schema.
     return JSONResponse(content=filtered, headers=headers)
 
 
@@ -291,15 +292,13 @@ def build_events_response(response: Response, events, last_modified,
          summary="List community groups")
 async def read_groups(
     response: Response,
-    background_tasks: BackgroundTasks
+    background_tasks: BackgroundTasks,
+    fields: str = None
 ):
     groups, last_modified = get_groups({}, background_tasks)
 
-    if last_modified is not None:
-        last_modified_str = last_modified.strftime("%a, %d %b %Y %H:%M:%S GMT")
-        response.headers["Last-Modified"] = last_modified_str
-        response.headers["Cache-Control"] = "public, max-age=3600"
-    return groups
+    return build_list_response(response, groups, Group, last_modified,
+                               "public, max-age=3600", fields)
 
 
 @app.get("/events/summary", response_model=EventsSummary,
