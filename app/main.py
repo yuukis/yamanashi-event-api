@@ -181,7 +181,7 @@ async def read_events_in_year_month_day(
                                "public, max-age=3600", fields)
 
 
-@app.get("/events/from/{from_year}/{from_month}/to/{to_year}/{to_month}",
+@app.get("/events/range/from/{from_year}/{from_month}/to/{to_year}/{to_month}",
          response_model=List[Event],
          operation_id="list_events_by_range",
          summary="List events within a date range")
@@ -216,6 +216,30 @@ async def read_events_range(
 
     return build_list_response(response, events, Event, last_modified,
                                "public, max-age=3600", fields)
+
+
+@app.get("/events/from/{from_year}/{from_month}/to/{to_year}/{to_month}",
+         response_model=List[Event],
+         operation_id="list_events_by_range_legacy",
+         summary="List events within a date range",
+         description="Deprecated. Use GET "
+                     "/events/range/from/{from_year}/{from_month}/to/{to_year}/{to_month} "
+                     "instead.",
+         deprecated=True)
+async def read_events_fromto_year_month_legacy(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    from_year: int = Path(ge=2010, le=2040),
+    from_month: int = Path(ge=1, le=12),
+    to_year: int = Path(ge=2010, le=2040),
+    to_month: int = Path(ge=1, le=12),
+    keyword: str = None,
+    uid: str = None,
+    fields: str = None
+):
+    return await read_events_range(response, background_tasks,
+                                   from_year, from_month, to_year, to_month,
+                                   keyword, uid, fields)
 
 
 async def read_events_for_days(

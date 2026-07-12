@@ -473,7 +473,24 @@ def test_read_events_in_year_month_day():
 
 @patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
 @patch("app.main.IcalEventRequest", MockICalEventRequest)
-def test_read_events_fromto_year_month():
+def test_read_events_range():
+    response = client.get("/events/range/from/2023/12/to/2024/01")
+    assert response.status_code == 200
+    events = response.json()
+    assert isinstance(events, list)
+    assert "description" in events[0]
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+def test_read_events_range_invalid():
+    response = client.get("/events/range/from/2023/12/to/2022/11")
+    assert response.status_code == 400
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+def test_read_events_fromto_year_month_legacy_path_still_works():
     response = client.get("/events/from/2023/12/to/2024/01")
     assert response.status_code == 200
     events = response.json()
@@ -483,7 +500,7 @@ def test_read_events_fromto_year_month():
 
 @patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
 @patch("app.main.IcalEventRequest", MockICalEventRequest)
-def test_read_events_fromto_year_month_invalid():
+def test_read_events_fromto_year_month_invalid_legacy_path_still_works():
     response = client.get("/events/from/2023/12/to/2022/11")
     assert response.status_code == 400
 
