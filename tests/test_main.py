@@ -1005,3 +1005,49 @@ def test_preload_archive_indexes_does_not_raise_on_error():
     with patch("app.main.ArchiveIndexRequest",
                MockFailingPreloadArchiveIndexRequest):
         preload_archive_indexes()
+
+
+def test_legacy_routes_marked_deprecated_in_openapi_schema():
+    schema = client.get("/openapi.json").json()
+    legacy = [
+        "/events/today",
+        "/events/in/{year}",
+        "/events/in/{year}/{month}",
+        "/events/in/{year}/{month}/{day}",
+        "/events/from/{from_year}/{from_month}/to/{to_year}/{to_month}",
+        "/events/summary",
+    ]
+    for path in legacy:
+        op = schema["paths"][path]["get"]
+        assert op["deprecated"] is True
+        assert op["operationId"].endswith("_legacy")
+
+    canonical = [
+        "/events", "/events/day/today", "/events/week/this", "/events/week/next",
+        "/events/year/{year}", "/events/month/{year}/{month}",
+        "/events/day/{year}/{month}/{day}",
+        "/events/range/from/{from_year}/{from_month}/to/{to_year}/{to_month}",
+        "/summary/events", "/groups",
+    ]
+    for path in canonical:
+        op = schema["paths"][path]["get"]
+        assert not op.get("deprecated", False)
+
+
+def test_mcp_excludes_legacy_operations():
+    from app.main import mcp
+
+    tool_names = {t.name for t in mcp.tools}
+    for legacy_id in [
+        "list_events_today_legacy", "list_events_by_year_legacy",
+        "list_events_by_month_legacy", "list_events_by_day_legacy",
+        "list_events_by_range_legacy", "summary_events_legacy",
+    ]:
+        assert legacy_id not in tool_names
+
+    for canonical_id in [
+        "list_events", "list_events_today", "list_events_this_week",
+        "list_events_next_week", "list_events_by_year", "list_events_by_month",
+        "list_events_by_day", "list_events_by_range", "list_groups",
+    ]:
+        assert canonical_id in tool_names
