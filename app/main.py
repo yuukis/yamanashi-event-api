@@ -80,10 +80,10 @@ async def read_events(
                                    keyword, uid, fields)
 
 
-@app.get("/events/today", response_model=List[Event],
+@app.get("/events/day/today", response_model=List[Event],
          operation_id="list_events_today",
          summary="List today's events")
-async def read_events_today(
+async def read_events_day_today(
     response: Response,
     background_tasks: BackgroundTasks,
     keyword: str = None,
@@ -93,6 +93,22 @@ async def read_events_today(
     today = datetime.now().date()
     return await read_events_for_days(response, background_tasks,
                                       today, 1, keyword, uid, fields)
+
+
+@app.get("/events/today", response_model=List[Event],
+         operation_id="list_events_today_legacy",
+         summary="List today's events",
+         description="Deprecated. Use GET /events/day/today instead.",
+         deprecated=True)
+async def read_events_today_legacy(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    keyword: str = None,
+    uid: str = None,
+    fields: str = None
+):
+    return await read_events_day_today(response, background_tasks,
+                                       keyword, uid, fields)
 
 
 @app.get("/events/week/this", response_model=List[Event],

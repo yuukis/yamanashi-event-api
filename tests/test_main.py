@@ -249,6 +249,16 @@ def test_read_events_with_keyword():
 @patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
 @patch("app.main.IcalEventRequest", MockICalEventRequest)
 def test_read_events_today():
+    response = client.get("/events/day/today")
+    assert response.status_code == 200
+    events = response.json()
+    assert isinstance(events, list)
+    assert "description" in events[0]
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+def test_read_events_today_legacy_path_still_works():
     response = client.get("/events/today")
     assert response.status_code == 200
     events = response.json()
