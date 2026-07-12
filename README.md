@@ -69,19 +69,19 @@ If you have Docker and Docker Compose installed, you can use the following steps
 * Get today's events
 
     ```sh
-    curl http://localhost:8000/events/today
+    curl http://localhost:8000/events/day/today
     ```
 
 * Get events by year/month
 
     ```sh
-    curl http://localhost:8000/events/in/2023/12
+    curl http://localhost:8000/events/month/2023/12
     ```
 
 * Get events by date range
 
     ```sh
-    curl http://localhost:8000/events/from/2023/12/to/2024/02
+    curl http://localhost:8000/events/range/from/2023/12/to/2024/02
     ```
 
 * Get events by keyword

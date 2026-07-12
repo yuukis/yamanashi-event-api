@@ -74,16 +74,16 @@ async def read_events(
     now = datetime.now()
     dt_from = now - timedelta(days=days)
     dt_to = now + timedelta(days=days)
-    return await read_events_fromto_year_month(response, background_tasks,
-                                               dt_from.year, dt_from.month,
-                                               dt_to.year, dt_to.month,
-                                               keyword, uid, fields)
+    return await read_events_range(response, background_tasks,
+                                   dt_from.year, dt_from.month,
+                                   dt_to.year, dt_to.month,
+                                   keyword, uid, fields)
 
 
-@app.get("/events/today", response_model=List[Event],
+@app.get("/events/day/today", response_model=List[Event],
          operation_id="list_events_today",
          summary="List today's events")
-async def read_events_today(
+async def read_events_day_today(
     response: Response,
     background_tasks: BackgroundTasks,
     keyword: str = None,
@@ -93,6 +93,22 @@ async def read_events_today(
     today = datetime.now().date()
     return await read_events_for_days(response, background_tasks,
                                       today, 1, keyword, uid, fields)
+
+
+@app.get("/events/today", response_model=List[Event],
+         operation_id="list_events_today_legacy",
+         summary="List today's events",
+         description="Deprecated. Use GET /events/day/today instead.",
+         deprecated=True)
+async def read_events_today_legacy(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    keyword: str = None,
+    uid: str = None,
+    fields: str = None
+):
+    return await read_events_day_today(response, background_tasks,
+                                       keyword, uid, fields)
 
 
 @app.get("/events/week/this", response_model=List[Event],
@@ -127,10 +143,10 @@ async def read_events_next_week(
                                       next_monday, 7, keyword, uid, fields)
 
 
-@app.get("/events/in/{year}", response_model=List[Event],
+@app.get("/events/year/{year}", response_model=List[Event],
          operation_id="list_events_by_year",
          summary="List events in a specific year")
-async def read_events_in_year(
+async def read_events_year(
     response: Response,
     background_tasks: BackgroundTasks,
     year: int = Path(ge=2010, le=2040),
@@ -138,15 +154,32 @@ async def read_events_in_year(
     uid: str = None,
     fields: str = None
 ):
-    return await read_events_fromto_year_month(response, background_tasks,
-                                               year, 1, year, 12,
-                                               keyword, uid, fields)
+    return await read_events_range(response, background_tasks,
+                                   year, 1, year, 12,
+                                   keyword, uid, fields)
 
 
-@app.get("/events/in/{year}/{month}", response_model=List[Event],
+@app.get("/events/in/{year}", response_model=List[Event],
+         operation_id="list_events_by_year_legacy",
+         summary="List events in a specific year",
+         description="Deprecated. Use GET /events/year/{year} instead.",
+         deprecated=True)
+async def read_events_in_year_legacy(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    year: int = Path(ge=2010, le=2040),
+    keyword: str = None,
+    uid: str = None,
+    fields: str = None
+):
+    return await read_events_year(response, background_tasks, year,
+                                  keyword, uid, fields)
+
+
+@app.get("/events/month/{year}/{month}", response_model=List[Event],
          operation_id="list_events_by_month",
          summary="List events in a specific year and month")
-async def read_events_in_year_month(
+async def read_events_month(
     response: Response,
     background_tasks: BackgroundTasks,
     year: int = Path(ge=2010, le=2040),
@@ -155,15 +188,33 @@ async def read_events_in_year_month(
     uid: str = None,
     fields: str = None
 ):
-    return await read_events_fromto_year_month(response, background_tasks,
-                                               year, month, year, month,
-                                               keyword, uid, fields)
+    return await read_events_range(response, background_tasks,
+                                   year, month, year, month,
+                                   keyword, uid, fields)
 
 
-@app.get("/events/in/{year}/{month}/{day}", response_model=List[Event],
+@app.get("/events/in/{year}/{month}", response_model=List[Event],
+         operation_id="list_events_by_month_legacy",
+         summary="List events in a specific year and month",
+         description="Deprecated. Use GET /events/month/{year}/{month} instead.",
+         deprecated=True)
+async def read_events_in_year_month_legacy(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    year: int = Path(ge=2010, le=2040),
+    month: int = Path(ge=1, le=12),
+    keyword: str = None,
+    uid: str = None,
+    fields: str = None
+):
+    return await read_events_month(response, background_tasks, year, month,
+                                   keyword, uid, fields)
+
+
+@app.get("/events/day/{year}/{month}/{day}", response_model=List[Event],
          operation_id="list_events_by_day",
          summary="List events on a specific day")
-async def read_events_in_year_month_day(
+async def read_events_day(
     response: Response,
     background_tasks: BackgroundTasks,
     year: int = Path(ge=2010, le=2040),
@@ -181,11 +232,30 @@ async def read_events_in_year_month_day(
                                "public, max-age=3600", fields)
 
 
-@app.get("/events/from/{from_year}/{from_month}/to/{to_year}/{to_month}",
+@app.get("/events/in/{year}/{month}/{day}", response_model=List[Event],
+         operation_id="list_events_by_day_legacy",
+         summary="List events on a specific day",
+         description="Deprecated. Use GET /events/day/{year}/{month}/{day} instead.",
+         deprecated=True)
+async def read_events_in_year_month_day_legacy(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    year: int = Path(ge=2010, le=2040),
+    month: int = Path(ge=1, le=12),
+    day: int = Path(ge=1, le=31),
+    keyword: str = None,
+    uid: str = None,
+    fields: str = None
+):
+    return await read_events_day(response, background_tasks, year, month, day,
+                                 keyword, uid, fields)
+
+
+@app.get("/events/range/from/{from_year}/{from_month}/to/{to_year}/{to_month}",
          response_model=List[Event],
          operation_id="list_events_by_range",
          summary="List events within a date range")
-async def read_events_fromto_year_month(
+async def read_events_range(
     response: Response,
     background_tasks: BackgroundTasks,
     from_year: int = Path(ge=2010, le=2040),
@@ -216,6 +286,30 @@ async def read_events_fromto_year_month(
 
     return build_list_response(response, events, Event, last_modified,
                                "public, max-age=3600", fields)
+
+
+@app.get("/events/from/{from_year}/{from_month}/to/{to_year}/{to_month}",
+         response_model=List[Event],
+         operation_id="list_events_by_range_legacy",
+         summary="List events within a date range",
+         description="Deprecated. Use GET "
+                     "/events/range/from/{from_year}/{from_month}/to/{to_year}/{to_month} "
+                     "instead.",
+         deprecated=True)
+async def read_events_fromto_year_month_legacy(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    from_year: int = Path(ge=2010, le=2040),
+    from_month: int = Path(ge=1, le=12),
+    to_year: int = Path(ge=2010, le=2040),
+    to_month: int = Path(ge=1, le=12),
+    keyword: str = None,
+    uid: str = None,
+    fields: str = None
+):
+    return await read_events_range(response, background_tasks,
+                                   from_year, from_month, to_year, to_month,
+                                   keyword, uid, fields)
 
 
 async def read_events_for_days(
@@ -301,8 +395,8 @@ async def read_groups(
                                "public, max-age=3600", fields)
 
 
-@app.get("/events/summary", response_model=EventsSummary,
-         operation_id="summary_events_by_year",
+@app.get("/summary/events", response_model=EventsSummary,
+         operation_id="summary_events",
          summary="Get yearly event summary with group highlights and activity heatmap")
 async def read_events_summary(
     response: Response,
@@ -375,6 +469,18 @@ async def read_events_summary(
         response.headers["Last-Modified"] = last_modified_str
         response.headers["Cache-Control"] = "public, max-age=3600"
     return summary
+
+
+@app.get("/events/summary", response_model=EventsSummary,
+         operation_id="summary_events_legacy",
+         summary="Get yearly event summary with group highlights and activity heatmap",
+         description="Deprecated. Use GET /summary/events instead.",
+         deprecated=True)
+async def read_events_summary_legacy(
+    response: Response,
+    background_tasks: BackgroundTasks
+):
+    return await read_events_summary(response, background_tasks)
 
 
 mcp = FastApiMCP(app, include_operations=[
