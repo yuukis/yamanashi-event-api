@@ -370,7 +370,7 @@ def test_normalize_event_params_shares_cache_key_across_equivalent_uid():
         {"ym": ["202312"], "keyword": None, "uid": "UID 2"})
     empty = normalize_event_params({"ym": ["202312"], "keyword": None, "uid": ""})
 
-    # /events/summary omits the "uid" key entirely rather than passing None
+    # /summary/events omits the "uid" key entirely rather than passing None
     no_uid_key = normalize_event_params({"ym": ["202312"], "keyword": None})
 
     cache = EventRequestCache()
@@ -552,7 +552,7 @@ def test_read_events_fromto_year_month_invalid_legacy_path_still_works():
 def test_read_events_summary(mock_get_groups_from_icalendar):
     mock_get_groups_from_icalendar.return_value = []
 
-    response = client.get("/events/summary")
+    response = client.get("/summary/events")
     assert response.status_code == 200
     assert response.headers["Cache-Control"] == "public, max-age=3600"
     assert "Last-Modified" in response.headers
@@ -583,6 +583,20 @@ def test_read_events_summary(mock_get_groups_from_icalendar):
     assert heatmap_by_period["2010-01"] == 0
 
 
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.main.get_groups_from_icalendar")
+def test_read_events_summary_legacy_path_still_works(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    response = client.get("/events/summary")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["from_year"] == 2010
+    assert data["granularity"] == "month"
+
+
 class MockConnpassGroupRequestNewerLastModified(MockConnpassGroupRequest):
     def get_last_modified(self):
         return datetime.fromtimestamp(999999, timezone.utc)
@@ -597,7 +611,7 @@ def test_read_events_summary_last_modified_reflects_newer_groups(
         mock_get_groups_from_icalendar):
     mock_get_groups_from_icalendar.return_value = []
 
-    response = client.get("/events/summary")
+    response = client.get("/summary/events")
     assert response.status_code == 200
 
     expected = datetime.fromtimestamp(999999, timezone.utc) \
@@ -630,7 +644,7 @@ def test_read_events_summary_uses_extended_ttls(mock_get_groups_from_icalendar):
     mock_get_groups_from_icalendar.return_value = []
     MockConnpassEventRequestCapturingTTL.received_cache_ttl = []
 
-    response = client.get("/events/summary")
+    response = client.get("/summary/events")
     assert response.status_code == 200
 
     # The low-level connpass cache_ttl (24h) must reach every

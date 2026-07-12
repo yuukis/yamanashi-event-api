@@ -395,8 +395,8 @@ async def read_groups(
                                "public, max-age=3600", fields)
 
 
-@app.get("/events/summary", response_model=EventsSummary,
-         operation_id="summary_events_by_year",
+@app.get("/summary/events", response_model=EventsSummary,
+         operation_id="summary_events",
          summary="Get yearly event summary with group highlights and activity heatmap")
 async def read_events_summary(
     response: Response,
@@ -471,6 +471,21 @@ async def read_events_summary(
     return summary
 
 
+@app.get("/events/summary", response_model=EventsSummary,
+         operation_id="summary_events_legacy",
+         summary="Get yearly event summary with group highlights and activity heatmap",
+         description="Deprecated. Use GET /summary/events instead.",
+         deprecated=True)
+async def read_events_summary_legacy(
+    response: Response,
+    background_tasks: BackgroundTasks
+):
+    return await read_events_summary(response, background_tasks)
+
+
+# NOTE: operation_ids listed here are the canonical (non-deprecated) ones.
+# The "_legacy" operation_ids on the deprecated /events/today, /events/in/*,
+# /events/from/*/to/*, and /events/summary routes must never be added here.
 mcp = FastApiMCP(app, include_operations=[
     "list_events",
     "list_events_today",
