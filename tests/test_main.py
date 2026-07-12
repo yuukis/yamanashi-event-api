@@ -483,7 +483,17 @@ def test_read_events_month_with_fields_keeps_cache_headers():
 
 @patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
 @patch("app.main.IcalEventRequest", MockICalEventRequest)
-def test_read_events_in_year_month_day():
+def test_read_events_day():
+    response = client.get("/events/day/2024/01/28")
+    assert response.status_code == 200
+    events = response.json()
+    assert isinstance(events, list)
+    assert "description" in events[0]
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+def test_read_events_in_year_month_day_legacy_path_still_works():
     response = client.get("/events/in/2024/01/28")
     assert response.status_code == 200
     events = response.json()
