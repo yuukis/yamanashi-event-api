@@ -74,10 +74,10 @@ async def read_events(
     now = datetime.now()
     dt_from = now - timedelta(days=days)
     dt_to = now + timedelta(days=days)
-    return await read_events_fromto_year_month(response, background_tasks,
-                                               dt_from.year, dt_from.month,
-                                               dt_to.year, dt_to.month,
-                                               keyword, uid, fields)
+    return await read_events_range(response, background_tasks,
+                                   dt_from.year, dt_from.month,
+                                   dt_to.year, dt_to.month,
+                                   keyword, uid, fields)
 
 
 @app.get("/events/today", response_model=List[Event],
@@ -138,9 +138,9 @@ async def read_events_in_year(
     uid: str = None,
     fields: str = None
 ):
-    return await read_events_fromto_year_month(response, background_tasks,
-                                               year, 1, year, 12,
-                                               keyword, uid, fields)
+    return await read_events_range(response, background_tasks,
+                                   year, 1, year, 12,
+                                   keyword, uid, fields)
 
 
 @app.get("/events/in/{year}/{month}", response_model=List[Event],
@@ -155,9 +155,9 @@ async def read_events_in_year_month(
     uid: str = None,
     fields: str = None
 ):
-    return await read_events_fromto_year_month(response, background_tasks,
-                                               year, month, year, month,
-                                               keyword, uid, fields)
+    return await read_events_range(response, background_tasks,
+                                   year, month, year, month,
+                                   keyword, uid, fields)
 
 
 @app.get("/events/in/{year}/{month}/{day}", response_model=List[Event],
@@ -185,7 +185,7 @@ async def read_events_in_year_month_day(
          response_model=List[Event],
          operation_id="list_events_by_range",
          summary="List events within a date range")
-async def read_events_fromto_year_month(
+async def read_events_range(
     response: Response,
     background_tasks: BackgroundTasks,
     from_year: int = Path(ge=2010, le=2040),
