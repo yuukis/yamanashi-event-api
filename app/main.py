@@ -483,9 +483,6 @@ async def read_events_summary_legacy(
     return await read_events_summary(response, background_tasks)
 
 
-# NOTE: operation_ids listed here are the canonical (non-deprecated) ones.
-# The "_legacy" operation_ids on the deprecated /events/today, /events/in/*,
-# /events/from/*/to/*, and /events/summary routes must never be added here.
 mcp = FastApiMCP(app, include_operations=[
     "list_events",
     "list_events_today",
