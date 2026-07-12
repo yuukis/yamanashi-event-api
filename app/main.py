@@ -127,10 +127,10 @@ async def read_events_next_week(
                                       next_monday, 7, keyword, uid, fields)
 
 
-@app.get("/events/in/{year}", response_model=List[Event],
+@app.get("/events/year/{year}", response_model=List[Event],
          operation_id="list_events_by_year",
          summary="List events in a specific year")
-async def read_events_in_year(
+async def read_events_year(
     response: Response,
     background_tasks: BackgroundTasks,
     year: int = Path(ge=2010, le=2040),
@@ -141,6 +141,23 @@ async def read_events_in_year(
     return await read_events_range(response, background_tasks,
                                    year, 1, year, 12,
                                    keyword, uid, fields)
+
+
+@app.get("/events/in/{year}", response_model=List[Event],
+         operation_id="list_events_by_year_legacy",
+         summary="List events in a specific year",
+         description="Deprecated. Use GET /events/year/{year} instead.",
+         deprecated=True)
+async def read_events_in_year_legacy(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    year: int = Path(ge=2010, le=2040),
+    keyword: str = None,
+    uid: str = None,
+    fields: str = None
+):
+    return await read_events_year(response, background_tasks, year,
+                                  keyword, uid, fields)
 
 
 @app.get("/events/in/{year}/{month}", response_model=List[Event],

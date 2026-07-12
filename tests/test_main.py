@@ -314,7 +314,17 @@ def test_read_events_next_week():
 
 @patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
 @patch("app.main.IcalEventRequest", MockICalEventRequest)
-def test_read_events_in_year():
+def test_read_events_year():
+    response = client.get("/events/year/2023")
+    assert response.status_code == 200
+    events = response.json()
+    assert isinstance(events, list)
+    assert "description" in events[0]
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+def test_read_events_in_year_legacy_path_still_works():
     response = client.get("/events/in/2023")
     assert response.status_code == 200
     events = response.json()
