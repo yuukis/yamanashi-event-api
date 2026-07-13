@@ -8,7 +8,7 @@ from app.service import get_archive_urls, preload_archive_indexes
 from app.service import get_events, normalize_event_params
 from app.routes import get_max_age_until_next_period
 from app.cache import EventRequestCache
-from app.archive import ArchiveException
+from app.providers.archive import ArchiveException
 from app.models import Event, Group
 from datetime import datetime, timedelta, timezone
 

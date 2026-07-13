@@ -1,6 +1,6 @@
 import requests
 from datetime import datetime, timezone
-from .models import Event, Group
+from ..models import Event, Group
 
 ARCHIVE_REQUEST_TIMEOUT = 10
 

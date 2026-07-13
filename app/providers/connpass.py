@@ -2,7 +2,7 @@ import requests
 import re
 import time
 from datetime import datetime, timezone
-from .models import Event, Group
+from ..models import Event, Group
 
 
 class ConnpassException(Exception):

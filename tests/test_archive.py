@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import MagicMock, patch
-from app.archive import ArchiveIndexRequest, ArchiveException
+from app.providers.archive import ArchiveIndexRequest, ArchiveException
 from app.cache import EventRequestCache
 
 
@@ -79,7 +79,7 @@ class TestArchiveIndexRequest(unittest.TestCase):
             "https://github.com/yuukis/yamanashi-event-archive"
         )
 
-    @patch("app.archive.requests.get")
+    @patch("app.providers.archive.requests.get")
     def test_preload_keeps_archive_index_in_cache(self, mock_get):
         response = MagicMock()
         response.status_code = 200
@@ -100,7 +100,7 @@ class TestArchiveIndexRequest(unittest.TestCase):
         self.assertEqual(len(groups), 2)
         self.assertEqual(mock_get.call_count, 1)
 
-    @patch("app.archive.requests.get")
+    @patch("app.providers.archive.requests.get")
     def test_get_events_http_error(self, mock_get):
         response = MagicMock()
         response.status_code = 404

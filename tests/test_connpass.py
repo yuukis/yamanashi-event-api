@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import MagicMock
-from app.connpass import ConnpassEventRequest, ConnpassGroupRequest
+from app.providers.connpass import ConnpassEventRequest, ConnpassGroupRequest
 
 
 class TestConnpassEventRequest(unittest.TestCase):

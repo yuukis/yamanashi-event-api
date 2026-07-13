@@ -1,8 +1,8 @@
 from typing import List, Optional, Tuple
 from fastapi import BackgroundTasks, HTTPException
-from .connpass import ConnpassEventRequest, ConnpassGroupRequest, ConnpassException
-from .icalendar import IcalEventRequest, IcalException
-from .archive import ArchiveIndexRequest, ArchiveException
+from .providers.connpass import ConnpassEventRequest, ConnpassGroupRequest, ConnpassException
+from .providers.icalendar import IcalEventRequest, IcalException
+from .providers.archive import ArchiveIndexRequest, ArchiveException
 from .models import Event, Group
 from .cache import EventRequestCache
 from .keywords import KeywordExtractor
