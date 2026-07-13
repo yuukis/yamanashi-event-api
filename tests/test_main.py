@@ -6,7 +6,6 @@ from app.service import get_user_agent, get_groups_from_icalendar
 from app.service import request_events, request_groups, get_groups_from_archives
 from app.service import get_archive_urls, preload_archive_indexes
 from app.service import get_events, normalize_event_params
-from app.routes import get_max_age_until_next_period
 from app.cache import EventRequestCache
 from app.providers.archive import ArchiveException
 from app.models import Event, Group
@@ -489,7 +488,40 @@ def test_read_events_month_with_fields_keeps_cache_headers():
                           params={"uid": "UID 2", "fields": "uid"})
     assert response.status_code == 200
     assert "Last-Modified" in response.headers
-    assert response.headers["Cache-Control"] == "public, max-age=3600"
+    assert response.headers["Cache-Control"] == "public, no-cache"
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+def test_read_events_month_returns_304_when_not_modified_since():
+    baseline = client.get("/events/month/2023/12")
+    last_modified = baseline.headers["Last-Modified"]
+
+    response = client.get("/events/month/2023/12",
+                          headers={"If-Modified-Since": last_modified})
+    assert response.status_code == 304
+    assert response.content == b""
+    assert response.headers["Last-Modified"] == last_modified
+    assert response.headers["Cache-Control"] == "public, no-cache"
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+def test_read_events_month_returns_304_when_modified_since_is_later():
+    response = client.get(
+        "/events/month/2023/12",
+        headers={"If-Modified-Since": "Mon, 01 Jan 2035 00:00:00 GMT"})
+    assert response.status_code == 304
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+def test_read_events_month_returns_200_when_modified_since_is_earlier():
+    response = client.get(
+        "/events/month/2023/12",
+        headers={"If-Modified-Since": "Thu, 01 Jan 1970 00:00:00 GMT"})
+    assert response.status_code == 200
+    assert len(response.json()) > 0
 
 
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
@@ -555,7 +587,7 @@ def test_read_events_summary(mock_get_groups_from_icalendar):
 
     response = client.get("/summary/events")
     assert response.status_code == 200
-    assert response.headers["Cache-Control"] == "public, max-age=3600"
+    assert response.headers["Cache-Control"] == "public, no-cache"
     assert "Last-Modified" in response.headers
 
     data = response.json()
@@ -582,6 +614,25 @@ def test_read_events_summary(mock_get_groups_from_icalendar):
     heatmap_by_period = {h["period"]: h["count"] for h in data["heatmap"]}
     assert heatmap_by_period["2012-05"] == 1
     assert heatmap_by_period["2010-01"] == 0
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+@patch("app.service.cache", EventRequestCache(prefix="test_summary_304_"))
+def test_read_events_summary_returns_304_when_not_modified_since(
+        mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    baseline = client.get("/summary/events")
+    last_modified = baseline.headers["Last-Modified"]
+
+    response = client.get("/summary/events",
+                          headers={"If-Modified-Since": last_modified})
+    assert response.status_code == 304
+    assert response.content == b""
+    assert response.headers["Cache-Control"] == "public, no-cache"
 
 
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
@@ -721,7 +772,7 @@ def test_read_group_with_fields_keeps_cache_headers(mock_get_groups_from_icalend
     response = client.get("/groups", params={"fields": "key"})
     assert response.status_code == 200
     assert "Last-Modified" in response.headers
-    assert response.headers["Cache-Control"] == "public, max-age=3600"
+    assert response.headers["Cache-Control"] == "public, no-cache"
 
 
 @patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
@@ -752,41 +803,6 @@ def test_read_group_includes_archive_source(mock_get_groups_from_icalendar):
     assert archive_group["archive_source"] == "yamanashi-event-archive"
     assert archive_group["archive_url"] == \
         "https://github.com/yuukis/yamanashi-event-archive"
-
-
-class FixedDatetimeNearBoundary(datetime):
-    # Sunday 23:30, 30 minutes before both the daily and weekly rollover
-    fixed_now = datetime(2026, 7, 12, 23, 30, 0)
-
-    @classmethod
-    def now(cls, tz=None):
-        return cls.fixed_now
-
-
-class FixedDatetimeMidWeek(datetime):
-    # Wednesday 10:00, far from any daily or weekly rollover
-    fixed_now = datetime(2026, 7, 8, 10, 0, 0)
-
-    @classmethod
-    def now(cls, tz=None):
-        return cls.fixed_now
-
-
-def test_get_max_age_until_next_period_clamped_near_boundary():
-    with patch("app.routes.datetime", FixedDatetimeNearBoundary):
-        assert get_max_age_until_next_period(1) == 1800
-        assert get_max_age_until_next_period(7) == 1800
-
-
-def test_get_max_age_until_next_period_uses_default_far_from_boundary():
-    with patch("app.routes.datetime", FixedDatetimeMidWeek):
-        assert get_max_age_until_next_period(1) == 3600
-        assert get_max_age_until_next_period(7) == 3600
-
-
-def test_get_max_age_until_next_period_rejects_unsupported_days():
-    with pytest.raises(ValueError):
-        get_max_age_until_next_period(3)
 
 
 def test_get_user_agent():

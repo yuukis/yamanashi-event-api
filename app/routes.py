@@ -6,9 +6,12 @@ from . import service
 from .models import Event, Group
 from .models import GroupActivity, YearSummary, HeatmapBucket, EventsSummary
 import hmac
-from datetime import datetime, timedelta, time as time_of_day
+from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 
 from .main import app
+
+LIST_CACHE_CONTROL = "public, no-cache"
 
 
 @app.get("/", include_in_schema=False)
@@ -24,7 +27,8 @@ async def read_events(
     background_tasks: BackgroundTasks,
     keyword: str = None,
     uid: str = None,
-    fields: str = None
+    fields: str = None,
+    if_modified_since: str = Header(None)
 ):
     days = service.config["recent_days"] if "recent_days" in service.config else 90
     now = datetime.now()
@@ -33,7 +37,7 @@ async def read_events(
     return await read_events_range(response, background_tasks,
                                    dt_from.year, dt_from.month,
                                    dt_to.year, dt_to.month,
-                                   keyword, uid, fields)
+                                   keyword, uid, fields, if_modified_since)
 
 
 @app.get("/events/day/today", response_model=List[Event],
@@ -44,11 +48,13 @@ async def read_events_day_today(
     background_tasks: BackgroundTasks,
     keyword: str = None,
     uid: str = None,
-    fields: str = None
+    fields: str = None,
+    if_modified_since: str = Header(None)
 ):
     today = datetime.now().date()
     return await read_events_for_days(response, background_tasks,
-                                      today, 1, keyword, uid, fields)
+                                      today, 1, keyword, uid, fields,
+                                      if_modified_since)
 
 
 @app.get("/events/today", response_model=List[Event],
@@ -61,10 +67,11 @@ async def read_events_today_legacy(
     background_tasks: BackgroundTasks,
     keyword: str = None,
     uid: str = None,
-    fields: str = None
+    fields: str = None,
+    if_modified_since: str = Header(None)
 ):
     return await read_events_day_today(response, background_tasks,
-                                       keyword, uid, fields)
+                                       keyword, uid, fields, if_modified_since)
 
 
 @app.get("/events/week/this", response_model=List[Event],
@@ -75,12 +82,14 @@ async def read_events_this_week(
     background_tasks: BackgroundTasks,
     keyword: str = None,
     uid: str = None,
-    fields: str = None
+    fields: str = None,
+    if_modified_since: str = Header(None)
 ):
     today = datetime.now().date()
     monday = today - timedelta(days=today.weekday())
     return await read_events_for_days(response, background_tasks,
-                                      monday, 7, keyword, uid, fields)
+                                      monday, 7, keyword, uid, fields,
+                                      if_modified_since)
 
 
 @app.get("/events/week/next", response_model=List[Event],
@@ -91,12 +100,14 @@ async def read_events_next_week(
     background_tasks: BackgroundTasks,
     keyword: str = None,
     uid: str = None,
-    fields: str = None
+    fields: str = None,
+    if_modified_since: str = Header(None)
 ):
     today = datetime.now().date()
     next_monday = today - timedelta(days=today.weekday()) + timedelta(days=7)
     return await read_events_for_days(response, background_tasks,
-                                      next_monday, 7, keyword, uid, fields)
+                                      next_monday, 7, keyword, uid, fields,
+                                      if_modified_since)
 
 
 @app.get("/events/year/{year}", response_model=List[Event],
@@ -108,11 +119,12 @@ async def read_events_year(
     year: int = Path(ge=2010, le=2040),
     keyword: str = None,
     uid: str = None,
-    fields: str = None
+    fields: str = None,
+    if_modified_since: str = Header(None)
 ):
     return await read_events_range(response, background_tasks,
                                    year, 1, year, 12,
-                                   keyword, uid, fields)
+                                   keyword, uid, fields, if_modified_since)
 
 
 @app.get("/events/in/{year}", response_model=List[Event],
@@ -126,10 +138,11 @@ async def read_events_in_year_legacy(
     year: int = Path(ge=2010, le=2040),
     keyword: str = None,
     uid: str = None,
-    fields: str = None
+    fields: str = None,
+    if_modified_since: str = Header(None)
 ):
     return await read_events_year(response, background_tasks, year,
-                                  keyword, uid, fields)
+                                  keyword, uid, fields, if_modified_since)
 
 
 @app.get("/events/month/{year}/{month}", response_model=List[Event],
@@ -142,11 +155,12 @@ async def read_events_month(
     month: int = Path(ge=1, le=12),
     keyword: str = None,
     uid: str = None,
-    fields: str = None
+    fields: str = None,
+    if_modified_since: str = Header(None)
 ):
     return await read_events_range(response, background_tasks,
                                    year, month, year, month,
-                                   keyword, uid, fields)
+                                   keyword, uid, fields, if_modified_since)
 
 
 @app.get("/events/in/{year}/{month}", response_model=List[Event],
@@ -161,10 +175,11 @@ async def read_events_in_year_month_legacy(
     month: int = Path(ge=1, le=12),
     keyword: str = None,
     uid: str = None,
-    fields: str = None
+    fields: str = None,
+    if_modified_since: str = Header(None)
 ):
     return await read_events_month(response, background_tasks, year, month,
-                                   keyword, uid, fields)
+                                   keyword, uid, fields, if_modified_since)
 
 
 @app.get("/events/day/{year}/{month}/{day}", response_model=List[Event],
@@ -178,14 +193,15 @@ async def read_events_day(
     day: int = Path(ge=1, le=31),
     keyword: str = None,
     uid: str = None,
-    fields: str = None
+    fields: str = None,
+    if_modified_since: str = Header(None)
 ):
     ymd = [f"{year:04}{month:02}{day:02}"]
     events, last_modified = service.get_events(
         {"ymd": ymd, "keyword": keyword, "uid": uid}, background_tasks)
 
     return build_list_response(response, events, Event, last_modified,
-                               "public, max-age=3600", fields)
+                               fields, if_modified_since)
 
 
 @app.get("/events/in/{year}/{month}/{day}", response_model=List[Event],
@@ -201,10 +217,11 @@ async def read_events_in_year_month_day_legacy(
     day: int = Path(ge=1, le=31),
     keyword: str = None,
     uid: str = None,
-    fields: str = None
+    fields: str = None,
+    if_modified_since: str = Header(None)
 ):
     return await read_events_day(response, background_tasks, year, month, day,
-                                 keyword, uid, fields)
+                                 keyword, uid, fields, if_modified_since)
 
 
 @app.get("/events/range/from/{from_year}/{from_month}/to/{to_year}/{to_month}",
@@ -220,7 +237,8 @@ async def read_events_range(
     to_month: int = Path(ge=1, le=12),
     keyword: str = None,
     uid: str = None,
-    fields: str = None
+    fields: str = None,
+    if_modified_since: str = Header(None)
 ):
     if from_year > to_year or (from_year == to_year and from_month > to_month):
         raise HTTPException(status_code=400, detail="Invalid date range")
@@ -231,7 +249,7 @@ async def read_events_range(
         {"ym": ym, "keyword": keyword, "uid": uid}, background_tasks)
 
     return build_list_response(response, events, Event, last_modified,
-                               "public, max-age=3600", fields)
+                               fields, if_modified_since)
 
 
 @app.get("/events/from/{from_year}/{from_month}/to/{to_year}/{to_month}",
@@ -251,11 +269,12 @@ async def read_events_fromto_year_month_legacy(
     to_month: int = Path(ge=1, le=12),
     keyword: str = None,
     uid: str = None,
-    fields: str = None
+    fields: str = None,
+    if_modified_since: str = Header(None)
 ):
     return await read_events_range(response, background_tasks,
                                    from_year, from_month, to_year, to_month,
-                                   keyword, uid, fields)
+                                   keyword, uid, fields, if_modified_since)
 
 
 def year_month_range(from_year: int, from_month: int,
@@ -281,31 +300,34 @@ async def read_events_for_days(
     days: int,
     keyword: str = None,
     uid: str = None,
-    fields: str = None
+    fields: str = None,
+    if_modified_since: str = Header(None)
 ):
     ymd = [(base_date + timedelta(days=i)).strftime("%Y%m%d") for i in range(days)]
     events, last_modified = service.get_events(
         {"ymd": ymd, "keyword": keyword, "uid": uid}, background_tasks)
 
-    max_age = get_max_age_until_next_period(days)
     return build_list_response(response, events, Event, last_modified,
-                               f"public, max-age={max_age}", fields)
+                               fields, if_modified_since)
 
 
-def get_max_age_until_next_period(days: int, max_age: int = 3600) -> int:
-    """Clamp max_age so an HTTP cache can't outlive the day/week the response
-    describes, otherwise a response cached just before midnight (or a week
-    boundary) could still be served as "today"/"this week" after it rolls
-    over."""
-    if days not in (1, 7):
-        raise ValueError(f"Unsupported days for cache boundary clamping: {days}")
+def format_last_modified(last_modified: datetime) -> str:
+    return last_modified.strftime("%a, %d %b %Y %H:%M:%S GMT")
 
-    now = datetime.now()
-    today = now.date()
-    period_start = today - timedelta(days=today.weekday()) if days == 7 else today
-    boundary = datetime.combine(period_start + timedelta(days=days), time_of_day.min)
-    seconds_until_boundary = int((boundary - now).total_seconds())
-    return max(0, min(max_age, seconds_until_boundary))
+
+def is_not_modified(if_modified_since: str, last_modified) -> bool:
+    """Compare the client's If-Modified-Since header against the resource's
+    actual last-modified time. HTTP dates only carry second precision, so
+    last_modified is truncated the same way before comparing."""
+    if last_modified is None or if_modified_since is None:
+        return False
+    try:
+        since = parsedate_to_datetime(if_modified_since)
+    except (TypeError, ValueError):
+        return False
+    if since.tzinfo is None:
+        since = since.replace(tzinfo=timezone.utc)
+    return last_modified.replace(microsecond=0) <= since
 
 
 def filter_model_fields(items, model, fields: str = None):
@@ -324,12 +346,13 @@ def filter_model_fields(items, model, fields: str = None):
 
 
 def build_list_response(response: Response, items, model, last_modified,
-                        cache_control: str, fields: str = None):
-    headers = {}
+                        fields: str = None, if_modified_since: str = None):
+    headers = {"Cache-Control": LIST_CACHE_CONTROL}
     if last_modified is not None:
-        headers["Last-Modified"] = last_modified.strftime(
-            "%a, %d %b %Y %H:%M:%S GMT")
-        headers["Cache-Control"] = cache_control
+        headers["Last-Modified"] = format_last_modified(last_modified)
+
+    if is_not_modified(if_modified_since, last_modified):
+        return Response(status_code=304, headers=headers)
 
     filtered = filter_model_fields(items, model, fields)
     if filtered is None:
@@ -349,12 +372,13 @@ def build_list_response(response: Response, items, model, last_modified,
 async def read_groups(
     response: Response,
     background_tasks: BackgroundTasks,
-    fields: str = None
+    fields: str = None,
+    if_modified_since: str = Header(None)
 ):
     groups, last_modified = service.get_groups({}, background_tasks)
 
     return build_list_response(response, groups, Group, last_modified,
-                               "public, max-age=3600", fields)
+                               fields, if_modified_since)
 
 
 @app.get("/summary/events", response_model=EventsSummary,
@@ -362,7 +386,8 @@ async def read_groups(
          summary="Get yearly event summary with group highlights and activity heatmap")
 async def read_events_summary(
     response: Response,
-    background_tasks: BackgroundTasks
+    background_tasks: BackgroundTasks,
+    if_modified_since: str = Header(None)
 ):
     from_year = 2010
     to_year = datetime.now().year
@@ -380,6 +405,13 @@ async def read_events_summary(
     if groups_last_modified is not None:
         last_modified = (groups_last_modified if last_modified is None
                          else max(last_modified, groups_last_modified))
+
+    headers = {"Cache-Control": LIST_CACHE_CONTROL}
+    if last_modified is not None:
+        headers["Last-Modified"] = format_last_modified(last_modified)
+
+    if is_not_modified(if_modified_since, last_modified):
+        return Response(status_code=304, headers=headers)
 
     year_stats = {
         y: {"event_count": 0, "group_counts": {}}
@@ -427,10 +459,8 @@ async def read_events_summary(
     summary = EventsSummary(from_year=from_year, to_year=to_year,
                             granularity="month", years=years, heatmap=heatmap)
 
-    if last_modified is not None:
-        last_modified_str = last_modified.strftime("%a, %d %b %Y %H:%M:%S GMT")
-        response.headers["Last-Modified"] = last_modified_str
-        response.headers["Cache-Control"] = "public, max-age=3600"
+    for key, value in headers.items():
+        response.headers[key] = value
     return summary
 
 
@@ -441,9 +471,10 @@ async def read_events_summary(
          deprecated=True)
 async def read_events_summary_legacy(
     response: Response,
-    background_tasks: BackgroundTasks
+    background_tasks: BackgroundTasks,
+    if_modified_since: str = Header(None)
 ):
-    return await read_events_summary(response, background_tasks)
+    return await read_events_summary(response, background_tasks, if_modified_since)
 
 
 def verify_refresh_token(x_refresh_token: str = Header(None)):
@@ -497,8 +528,7 @@ async def refresh_events(
 
     response.headers["Cache-Control"] = "no-store"
     if last_modified is not None:
-        response.headers["Last-Modified"] = last_modified.strftime(
-            "%a, %d %b %Y %H:%M:%S GMT")
+        response.headers["Last-Modified"] = format_last_modified(last_modified)
     return events
 
 
