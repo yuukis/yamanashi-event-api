@@ -1,13 +1,15 @@
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from unittest.mock import patch
 import pytest
-from app.main import app, get_user_agent, get_groups_from_icalendar
-from app.main import request_events, request_groups, get_groups_from_archives
-from app.main import get_archive_urls, preload_archive_indexes
-from app.main import get_events, get_max_age_until_next_period
-from app.main import normalize_event_params
+from app.main import app
+from app.service import get_user_agent, get_groups_from_icalendar
+from app.service import request_events, request_groups, get_groups_from_archives
+from app.service import get_archive_urls, preload_archive_indexes
+from app.service import get_events, get_groups, normalize_event_params
+from app.service import fetch_events, fetch_groups
 from app.cache import EventRequestCache
-from app.archive import ArchiveException
+from app.providers.archive import ArchiveException
 from app.models import Event, Group
 from datetime import datetime, timedelta, timezone
 
@@ -223,12 +225,12 @@ class MockFailingPreloadArchiveIndexRequest:
 def mock_archive_index_request():
     MockArchiveIndexRequest.requested_urls = []
     MockArchiveIndexRequest.preloaded_urls = []
-    with patch("app.main.ArchiveIndexRequest", MockArchiveIndexRequest):
+    with patch("app.service.ArchiveIndexRequest", MockArchiveIndexRequest):
         yield
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
 def test_read_events():
     response = client.get("/events")
     assert response.status_code == 200
@@ -238,16 +240,16 @@ def test_read_events():
     assert "description" in events[0]
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
 def test_read_events_with_keyword():
     response = client.get("/events?keyword=python")
     assert response.status_code == 200
     assert isinstance(response.json(), list)
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
 def test_read_events_today():
     response = client.get("/events/day/today")
     assert response.status_code == 200
@@ -256,8 +258,8 @@ def test_read_events_today():
     assert "description" in events[0]
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
 def test_read_events_today_legacy_path_still_works():
     response = client.get("/events/today")
     assert response.status_code == 200
@@ -285,8 +287,8 @@ def _assert_consecutive_week_starting_monday(ymd, expected_monday):
     assert dates[0].weekday() == 0
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequestCapturingYmd)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequestCapturingYmd)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
 def test_read_events_this_week():
     MockConnpassEventRequestCapturingYmd.received_ymd = []
 
@@ -303,8 +305,8 @@ def test_read_events_this_week():
         _assert_consecutive_week_starting_monday(ymd, this_monday)
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequestCapturingYmd)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequestCapturingYmd)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
 def test_read_events_next_week():
     MockConnpassEventRequestCapturingYmd.received_ymd = []
 
@@ -322,8 +324,8 @@ def test_read_events_next_week():
         _assert_consecutive_week_starting_monday(ymd, next_monday)
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
 def test_read_events_year():
     response = client.get("/events/year/2023")
     assert response.status_code == 200
@@ -332,8 +334,8 @@ def test_read_events_year():
     assert "description" in events[0]
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
 def test_read_events_in_year_legacy_path_still_works():
     response = client.get("/events/in/2023")
     assert response.status_code == 200
@@ -342,8 +344,8 @@ def test_read_events_in_year_legacy_path_still_works():
     assert "description" in events[0]
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
 def test_read_events_month():
     response = client.get("/events/month/2023/12")
     assert response.status_code == 200
@@ -352,8 +354,8 @@ def test_read_events_month():
     assert "description" in events[0]
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
 def test_read_events_in_year_month_legacy_path_still_works():
     response = client.get("/events/in/2023/12")
     assert response.status_code == 200
@@ -379,8 +381,8 @@ def test_normalize_event_params_shares_cache_key_across_equivalent_uid():
     assert cache.generate_key(no_uid_key) == cache.generate_key(base)
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
 def test_read_events_month_with_uid():
     response = client.get("/events/month/2023/12",
                           params={"uid": "UID 2"})
@@ -391,8 +393,8 @@ def test_read_events_month_with_uid():
     assert events[0]["title"] == "Python Event"
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
 def test_read_events_month_with_padded_uid():
     response = client.get("/events/month/2023/12",
                           params={"uid": "  UID 2  "})
@@ -402,8 +404,8 @@ def test_read_events_month_with_padded_uid():
     assert events[0]["uid"] == "UID 2"
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
 def test_read_events_month_with_unmatched_uid():
     response = client.get("/events/month/2023/12",
                           params={"uid": "No Such UID"})
@@ -411,9 +413,9 @@ def test_read_events_month_with_unmatched_uid():
     assert response.json() == []
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
-@patch("app.main.cache", EventRequestCache(prefix="test_uid_noop_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.cache", EventRequestCache(prefix="test_uid_noop_"))
 def test_read_events_month_with_empty_uid_is_noop():
     # Uses an isolated cache so this comparison isn't polluted by other
     # tests' cache entries for the same year/month. Compares uids rather
@@ -430,8 +432,8 @@ def test_read_events_month_with_empty_uid_is_noop():
     assert len(response_uids) > 0
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
 def test_read_events_month_with_uid_and_keyword():
     # "UID 1" is overwritten by the iCal source's non-matching event during
     # dedup, so combining it with a keyword that only the connpass version
@@ -449,8 +451,8 @@ def test_read_events_month_with_uid_and_keyword():
     assert events[0]["uid"] == "UID 2"
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
 def test_read_events_month_with_fields():
     response = client.get("/events/month/2023/12",
                           params={"uid": "UID 2", "fields": "uid,description"})
@@ -460,8 +462,8 @@ def test_read_events_month_with_fields():
     assert events[0] == {"uid": "UID 2", "description": "Description"}
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
 def test_read_events_month_with_fields_ignores_unknown_names():
     response = client.get("/events/month/2023/12",
                           params={"uid": "UID 2", "fields": "uid,bogus"})
@@ -471,8 +473,8 @@ def test_read_events_month_with_fields_ignores_unknown_names():
     assert events[0] == {"uid": "UID 2"}
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
 def test_read_events_month_with_empty_fields_is_noop():
     baseline = client.get("/events/month/2023/12", params={"uid": "UID 2"})
     response = client.get("/events/month/2023/12",
@@ -481,18 +483,82 @@ def test_read_events_month_with_empty_fields_is_noop():
     assert response.json() == baseline.json()
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
 def test_read_events_month_with_fields_keeps_cache_headers():
     response = client.get("/events/month/2023/12",
                           params={"uid": "UID 2", "fields": "uid"})
     assert response.status_code == 200
     assert "Last-Modified" in response.headers
-    assert response.headers["Cache-Control"] == "public, max-age=3600"
+    assert response.headers["Cache-Control"] == "public, no-cache"
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+def test_read_events_month_returns_304_when_not_modified_since():
+    baseline = client.get("/events/month/2023/12")
+    last_modified = baseline.headers["Last-Modified"]
+
+    response = client.get("/events/month/2023/12",
+                          headers={"If-Modified-Since": last_modified})
+    assert response.status_code == 304
+    assert response.content == b""
+    assert response.headers["Last-Modified"] == last_modified
+    assert response.headers["Cache-Control"] == "public, no-cache"
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+def test_read_events_month_returns_304_when_modified_since_is_later():
+    response = client.get(
+        "/events/month/2023/12",
+        headers={"If-Modified-Since": "Mon, 01 Jan 2035 00:00:00 GMT"})
+    assert response.status_code == 304
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+def test_read_events_month_returns_200_when_modified_since_is_earlier():
+    response = client.get(
+        "/events/month/2023/12",
+        headers={"If-Modified-Since": "Thu, 01 Jan 1970 00:00:00 GMT"})
+    assert response.status_code == 200
+    assert len(response.json()) > 0
+
+
+def test_read_events_for_days_if_modified_since_defaults_to_none():
+    # read_events_for_days() is a plain internal helper, not a route, so its
+    # if_modified_since default must be a real None -- not a
+    # fastapi.params.Header instance (which Header(None) would bind to here
+    # since FastAPI only performs that substitution for actual routes/
+    # dependencies).
+    import inspect
+    from app.routes import read_events_for_days
+
+    default = inspect.signature(read_events_for_days) \
+        .parameters["if_modified_since"].default
+    assert default is None
+
+
+def test_format_last_modified_is_locale_independent():
+    import locale
+    from app.routes import format_last_modified
+
+    original = locale.setlocale(locale.LC_TIME)
+    try:
+        locale.setlocale(locale.LC_TIME, "ja_JP.utf8")
+    except locale.Error:
+        pytest.skip("ja_JP.utf8 locale not available in this environment")
+
+    try:
+        dt = datetime(2026, 7, 13, 1, 2, 3, tzinfo=timezone.utc)
+        assert format_last_modified(dt) == "Mon, 13 Jul 2026 01:02:03 GMT"
+    finally:
+        locale.setlocale(locale.LC_TIME, original)
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
 def test_read_events_day():
     response = client.get("/events/day/2024/01/28")
     assert response.status_code == 200
@@ -501,8 +567,8 @@ def test_read_events_day():
     assert "description" in events[0]
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
 def test_read_events_in_year_month_day_legacy_path_still_works():
     response = client.get("/events/in/2024/01/28")
     assert response.status_code == 200
@@ -511,8 +577,8 @@ def test_read_events_in_year_month_day_legacy_path_still_works():
     assert "description" in events[0]
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
 def test_read_events_range():
     response = client.get("/events/range/from/2023/12/to/2024/01")
     assert response.status_code == 200
@@ -521,15 +587,15 @@ def test_read_events_range():
     assert "description" in events[0]
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
 def test_read_events_range_invalid():
     response = client.get("/events/range/from/2023/12/to/2022/11")
     assert response.status_code == 400
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
 def test_read_events_fromto_year_month_legacy_path_still_works():
     response = client.get("/events/from/2023/12/to/2024/01")
     assert response.status_code == 200
@@ -538,23 +604,23 @@ def test_read_events_fromto_year_month_legacy_path_still_works():
     assert "description" in events[0]
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
 def test_read_events_fromto_year_month_invalid_legacy_path_still_works():
     response = client.get("/events/from/2023/12/to/2022/11")
     assert response.status_code == 400
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
-@patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequest)
-@patch("app.main.get_groups_from_icalendar")
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
 def test_read_events_summary(mock_get_groups_from_icalendar):
     mock_get_groups_from_icalendar.return_value = []
 
     response = client.get("/summary/events")
     assert response.status_code == 200
-    assert response.headers["Cache-Control"] == "public, max-age=3600"
+    assert response.headers["Cache-Control"] == "public, no-cache"
     assert "Last-Modified" in response.headers
 
     data = response.json()
@@ -583,10 +649,29 @@ def test_read_events_summary(mock_get_groups_from_icalendar):
     assert heatmap_by_period["2010-01"] == 0
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
-@patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequest)
-@patch("app.main.get_groups_from_icalendar")
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+@patch("app.service.cache", EventRequestCache(prefix="test_summary_304_"))
+def test_read_events_summary_returns_304_when_not_modified_since(
+        mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    baseline = client.get("/summary/events")
+    last_modified = baseline.headers["Last-Modified"]
+
+    response = client.get("/summary/events",
+                          headers={"If-Modified-Since": last_modified})
+    assert response.status_code == 304
+    assert response.content == b""
+    assert response.headers["Cache-Control"] == "public, no-cache"
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
 def test_read_events_summary_legacy_path_still_works(mock_get_groups_from_icalendar):
     mock_get_groups_from_icalendar.return_value = []
 
@@ -602,11 +687,11 @@ class MockConnpassGroupRequestNewerLastModified(MockConnpassGroupRequest):
         return datetime.fromtimestamp(999999, timezone.utc)
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
-@patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequestNewerLastModified)
-@patch("app.main.get_groups_from_icalendar")
-@patch("app.main.cache", EventRequestCache(prefix="test_summary_last_modified_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequestNewerLastModified)
+@patch("app.service.get_groups_from_icalendar")
+@patch("app.service.cache", EventRequestCache(prefix="test_summary_last_modified_"))
 def test_read_events_summary_last_modified_reflects_newer_groups(
         mock_get_groups_from_icalendar):
     mock_get_groups_from_icalendar.return_value = []
@@ -633,13 +718,13 @@ class MockConnpassEventRequestCapturingTTL:
         return datetime.fromtimestamp(123, timezone.utc)
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequestCapturingTTL)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
-@patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequest)
-@patch("app.main.get_groups_from_icalendar")
-@patch("app.main.cache", EventRequestCache(prefix="test_summary_ttl_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequestCapturingTTL)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+@patch("app.service.cache", EventRequestCache(prefix="test_summary_ttl_"))
 def test_read_events_summary_uses_extended_ttls(mock_get_groups_from_icalendar):
-    import app.main as main_module
+    import app.service as service_module
 
     mock_get_groups_from_icalendar.return_value = []
     MockConnpassEventRequestCapturingTTL.received_cache_ttl = []
@@ -661,14 +746,14 @@ def test_read_events_summary_uses_extended_ttls(mock_get_groups_from_icalendar):
     to_year = datetime.now().year
     ym = [f"{y:04}{m:02}" for y in range(from_year, to_year + 1) for m in range(1, 13)]
     params = normalize_event_params({"ym": ym, "keyword": None})
-    key = main_module.cache.generate_key(params) + ":content"
-    expiry = main_module.cache._expiry[key]
+    key = service_module.cache.generate_key(params) + ":content"
+    expiry = service_module.cache._expiry[key]
     remaining = expiry - datetime.now(timezone.utc).timestamp()
     assert 3600 * 24 * 6 < remaining <= 3600 * 24 * 7
 
 
-@patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequest)
-@patch("app.main.get_groups_from_icalendar")
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
 def test_read_group(mock_get_groups_from_icalendar):
     mock_get_groups_from_icalendar.return_value = []
 
@@ -677,8 +762,8 @@ def test_read_group(mock_get_groups_from_icalendar):
     assert isinstance(response.json(), list)
 
 
-@patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequest)
-@patch("app.main.get_groups_from_icalendar")
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
 def test_read_group_with_fields(mock_get_groups_from_icalendar):
     mock_get_groups_from_icalendar.return_value = []
 
@@ -689,8 +774,8 @@ def test_read_group_with_fields(mock_get_groups_from_icalendar):
     assert groups[0] == {"key": "Key", "title": "Title"}
 
 
-@patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequest)
-@patch("app.main.get_groups_from_icalendar")
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
 def test_read_group_with_fields_ignores_unknown_names(mock_get_groups_from_icalendar):
     mock_get_groups_from_icalendar.return_value = []
 
@@ -701,8 +786,8 @@ def test_read_group_with_fields_ignores_unknown_names(mock_get_groups_from_icale
     assert groups[0] == {"key": "Key"}
 
 
-@patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequest)
-@patch("app.main.get_groups_from_icalendar")
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
 def test_read_group_with_empty_fields_is_noop(mock_get_groups_from_icalendar):
     mock_get_groups_from_icalendar.return_value = []
 
@@ -712,20 +797,20 @@ def test_read_group_with_empty_fields_is_noop(mock_get_groups_from_icalendar):
     assert response.json() == baseline.json()
 
 
-@patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequest)
-@patch("app.main.get_groups_from_icalendar")
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
 def test_read_group_with_fields_keeps_cache_headers(mock_get_groups_from_icalendar):
     mock_get_groups_from_icalendar.return_value = []
 
     response = client.get("/groups", params={"fields": "key"})
     assert response.status_code == 200
     assert "Last-Modified" in response.headers
-    assert response.headers["Cache-Control"] == "public, max-age=3600"
+    assert response.headers["Cache-Control"] == "public, no-cache"
 
 
-@patch("app.main.ConnpassGroupRequest", MockConnpassGroupRequest)
-@patch("app.main.get_groups_from_icalendar")
-@patch("app.main.config", {
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+@patch("app.service.config", {
     "metadata": {"version": "1.0.0"},
     "scope": {
         "subdomain": ["test"],
@@ -736,8 +821,8 @@ def test_read_group_with_fields_keeps_cache_headers(mock_get_groups_from_icalend
         ]
     }
 })
-@patch("app.main.ArchiveIndexRequest", MockArchiveIndexRequest)
-@patch("app.main.cache", EventRequestCache(prefix="test_archive_group_"))
+@patch("app.service.ArchiveIndexRequest", MockArchiveIndexRequest)
+@patch("app.service.cache", EventRequestCache(prefix="test_archive_group_"))
 def test_read_group_includes_archive_source(mock_get_groups_from_icalendar):
     mock_get_groups_from_icalendar.return_value = []
 
@@ -753,39 +838,33 @@ def test_read_group_includes_archive_source(mock_get_groups_from_icalendar):
         "https://github.com/yuukis/yamanashi-event-archive"
 
 
-class FixedDatetimeNearBoundary(datetime):
-    # Sunday 23:30, 30 minutes before both the daily and weekly rollover
-    fixed_now = datetime(2026, 7, 12, 23, 30, 0)
+def test_events_refresh_min_interval_falls_back_on_invalid_env_value(monkeypatch):
+    import importlib
+    import app.service as service_module
 
-    @classmethod
-    def now(cls, tz=None):
-        return cls.fixed_now
-
-
-class FixedDatetimeMidWeek(datetime):
-    # Wednesday 10:00, far from any daily or weekly rollover
-    fixed_now = datetime(2026, 7, 8, 10, 0, 0)
-
-    @classmethod
-    def now(cls, tz=None):
-        return cls.fixed_now
+    monkeypatch.setenv("EVENTS_REFRESH_MIN_INTERVAL_SECONDS", "not-a-number")
+    try:
+        importlib.reload(service_module)
+        assert service_module.events_refresh_min_interval == 60
+    finally:
+        monkeypatch.delenv("EVENTS_REFRESH_MIN_INTERVAL_SECONDS", raising=False)
+        importlib.reload(service_module)
 
 
-def test_get_max_age_until_next_period_clamped_near_boundary():
-    with patch("app.main.datetime", FixedDatetimeNearBoundary):
-        assert get_max_age_until_next_period(1) == 1800
-        assert get_max_age_until_next_period(7) == 1800
+def test_events_refresh_min_interval_falls_back_on_non_positive_env_value(monkeypatch):
+    # A zero or negative interval would make the refresh-lock's cache entry
+    # expire immediately (or already be expired) on write, silently
+    # disabling the abuse-prevention rate limit.
+    import importlib
+    import app.service as service_module
 
-
-def test_get_max_age_until_next_period_uses_default_far_from_boundary():
-    with patch("app.main.datetime", FixedDatetimeMidWeek):
-        assert get_max_age_until_next_period(1) == 3600
-        assert get_max_age_until_next_period(7) == 3600
-
-
-def test_get_max_age_until_next_period_rejects_unsupported_days():
-    with pytest.raises(ValueError):
-        get_max_age_until_next_period(3)
+    monkeypatch.setenv("EVENTS_REFRESH_MIN_INTERVAL_SECONDS", "-5")
+    try:
+        importlib.reload(service_module)
+        assert service_module.events_refresh_min_interval == 60
+    finally:
+        monkeypatch.delenv("EVENTS_REFRESH_MIN_INTERVAL_SECONDS", raising=False)
+        importlib.reload(service_module)
 
 
 def test_get_user_agent():
@@ -839,9 +918,9 @@ def test_get_groups_from_icalendar():
     assert groups[1].description is None
 
 
-@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.main.IcalEventRequest", MockICalEventRequest)
-@patch("app.main.cache", EventRequestCache(prefix="test_get_events_no_bg_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.cache", EventRequestCache(prefix="test_get_events_no_bg_"))
 def test_get_events_without_background_tasks():
     events, last_modified = get_events({"ym": ["202201"], "keyword": None})
 
@@ -849,8 +928,39 @@ def test_get_events_without_background_tasks():
     assert len(events) > 0
 
 
-@patch("app.main.ArchiveIndexRequest", MockArchiveIndexRequest)
-@patch("app.main.config", {
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+@patch("app.service.cache", EventRequestCache(prefix="test_get_groups_no_bg_"))
+def test_get_groups_without_background_tasks(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    groups, last_modified = get_groups({})
+
+    assert isinstance(groups, list)
+    assert len(groups) > 0
+
+
+@patch("app.service.request_events")
+@patch("app.service.cache", EventRequestCache(prefix="test_fetch_events_swallow_"))
+def test_fetch_events_swallows_upstream_failure(mock_request_events):
+    # request_events() converts provider exceptions into HTTPException, so
+    # that's what fetch_events() actually needs to catch and swallow when
+    # running as a background stale-while-revalidate refresh.
+    mock_request_events.side_effect = HTTPException(status_code=502, detail="boom")
+
+    fetch_events({"ym": ["202401"], "keyword": None, "uid": None})
+
+
+@patch("app.service.request_groups")
+@patch("app.service.cache", EventRequestCache(prefix="test_fetch_groups_swallow_"))
+def test_fetch_groups_swallows_upstream_failure(mock_request_groups):
+    mock_request_groups.side_effect = HTTPException(status_code=502, detail="boom")
+
+    fetch_groups({})
+
+
+@patch("app.service.ArchiveIndexRequest", MockArchiveIndexRequest)
+@patch("app.service.config", {
     "metadata": {"version": "1.0.0"},
     "scope": {
         "archives": [
@@ -870,7 +980,7 @@ def test_request_events_from_archives():
     assert last_modified == datetime.fromtimestamp(123, timezone.utc)
 
 
-@patch("app.main.config", {
+@patch("app.service.config", {
     "metadata": {"version": "1.0.0"},
     "scope": {
         "archives": [
@@ -894,8 +1004,8 @@ def test_request_events_from_archive_urls():
     ]
 
 
-@patch("app.main.ArchiveIndexRequest", MockArchiveIndexRequest)
-@patch("app.main.config", {
+@patch("app.service.ArchiveIndexRequest", MockArchiveIndexRequest)
+@patch("app.service.config", {
     "metadata": {"version": "1.0.0"},
     "scope": {
         "archives": [
@@ -917,7 +1027,7 @@ def test_request_groups_from_archives():
     assert last_modified == datetime.fromtimestamp(123, timezone.utc)
 
 
-@patch("app.main.ArchiveIndexRequest", MockArchiveIndexRequest)
+@patch("app.service.ArchiveIndexRequest", MockArchiveIndexRequest)
 def test_get_groups_from_archives():
     config = {
         "scope": {
@@ -967,7 +1077,7 @@ def test_get_archive_urls():
     ]
 
 
-@patch("app.main.config", {
+@patch("app.service.config", {
     "metadata": {"version": "1.0.0"},
     "scope": {
         "archives": [
@@ -989,7 +1099,7 @@ def test_preload_archive_indexes():
     ]
 
 
-@patch("app.main.config", {
+@patch("app.service.config", {
     "metadata": {"version": "1.0.0"},
     "scope": {
         "archives": [
@@ -1002,7 +1112,7 @@ def test_preload_archive_indexes():
     }
 })
 def test_preload_archive_indexes_does_not_raise_on_error():
-    with patch("app.main.ArchiveIndexRequest",
+    with patch("app.service.ArchiveIndexRequest",
                MockFailingPreloadArchiveIndexRequest):
         preload_archive_indexes()
 
@@ -1034,8 +1144,109 @@ def test_legacy_routes_marked_deprecated_in_openapi_schema():
         assert not op.get("deprecated", False)
 
 
+class MockConnpassEventRequestCapturingSkipCache:
+    received_skip_cache = []
+
+    def __init__(self, **kwargs):
+        MockConnpassEventRequestCapturingSkipCache.received_skip_cache.append(
+            kwargs.get("skip_cache"))
+
+    def get_events(self):
+        return []
+
+    def get_last_modified(self):
+        return datetime.fromtimestamp(123, timezone.utc)
+
+
+@patch("app.service.events_refresh_token", None)
+def test_refresh_events_requires_token_configured():
+    response = client.post("/events/refresh",
+                           headers={"X-Refresh-Token": "anything"})
+    assert response.status_code == 503
+
+
+@patch("app.service.events_refresh_token", "secret-token")
+def test_refresh_events_rejects_missing_token():
+    response = client.post("/events/refresh")
+    assert response.status_code == 401
+
+
+@patch("app.service.events_refresh_token", "secret-token")
+def test_refresh_events_rejects_wrong_token():
+    response = client.post("/events/refresh",
+                           headers={"X-Refresh-Token": "wrong-token"})
+    assert response.status_code == 401
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.events_refresh_token", "secret-token")
+@patch("app.service.cache", EventRequestCache(prefix="test_refresh_success_"))
+def test_refresh_events_success_returns_fresh_data_and_updates_cache():
+    import app.service as service_module
+    import app.routes as routes_module
+
+    response = client.post("/events/refresh",
+                           headers={"X-Refresh-Token": "secret-token"})
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "no-store"
+    events = response.json()
+    assert isinstance(events, list)
+    assert len(events) > 0
+
+    days = service_module.config["recent_days"] \
+        if "recent_days" in service_module.config else 90
+    now = datetime.now()
+    dt_from = now - timedelta(days=days)
+    dt_to = now + timedelta(days=days)
+    ym = routes_module.year_month_range(dt_from.year, dt_from.month,
+                                        dt_to.year, dt_to.month)
+    params = service_module.normalize_event_params(
+        {"ym": ym, "keyword": None, "uid": None})
+    cached = service_module.cache.get(params)
+    assert cached is not None
+    assert cached["json"] is not None
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.events_refresh_token", "secret-token")
+@patch("app.service.cache", EventRequestCache(prefix="test_refresh_rate_limit_"))
+def test_refresh_events_rate_limited_on_second_call():
+    headers = {"X-Refresh-Token": "secret-token"}
+
+    first = client.post("/events/refresh", headers=headers)
+    assert first.status_code == 200
+
+    second = client.post("/events/refresh", headers=headers)
+    assert second.status_code == 429
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequestCapturingSkipCache)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.events_refresh_token", "secret-token")
+@patch("app.service.cache", EventRequestCache(prefix="test_refresh_skip_cache_"))
+def test_refresh_events_forces_connpass_cache_bypass():
+    MockConnpassEventRequestCapturingSkipCache.received_skip_cache = []
+
+    response = client.post("/events/refresh",
+                           headers={"X-Refresh-Token": "secret-token"})
+    assert response.status_code == 200
+    assert len(MockConnpassEventRequestCapturingSkipCache.received_skip_cache) > 0
+    assert all(MockConnpassEventRequestCapturingSkipCache.received_skip_cache)
+
+
+def test_refresh_events_excluded_from_schema_and_mcp():
+    schema = client.get("/openapi.json").json()
+    assert "/events/refresh" not in schema["paths"]
+
+    from app.routes import mcp
+    tool_names = {t.name for t in mcp.tools}
+    assert "refresh_events" not in tool_names
+
+
 def test_mcp_excludes_legacy_operations():
-    from app.main import mcp
+    from app.routes import mcp
 
     tool_names = {t.name for t in mcp.tools}
     for legacy_id in [

@@ -2,7 +2,7 @@ import requests
 import re
 import time
 from datetime import datetime, timezone
-from .models import Event, Group
+from ..models import Event, Group
 
 
 class ConnpassException(Exception):
@@ -14,7 +14,8 @@ class ConnpassException(Exception):
 class ConnpassEventRequest:
     def __init__(self, event_id=None, prefecture=None, subdomain=None,
                  ym=None, ymd=None, keyword=None, cache=None,
-                 api_key=None, user_agent=None, cache_ttl=3600):
+                 api_key=None, user_agent=None, cache_ttl=3600,
+                 skip_cache=False):
         self.url = "https://connpass.com/api/v2/events/"
         self.api_key = api_key
         self.event_id = event_id
@@ -32,6 +33,7 @@ class ConnpassEventRequest:
         self.api_key = api_key
         self.user_agent = user_agent
         self.cache_ttl = cache_ttl
+        self.skip_cache = skip_cache
         self.last_modified = datetime.fromtimestamp(0, timezone.utc)
 
     def get_event(self):
@@ -64,7 +66,7 @@ class ConnpassEventRequest:
             params["start"] = page * page_size + 1
 
             json = None
-            if self.cache is not None:
+            if self.cache is not None and not self.skip_cache:
                 response = self.cache.get(params)
                 if response is not None:
                     json = response["json"]

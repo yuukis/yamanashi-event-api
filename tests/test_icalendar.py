@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import MagicMock, patch
-from app.icalendar import IcalEventRequest
+from app.providers.icalendar import IcalEventRequest
 from datetime import datetime
 
 
@@ -44,7 +44,7 @@ END:VCALENDAR
         self.assertEqual(events[0].group_name, "Test Group")
         self.assertEqual(events[0].group_url, "http://example.com/group")
 
-    @patch("app.icalendar.datetime")
+    @patch("app.providers.icalendar.datetime")
     def test_get_events_open_status(self, mock_datetime):
         ical_content = b"""
 BEGIN:VCALENDAR

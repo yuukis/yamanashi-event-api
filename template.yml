@@ -5,6 +5,15 @@ Parameters:
   ConnpassApiKey:
     Type: String
     Description: "API key for Connpass integration"
+  EventsRefreshToken:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: "Shared secret required to call POST /events/refresh. Leave empty to disable the endpoint."
+  EventsRefreshMinIntervalSeconds:
+    Type: String
+    Default: "60"
+    Description: "Minimum seconds between accepted POST /events/refresh calls"
 
 Resources:
   FastApiFunction:
@@ -18,6 +27,8 @@ Resources:
       Environment:
         Variables:
           CONNPASS_API_KEY: !Ref ConnpassApiKey
+          EVENTS_REFRESH_TOKEN: !Ref EventsRefreshToken
+          EVENTS_REFRESH_MIN_INTERVAL_SECONDS: !Ref EventsRefreshMinIntervalSeconds
       Policies:
         - AWSLambdaBasicExecutionRole
       Events:

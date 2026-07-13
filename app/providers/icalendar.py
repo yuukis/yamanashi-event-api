@@ -1,7 +1,7 @@
 import requests
 import re
 from icalendar import Calendar as IcalCalendar
-from .models import Event
+from ..models import Event
 from datetime import datetime, timezone
 
 
