@@ -33,9 +33,10 @@ class IcalEventRequest:
         try:
             content = self.__get_content_from_cache(url, cache)
             if content is None:
+                previous = cache.peek(url) if cache is not None else None
                 content = self.__get_content(url)
-                last_modified = datetime.now(timezone.utc)
-                self.__set_content_to_cache(url, cache, content, last_modified)
+                self.last_modified = self.__resolve_last_modified(previous, content)
+                self.__set_content_to_cache(url, cache, content, self.last_modified)
             all_events = self.__parse_icalendar(content)
             selected_events = self.__find_by_ym_ymd(all_events, ym, ymd)
             return selected_events
@@ -51,6 +52,16 @@ class IcalEventRequest:
 
     def get_last_modified(self):
         return self.last_modified
+
+    def __resolve_last_modified(self, previous, content):
+        """Reuse the previously cached last_modified if the freshly fetched
+        feed is byte-for-byte identical to it, rather than always stamping
+        "now" -- otherwise every periodic refetch would look modified even
+        when nothing actually changed upstream."""
+        if previous is not None and previous["last_modified"] is not None \
+                and previous["content"] == content.decode("utf-8"):
+            return previous["last_modified"]
+        return datetime.now(timezone.utc)
 
     def __find_by_ym_ymd(self, events, ym, ymd):
         if len(ym) == 0 and len(ymd) == 0:
@@ -88,8 +99,6 @@ class IcalEventRequest:
         status_code = response.status_code
         if status_code != 200:
             raise IcalException(status_code, "Failed to fetch content")
-
-        self.last_modified = datetime.now(timezone.utc)
 
         return response.content
 
