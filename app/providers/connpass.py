@@ -72,13 +72,14 @@ class ConnpassEventRequest:
                     json = response["json"]
                     last_modified = response["last_modified"]
             if json is None:
+                previous = self.cache.peek(params) if self.cache is not None else None
                 try:
                     response = self.__get(params)
                 except ConnpassException as e:
                     raise e
 
                 json = response.json()
-                last_modified = datetime.now(timezone.utc)
+                last_modified = self.__resolve_last_modified(previous, json)
                 if self.cache is not None:
                     self.cache.set(params, json, last_modified=last_modified,
                                    ex=self.cache_ttl)
@@ -98,6 +99,16 @@ class ConnpassEventRequest:
 
     def get_last_modified(self):
         return self.last_modified
+
+    def __resolve_last_modified(self, previous, json):
+        """Reuse the previously cached last_modified for this page if the
+        freshly fetched content is identical to it, rather than always
+        stamping "now" -- otherwise every periodic refetch would look
+        modified even when nothing actually changed upstream."""
+        if previous is not None and previous["last_modified"] is not None \
+                and previous["json"] == json:
+            return previous["last_modified"]
+        return datetime.now(timezone.utc)
 
     def __get(self, params):
         if self.cache is not None:
@@ -219,13 +230,14 @@ class ConnpassGroupRequest:
                     json = response["json"]
                     last_modified = response["last_modified"]
             if json is None:
+                previous = self.cache.peek(params) if self.cache is not None else None
                 try:
                     response = self.__get(params)
                 except ConnpassException as e:
                     raise e
 
                 json = response.json()
-                last_modified = datetime.now(timezone.utc)
+                last_modified = self.__resolve_last_modified(previous, json)
                 if self.cache is not None:
                     self.cache.set(params, json, last_modified=last_modified)
             groups += self.__convert_to_groups(json['groups'])
@@ -241,6 +253,16 @@ class ConnpassGroupRequest:
 
     def get_last_modified(self):
         return self.last_modified
+
+    def __resolve_last_modified(self, previous, json):
+        """Reuse the previously cached last_modified for this page if the
+        freshly fetched content is identical to it, rather than always
+        stamping "now" -- otherwise every periodic refetch would look
+        modified even when nothing actually changed upstream."""
+        if previous is not None and previous["last_modified"] is not None \
+                and previous["json"] == json:
+            return previous["last_modified"]
+        return datetime.now(timezone.utc)
 
     def __get(self, params):
         if self.cache is not None:
