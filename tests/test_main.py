@@ -1,11 +1,12 @@
 from fastapi.testclient import TestClient
 from unittest.mock import patch
 import pytest
-from app.main import app, get_max_age_until_next_period
+from app.main import app
 from app.service import get_user_agent, get_groups_from_icalendar
 from app.service import request_events, request_groups, get_groups_from_archives
 from app.service import get_archive_urls, preload_archive_indexes
 from app.service import get_events, normalize_event_params
+from app.routes import get_max_age_until_next_period
 from app.cache import EventRequestCache
 from app.archive import ArchiveException
 from app.models import Event, Group
@@ -772,13 +773,13 @@ class FixedDatetimeMidWeek(datetime):
 
 
 def test_get_max_age_until_next_period_clamped_near_boundary():
-    with patch("app.main.datetime", FixedDatetimeNearBoundary):
+    with patch("app.routes.datetime", FixedDatetimeNearBoundary):
         assert get_max_age_until_next_period(1) == 1800
         assert get_max_age_until_next_period(7) == 1800
 
 
 def test_get_max_age_until_next_period_uses_default_far_from_boundary():
-    with patch("app.main.datetime", FixedDatetimeMidWeek):
+    with patch("app.routes.datetime", FixedDatetimeMidWeek):
         assert get_max_age_until_next_period(1) == 3600
         assert get_max_age_until_next_period(7) == 3600
 
@@ -1073,8 +1074,8 @@ def test_refresh_events_rejects_wrong_token():
 @patch("app.service.events_refresh_token", "secret-token")
 @patch("app.service.cache", EventRequestCache(prefix="test_refresh_success_"))
 def test_refresh_events_success_returns_fresh_data_and_updates_cache():
-    import app.main as main_module
     import app.service as service_module
+    import app.routes as routes_module
 
     response = client.post("/events/refresh",
                            headers={"X-Refresh-Token": "secret-token"})
@@ -1089,8 +1090,8 @@ def test_refresh_events_success_returns_fresh_data_and_updates_cache():
     now = datetime.now()
     dt_from = now - timedelta(days=days)
     dt_to = now + timedelta(days=days)
-    ym = main_module.year_month_range(dt_from.year, dt_from.month,
-                                      dt_to.year, dt_to.month)
+    ym = routes_module.year_month_range(dt_from.year, dt_from.month,
+                                        dt_to.year, dt_to.month)
     params = service_module.normalize_event_params(
         {"ym": ym, "keyword": None, "uid": None})
     cached = service_module.cache.get(params)
@@ -1130,13 +1131,13 @@ def test_refresh_events_excluded_from_schema_and_mcp():
     schema = client.get("/openapi.json").json()
     assert "/events/refresh" not in schema["paths"]
 
-    from app.main import mcp
+    from app.routes import mcp
     tool_names = {t.name for t in mcp.tools}
     assert "refresh_events" not in tool_names
 
 
 def test_mcp_excludes_legacy_operations():
-    from app.main import mcp
+    from app.routes import mcp
 
     tool_names = {t.name for t in mcp.tools}
     for legacy_id in [
