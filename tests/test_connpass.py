@@ -159,6 +159,30 @@ class TestConnpassEventRequest(unittest.TestCase):
         self.assertEqual(events[1].description, 'This is test event 2')
         self.assertEqual(events[1].address, None)
 
+    def test_get_events_skip_cache_bypasses_read_but_still_writes(self):
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            'events': [],
+            'results_returned': 0
+        }
+
+        mock_cache = MagicMock()
+        mock_cache.get.return_value = {
+            'json': {'events': [], 'results_returned': 0},
+            'last_modified': None
+        }
+
+        connpass_request = ConnpassEventRequest(cache=mock_cache, skip_cache=True)
+        connpass_request._ConnpassEventRequest__get = MagicMock(
+            return_value=mock_response)
+
+        connpass_request.get_events()
+
+        # skip_cache=True must never consult the cache for a read...
+        mock_cache.get.assert_not_called()
+        # ...but the freshly fetched result must still be written back.
+        mock_cache.set.assert_called_once()
+
 
 class TestConnpassGroupRequest(unittest.TestCase):
 
