@@ -91,6 +91,37 @@ class TestEventRequestCache(unittest.TestCase):
         self.assertEqual(response["json"], {"key": "value"})
         self.assertEqual(response["last_modified"], dt)
 
+    def test_get_returns_none_after_expiry(self):
+        self.cache._store = {}
+        self.cache._expiry = {}
+
+        self.cache.set({"param": "value"}, {"key": "value"}, ex=-1)
+
+        self.assertIsNone(self.cache.get({"param": "value"}))
+
+    def test_peek_returns_stale_entry_after_expiry(self):
+        self.cache._store = {}
+        self.cache._expiry = {}
+
+        dt = datetime.fromtimestamp(123, timezone.utc)
+        self.cache.set({"param": "value"}, {"key": "value"}, last_modified=dt,
+                       ex=-1)
+
+        # get() treats it as gone (expired)...
+        self.assertIsNone(self.cache.get({"param": "value"}))
+
+        # ...but peek() still sees the stale content, for diffing against a
+        # freshly fetched value.
+        response = self.cache.peek({"param": "value"})
+        self.assertEqual(response["json"], {"key": "value"})
+        self.assertEqual(response["last_modified"], dt)
+
+    def test_peek_returns_none_for_never_cached_key(self):
+        self.cache._store = {}
+        self.cache._expiry = {}
+
+        self.assertIsNone(self.cache.peek({"param": "value"}))
+
     def test_generate_key(self):
         params = {"param": "value"}
 

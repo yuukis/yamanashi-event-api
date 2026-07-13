@@ -14,10 +14,24 @@ class EventRequestCache:
     def get(self, key_data) -> dict | None:
         key = self.generate_key(key_data)
         key_content = key + ":content"
-        key_last_modified = key + ":last_modified"
 
         if not self._is_valid(key_content):
             return None
+
+        return self._read(key)
+
+    def peek(self, key_data) -> dict | None:
+        """Like get(), but ignores TTL expiry and returns whatever is
+        currently stored (possibly stale), or None if nothing has ever been
+        cached for this key. Used to compare a freshly fetched value
+        against the last cached one, so last_modified can be preserved
+        when the content hasn't actually changed."""
+        key = self.generate_key(key_data)
+        return self._read(key)
+
+    def _read(self, key: str) -> dict | None:
+        key_content = key + ":content"
+        key_last_modified = key + ":last_modified"
 
         content = self._store.get(key_content)
         last_modified = self._store.get(key_last_modified)
@@ -103,8 +117,7 @@ class EventRequestCache:
             return False
         if self._expiry[key] is None:
             return True
-        if datetime.now(timezone.utc).timestamp() > self._expiry[key]:
-            self._store.pop(key, None)
-            self._expiry.pop(key, None)
-            return False
-        return True
+        # Deliberately doesn't delete the entry on expiry: peek() relies on
+        # stale entries staying readable so a fresh fetch can be compared
+        # against them. A future set() for the same key overwrites it.
+        return datetime.now(timezone.utc).timestamp() <= self._expiry[key]
