@@ -23,8 +23,11 @@ with open(config_file, "r", encoding="utf-8") as yml:
 
 connpass_api_key = os.getenv("CONNPASS_API_KEY")
 events_refresh_token = os.getenv("EVENTS_REFRESH_TOKEN")
-events_refresh_min_interval = int(
-    os.getenv("EVENTS_REFRESH_MIN_INTERVAL_SECONDS", "60"))
+try:
+    events_refresh_min_interval = int(
+        os.getenv("EVENTS_REFRESH_MIN_INTERVAL_SECONDS", "60"))
+except ValueError:
+    events_refresh_min_interval = 60
 
 
 def normalize_event_params(params):
@@ -187,7 +190,8 @@ def get_groups(params,
     if groups is None:
         groups, last_modified = request_groups(params)
 
-    background_tasks.add_task(fetch_groups, params)
+    if background_tasks is not None:
+        background_tasks.add_task(fetch_groups, params)
 
     return groups, last_modified
 

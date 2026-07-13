@@ -5,7 +5,7 @@ from app.main import app
 from app.service import get_user_agent, get_groups_from_icalendar
 from app.service import request_events, request_groups, get_groups_from_archives
 from app.service import get_archive_urls, preload_archive_indexes
-from app.service import get_events, normalize_event_params
+from app.service import get_events, get_groups, normalize_event_params
 from app.cache import EventRequestCache
 from app.providers.archive import ArchiveException
 from app.models import Event, Group
@@ -805,6 +805,19 @@ def test_read_group_includes_archive_source(mock_get_groups_from_icalendar):
         "https://github.com/yuukis/yamanashi-event-archive"
 
 
+def test_events_refresh_min_interval_falls_back_on_invalid_env_value(monkeypatch):
+    import importlib
+    import app.service as service_module
+
+    monkeypatch.setenv("EVENTS_REFRESH_MIN_INTERVAL_SECONDS", "not-a-number")
+    try:
+        importlib.reload(service_module)
+        assert service_module.events_refresh_min_interval == 60
+    finally:
+        monkeypatch.delenv("EVENTS_REFRESH_MIN_INTERVAL_SECONDS", raising=False)
+        importlib.reload(service_module)
+
+
 def test_get_user_agent():
     config = {
         "metadata": {
@@ -864,6 +877,18 @@ def test_get_events_without_background_tasks():
 
     assert isinstance(events, list)
     assert len(events) > 0
+
+
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+@patch("app.service.cache", EventRequestCache(prefix="test_get_groups_no_bg_"))
+def test_get_groups_without_background_tasks(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    groups, last_modified = get_groups({})
+
+    assert isinstance(groups, list)
+    assert len(groups) > 0
 
 
 @patch("app.service.ArchiveIndexRequest", MockArchiveIndexRequest)
