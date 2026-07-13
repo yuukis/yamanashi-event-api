@@ -7,7 +7,7 @@ from .models import Event, Group
 from .models import GroupActivity, YearSummary, HeatmapBucket, EventsSummary
 import hmac
 from datetime import datetime, timedelta, timezone
-from email.utils import parsedate_to_datetime
+from email.utils import format_datetime, parsedate_to_datetime
 
 from .main import app
 
@@ -312,7 +312,10 @@ async def read_events_for_days(
 
 
 def format_last_modified(last_modified: datetime) -> str:
-    return last_modified.strftime("%a, %d %b %Y %H:%M:%S GMT")
+    """Format as an RFC 7231 IMF-fixdate. Uses email.utils rather than
+    strftime("%a"/"%b") since those directives are locale-dependent and
+    would break HTTP date parsing under a non-English locale."""
+    return format_datetime(last_modified, usegmt=True)
 
 
 def is_not_modified(if_modified_since: str, last_modified) -> bool:

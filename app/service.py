@@ -26,6 +26,8 @@ events_refresh_token = os.getenv("EVENTS_REFRESH_TOKEN")
 try:
     events_refresh_min_interval = int(
         os.getenv("EVENTS_REFRESH_MIN_INTERVAL_SECONDS", "60"))
+    if events_refresh_min_interval <= 0:
+        events_refresh_min_interval = 60
 except ValueError:
     events_refresh_min_interval = 60
 

@@ -526,6 +526,23 @@ def test_read_events_month_returns_200_when_modified_since_is_earlier():
     assert len(response.json()) > 0
 
 
+def test_format_last_modified_is_locale_independent():
+    import locale
+    from app.routes import format_last_modified
+
+    original = locale.setlocale(locale.LC_TIME)
+    try:
+        locale.setlocale(locale.LC_TIME, "ja_JP.utf8")
+    except locale.Error:
+        pytest.skip("ja_JP.utf8 locale not available in this environment")
+
+    try:
+        dt = datetime(2026, 7, 13, 1, 2, 3, tzinfo=timezone.utc)
+        assert format_last_modified(dt) == "Mon, 13 Jul 2026 01:02:03 GMT"
+    finally:
+        locale.setlocale(locale.LC_TIME, original)
+
+
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
 @patch("app.service.IcalEventRequest", MockICalEventRequest)
 def test_read_events_day():
@@ -812,6 +829,22 @@ def test_events_refresh_min_interval_falls_back_on_invalid_env_value(monkeypatch
     import app.service as service_module
 
     monkeypatch.setenv("EVENTS_REFRESH_MIN_INTERVAL_SECONDS", "not-a-number")
+    try:
+        importlib.reload(service_module)
+        assert service_module.events_refresh_min_interval == 60
+    finally:
+        monkeypatch.delenv("EVENTS_REFRESH_MIN_INTERVAL_SECONDS", raising=False)
+        importlib.reload(service_module)
+
+
+def test_events_refresh_min_interval_falls_back_on_non_positive_env_value(monkeypatch):
+    # A zero or negative interval would make the refresh-lock's cache entry
+    # expire immediately (or already be expired) on write, silently
+    # disabling the abuse-prevention rate limit.
+    import importlib
+    import app.service as service_module
+
+    monkeypatch.setenv("EVENTS_REFRESH_MIN_INTERVAL_SECONDS", "-5")
     try:
         importlib.reload(service_module)
         assert service_module.events_refresh_min_interval == 60
