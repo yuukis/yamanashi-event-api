@@ -269,17 +269,7 @@ async def read_events_range(
     if from_year > to_year or (from_year == to_year and from_month > to_month):
         raise HTTPException(status_code=400, detail="Invalid date range")
 
-    ym = []
-    y = from_year
-    m = from_month
-    while True:
-        ym.append(f"{y:04}{m:02}")
-        if y == to_year and m == to_month:
-            break
-        m += 1
-        if m > 12:
-            y += 1
-            m = 1
+    ym = year_month_range(from_year, from_month, to_year, to_month)
 
     events, last_modified = get_events(
         {"ym": ym, "keyword": keyword, "uid": uid}, background_tasks)
@@ -310,6 +300,22 @@ async def read_events_fromto_year_month_legacy(
     return await read_events_range(response, background_tasks,
                                    from_year, from_month, to_year, to_month,
                                    keyword, uid, fields)
+
+
+def year_month_range(from_year: int, from_month: int,
+                     to_year: int, to_month: int) -> List[str]:
+    ym = []
+    y = from_year
+    m = from_month
+    while True:
+        ym.append(f"{y:04}{m:02}")
+        if y == to_year and m == to_month:
+            break
+        m += 1
+        if m > 12:
+            y += 1
+            m = 1
+    return ym
 
 
 async def read_events_for_days(
