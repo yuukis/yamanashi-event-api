@@ -1,5 +1,7 @@
 import unittest
 from unittest.mock import MagicMock
+from datetime import datetime, timezone
+from app.cache import EventRequestCache
 from app.providers.connpass import ConnpassEventRequest, ConnpassGroupRequest
 
 
@@ -183,6 +185,79 @@ class TestConnpassEventRequest(unittest.TestCase):
         # ...but the freshly fetched result must still be written back.
         mock_cache.set.assert_called_once()
 
+    def _make_event_response(self, event_id):
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            'events': [
+                {
+                    'id': event_id,
+                    'title': 'Test Event',
+                    'catch': 'This is a test event',
+                    'hash_tag': 'test',
+                    'url': 'https://test.connpass.com',
+                    'started_at': '2020-01-01T00:00:00+09:00',
+                    'ended_at': '2020-01-01T00:00:00+09:00',
+                    'updated_at': '2020-01-01T00:00:00+09:00',
+                    'open_status': 'preopen',
+                    'limit': 100,
+                    'accepted': 50,
+                    'waiting': 50,
+                    'owner_id': 1234,
+                    'owner_nickname': 'test',
+                    'owner_display_name': 'Test',
+                    'place': 'Yamanashi, Japan',
+                    'address': 'Yamanashi, Japan',
+                    'lat': 35.1234,
+                    'lon': 138.1234,
+                    'description': 'This is a test event',
+                    'event_type': 'participation',
+                    'group': None
+                }
+            ],
+            'results_returned': 1
+        }
+        return mock_response
+
+    def test_get_events_preserves_last_modified_when_content_unchanged(self):
+        # cache_ttl=-1 means the inner cache entry is already expired by the
+        # time the next call checks it, simulating the normal 60-minute
+        # periodic refetch rather than an explicit force refresh.
+        cache = EventRequestCache()
+        params = {"count": 100, "order": 2, "start": 1}
+
+        first = ConnpassEventRequest(cache=cache, cache_ttl=-1)
+        first._ConnpassEventRequest__get = MagicMock(
+            return_value=self._make_event_response(1))
+        first.get_events()
+        # The cache truncates last_modified to whole seconds, so compare
+        # against what was actually stored rather than the in-memory,
+        # pre-truncation value on `first`.
+        stored_last_modified = cache.peek(params)["last_modified"]
+
+        second = ConnpassEventRequest(cache=cache, cache_ttl=-1)
+        second._ConnpassEventRequest__get = MagicMock(
+            return_value=self._make_event_response(1))
+        second.get_events()
+
+        self.assertEqual(second.get_last_modified(), stored_last_modified)
+
+    def test_get_events_updates_last_modified_when_content_changes(self):
+        cache = EventRequestCache()
+
+        first = ConnpassEventRequest(cache=cache, cache_ttl=-1)
+        first._ConnpassEventRequest__get = MagicMock(
+            return_value=self._make_event_response(1))
+        first.get_events()
+        first_last_modified = first.get_last_modified()
+
+        second = ConnpassEventRequest(cache=cache, cache_ttl=-1)
+        second._ConnpassEventRequest__get = MagicMock(
+            return_value=self._make_event_response(2))
+        second.get_events()
+        second_last_modified = second.get_last_modified()
+
+        self.assertNotEqual(first_last_modified, second_last_modified)
+
 
 class TestConnpassGroupRequest(unittest.TestCase):
 
@@ -312,6 +387,56 @@ class TestConnpassGroupRequest(unittest.TestCase):
         self.assertEqual(groups[1].x_username, 'test')
         self.assertEqual(groups[1].facebook_url, 'https://test.connpass.com')
         self.assertEqual(groups[1].member_users_count, 100)
+
+    def _make_group_response(self, member_count):
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            'groups': [
+                {
+                    'id': 123,
+                    'subdomain': 'test',
+                    'title': 'Test Group',
+                    'sub_title': 'This is a test group',
+                    'url': 'https://test.connpass.com',
+                    'description': 'This is a test group',
+                    'owner_text': 'Test',
+                    'image_url': 'https://test.connpass.com',
+                    'website_url': 'https://test.connpass.com',
+                    'twitter_username': 'test',
+                    'facebook_url': 'https://test.connpass.com',
+                    'member_users_count': member_count
+                }
+            ],
+            'results_returned': 1
+        }
+        return mock_response
+
+    def test_get_groups_preserves_last_modified_when_content_unchanged(self):
+        # ConnpassGroupRequest has no configurable TTL (unlike
+        # ConnpassEventRequest), so the inner cache entry is force-expired
+        # directly to simulate the normal periodic refetch.
+        cache = EventRequestCache()
+
+        params = {"count": 100, "start": 1}
+
+        first = ConnpassGroupRequest(cache=cache)
+        first._ConnpassGroupRequest__get = MagicMock(
+            return_value=self._make_group_response(100))
+        first.get_groups()
+        # The cache truncates last_modified to whole seconds, so compare
+        # against what was actually stored rather than the in-memory,
+        # pre-truncation value on `first`.
+        stored_last_modified = cache.peek(params)["last_modified"]
+
+        key = cache.generate_key(params) + ":content"
+        cache._expiry[key] = datetime.now(timezone.utc).timestamp() - 1
+
+        second = ConnpassGroupRequest(cache=cache)
+        second._ConnpassGroupRequest__get = MagicMock(
+            return_value=self._make_group_response(100))
+        second.get_groups()
+
+        self.assertEqual(second.get_last_modified(), stored_last_modified)
 
 
 if __name__ == '__main__':

@@ -1,7 +1,8 @@
 import unittest
 from unittest.mock import MagicMock, patch
+from app.cache import EventRequestCache
 from app.providers.icalendar import IcalEventRequest
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class TestIcalEventRequest(unittest.TestCase):
@@ -169,3 +170,66 @@ END:VCALENDAR
             return_value=ical_content)
         events = ical_request2.get_events()
         self.assertEqual(len(events), 0)
+
+    def _make_ical_content(self, summary):
+        return f"""
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//JP
+METHOD:PUBLISH
+BEGIN:VEVENT
+SUMMARY:{summary}
+DTSTART:20240401T130000
+DTEND:20240401T170000
+DTSTAMP:20240401T000000Z
+UID:event_1@example.com
+URL;VALUE=URI:http://example.com/event_1
+LAST-MODIFIED:20240401T000000Z
+END:VEVENT
+END:VCALENDAR
+""".encode("utf-8")
+
+    def test_get_events_preserves_last_modified_when_content_unchanged(self):
+        # No configurable TTL here, so the cache entry is force-expired
+        # directly to simulate the normal periodic refetch.
+        cache = EventRequestCache()
+        url = "http://example.com/ical"
+        content = self._make_ical_content("EVENT 1")
+
+        first = IcalEventRequest(url=url, key="test_key", cache=cache)
+        first._IcalEventRequest__get_content = MagicMock(return_value=content)
+        first.get_events()
+        # The cache truncates last_modified to whole seconds, so compare
+        # against what was actually stored rather than the in-memory,
+        # pre-truncation value on `first`.
+        stored_last_modified = cache.peek(url)["last_modified"]
+
+        key = cache.generate_key(url) + ":content"
+        cache._expiry[key] = datetime.now(timezone.utc).timestamp() - 1
+
+        second = IcalEventRequest(url=url, key="test_key", cache=cache)
+        second._IcalEventRequest__get_content = MagicMock(return_value=content)
+        second.get_events()
+
+        self.assertEqual(second.get_last_modified(), stored_last_modified)
+
+    def test_get_events_updates_last_modified_when_content_changes(self):
+        cache = EventRequestCache()
+        url = "http://example.com/ical"
+
+        first = IcalEventRequest(url=url, key="test_key", cache=cache)
+        first._IcalEventRequest__get_content = MagicMock(
+            return_value=self._make_ical_content("EVENT 1"))
+        first.get_events()
+        first_last_modified = first.get_last_modified()
+
+        key = cache.generate_key(url) + ":content"
+        cache._expiry[key] = datetime.now(timezone.utc).timestamp() - 1
+
+        second = IcalEventRequest(url=url, key="test_key", cache=cache)
+        second._IcalEventRequest__get_content = MagicMock(
+            return_value=self._make_ical_content("EVENT 1 CHANGED"))
+        second.get_events()
+        second_last_modified = second.get_last_modified()
+
+        self.assertNotEqual(first_last_modified, second_last_modified)

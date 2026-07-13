@@ -1,5 +1,6 @@
 import unittest
 from unittest.mock import MagicMock, patch
+from datetime import datetime, timezone
 from app.providers.archive import ArchiveIndexRequest, ArchiveException
 from app.cache import EventRequestCache
 
@@ -119,6 +120,69 @@ class TestArchiveIndexRequest(unittest.TestCase):
             "https://example.com/archive/index.json",
             timeout=10
         )
+
+    def test_get_events_preserves_last_modified_when_content_unchanged(self):
+        # Archive caches never expire (ex=None), so the entry is
+        # force-expired directly to simulate a refetch of the same index.
+        cache = EventRequestCache(prefix="test_archive_preserve_")
+        url = "https://example.com/archive/index.json"
+        cache_key = {"archive_index_url": url}
+
+        first = ArchiveIndexRequest(url=url, cache=cache)
+        first._ArchiveIndexRequest__get_json = MagicMock(
+            return_value=self.__archive_index())
+        first.get_events()
+        # The cache truncates last_modified to whole seconds, so compare
+        # against what was actually stored rather than the in-memory,
+        # pre-truncation value on `first`.
+        stored_last_modified = cache.peek(cache_key)["last_modified"]
+
+        key = cache.generate_key(cache_key) + ":content"
+        cache._expiry[key] = datetime.now(timezone.utc).timestamp() - 1
+
+        second = ArchiveIndexRequest(url=url, cache=cache)
+        second._ArchiveIndexRequest__get_json = MagicMock(
+            return_value=self.__archive_index())
+        second.get_events()
+
+        self.assertEqual(second.get_last_modified(), stored_last_modified)
+
+    def test_get_events_updates_last_modified_when_content_changes(self):
+        cache = EventRequestCache(prefix="test_archive_update_")
+        url = "https://example.com/archive/index.json"
+        cache_key = {"archive_index_url": url}
+
+        first = ArchiveIndexRequest(url=url, cache=cache)
+        first._ArchiveIndexRequest__get_json = MagicMock(
+            return_value=self.__archive_index())
+        first.get_events()
+        first_last_modified = first.get_last_modified()
+
+        key = cache.generate_key(cache_key) + ":content"
+        cache._expiry[key] = datetime.now(timezone.utc).timestamp() - 1
+
+        changed_index = self.__archive_index()
+        changed_index["events"].append({
+            "uid": "new-event@yamanashi-event-archive",
+            "event_id": None,
+            "title": "New Event",
+            "event_url": "https://example.com/archive/new",
+            "started_at": "2020-01-01T14:00:00+09:00",
+            "ended_at": "2020-01-01T17:00:00+09:00",
+            "updated_at": "2026-06-30T00:00:00+09:00",
+            "open_status": "close",
+            "group_key": "yamanashi-web",
+            "group_name": "山梨Web勉強会",
+            "group_url": "https://example.com/yamanashi-web"
+        })
+
+        second = ArchiveIndexRequest(url=url, cache=cache)
+        second._ArchiveIndexRequest__get_json = MagicMock(
+            return_value=changed_index)
+        second.get_events()
+        second_last_modified = second.get_last_modified()
+
+        self.assertNotEqual(first_last_modified, second_last_modified)
 
     def __archive_index(self):
         return {

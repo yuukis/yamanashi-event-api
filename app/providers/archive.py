@@ -21,11 +21,7 @@ class ArchiveIndexRequest:
 
     def get_events(self):
         try:
-            json = self.__get_json_from_cache()
-            if json is None:
-                json = self.__get_json()
-                last_modified = datetime.now(timezone.utc)
-                self.__set_json_to_cache(json, last_modified)
+            json = self.__get_json_or_fetch()
 
             events = Event.from_json(json.get("events", []))
             return self.__find_by_ym_ymd(events)
@@ -41,11 +37,7 @@ class ArchiveIndexRequest:
 
     def get_groups(self):
         try:
-            json = self.__get_json_from_cache()
-            if json is None:
-                json = self.__get_json()
-                last_modified = datetime.now(timezone.utc)
-                self.__set_json_to_cache(json, last_modified)
+            json = self.__get_json_or_fetch()
 
             source = json.get("source", {})
             archive_source = source.get("name")
@@ -74,11 +66,7 @@ class ArchiveIndexRequest:
 
     def preload(self):
         try:
-            json = self.__get_json_from_cache()
-            if json is None:
-                json = self.__get_json()
-                last_modified = datetime.now(timezone.utc)
-                self.__set_json_to_cache(json, last_modified)
+            self.__get_json_or_fetch()
 
         except requests.RequestException as e:
             raise ArchiveException(500, str(e))
@@ -88,6 +76,27 @@ class ArchiveIndexRequest:
 
         except Exception as e:
             raise ArchiveException(500, str(e))
+
+    def __get_json_or_fetch(self):
+        json = self.__get_json_from_cache()
+        if json is not None:
+            return json
+
+        previous = self.cache.peek(self.__cache_key()) if self.cache is not None else None
+        json = self.__get_json()
+        self.last_modified = self.__resolve_last_modified(previous, json)
+        self.__set_json_to_cache(json, self.last_modified)
+        return json
+
+    def __resolve_last_modified(self, previous, json):
+        """Reuse the previously cached last_modified if the freshly fetched
+        index is identical to it, rather than always stamping "now" --
+        otherwise every periodic refetch would look modified even when
+        nothing actually changed upstream."""
+        if previous is not None and previous["last_modified"] is not None \
+                and previous["json"] == json:
+            return previous["last_modified"]
+        return datetime.now(timezone.utc)
 
     def __find_by_ym_ymd(self, events):
         if len(self.ym) == 0 and len(self.ymd) == 0:
@@ -123,7 +132,6 @@ class ArchiveIndexRequest:
         if status_code != 200:
             raise ArchiveException(status_code, "Failed to fetch archive index")
 
-        self.last_modified = datetime.now(timezone.utc)
         return response.json()
 
     def __cache_key(self):

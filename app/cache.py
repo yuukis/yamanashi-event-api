@@ -6,6 +6,13 @@ from datetime import datetime, timezone
 
 class EventRequestCache:
 
+    # How much longer an expired entry stays available to peek() before
+    # being purged, bounding growth for keys that get requeried after
+    # expiring but never receive a fresh set() (e.g. a failed refetch).
+    # Keys that are never requeried at all aren't touched by this -- they
+    # need an access to trigger the check in the first place.
+    STALE_RETENTION_SECONDS = 3600 * 24
+
     def __init__(self, prefix="event-request:"):
         self._prefix = prefix
         self._store = {}
@@ -14,10 +21,32 @@ class EventRequestCache:
     def get(self, key_data) -> dict | None:
         key = self.generate_key(key_data)
         key_content = key + ":content"
-        key_last_modified = key + ":last_modified"
 
         if not self._is_valid(key_content):
             return None
+
+        return self._read(key)
+
+    def peek(self, key_data) -> dict | None:
+        """Like get(), but ignores TTL expiry and returns whatever is
+        currently stored (possibly stale), or None if nothing has ever been
+        cached for this key. Used to compare a freshly fetched value
+        against the last cached one, so last_modified can be preserved
+        when the content hasn't actually changed. Purges the entry instead
+        of returning it once it's been stale for longer than
+        STALE_RETENTION_SECONDS."""
+        key = self.generate_key(key_data)
+        key_content = key + ":content"
+
+        if self._is_stale_beyond_retention(key_content):
+            self._delete(key)
+            return None
+
+        return self._read(key)
+
+    def _read(self, key: str) -> dict | None:
+        key_content = key + ":content"
+        key_last_modified = key + ":last_modified"
 
         content = self._store.get(key_content)
         last_modified = self._store.get(key_last_modified)
@@ -103,8 +132,22 @@ class EventRequestCache:
             return False
         if self._expiry[key] is None:
             return True
-        if datetime.now(timezone.utc).timestamp() > self._expiry[key]:
-            self._store.pop(key, None)
-            self._expiry.pop(key, None)
+        # Deliberately doesn't delete the entry on expiry: peek() relies on
+        # stale entries staying readable so a fresh fetch can be compared
+        # against them. A future set() for the same key overwrites it, and
+        # peek() itself purges entries once they're stale for too long.
+        return datetime.now(timezone.utc).timestamp() <= self._expiry[key]
+
+    def _is_stale_beyond_retention(self, key: str) -> bool:
+        if key not in self._expiry:
             return False
-        return True
+        expiry = self._expiry[key]
+        if expiry is None:
+            return False
+        deadline = expiry + self.STALE_RETENTION_SECONDS
+        return datetime.now(timezone.utc).timestamp() > deadline
+
+    def _delete(self, key: str):
+        for suffix in (":content", ":last_modified"):
+            self._store.pop(key + suffix, None)
+            self._expiry.pop(key + suffix, None)
