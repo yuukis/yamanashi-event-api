@@ -1,5 +1,5 @@
 from typing import List, Optional, Tuple
-from fastapi import FastAPI, BackgroundTasks, Path, HTTPException
+from fastapi import FastAPI, BackgroundTasks, Path, HTTPException, Depends, Header
 from fastapi.responses import RedirectResponse, Response, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from .connpass import ConnpassEventRequest, ConnpassGroupRequest, ConnpassException
@@ -10,6 +10,7 @@ from .models import GroupActivity, YearSummary, HeatmapBucket, EventsSummary
 from .cache import EventRequestCache
 from .keywords import KeywordExtractor
 import asyncio
+import hmac
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone, time as time_of_day
@@ -29,6 +30,9 @@ with open(config_file, "r", encoding="utf-8") as yml:
     config = yaml.safe_load(yml)
 
 connpass_api_key = os.getenv("CONNPASS_API_KEY")
+events_refresh_token = os.getenv("EVENTS_REFRESH_TOKEN")
+events_refresh_min_interval = int(
+    os.getenv("EVENTS_REFRESH_MIN_INTERVAL_SECONDS", "60"))
 
 
 @asynccontextmanager
@@ -489,6 +493,62 @@ async def read_events_summary_legacy(
     return await read_events_summary(response, background_tasks)
 
 
+def verify_refresh_token(x_refresh_token: str = Header(None)):
+    """Auth guard for POST /events/refresh. Fails closed (503) if no secret
+    is configured, so the endpoint can never be reached by matching an empty
+    token, and uses a constant-time comparison to avoid timing attacks."""
+    if not events_refresh_token:
+        raise HTTPException(status_code=503,
+                            detail="Refresh endpoint is not configured")
+    if not x_refresh_token or not hmac.compare_digest(
+        x_refresh_token, events_refresh_token
+    ):
+        raise HTTPException(status_code=401,
+                            detail="Invalid or missing refresh token")
+
+
+def try_acquire_refresh_lock() -> bool:
+    """Process-local minimum-interval lock, acquired before the upstream
+    fetch so concurrent calls within the window are also rejected."""
+    global cache
+    lock_key = "events-refresh-lock"
+    if cache.get(lock_key) is not None:
+        return False
+    cache.set(lock_key, "1", ex=events_refresh_min_interval)
+    return True
+
+
+@app.post("/events/refresh", response_model=List[Event],
+         operation_id="refresh_events",
+         summary="Force-refresh recent events, bypassing cache",
+         include_in_schema=False)
+async def refresh_events(
+    response: Response,
+    _: None = Depends(verify_refresh_token)
+):
+    if not try_acquire_refresh_lock():
+        raise HTTPException(status_code=429,
+                            detail="Refresh already performed recently")
+
+    days = config["recent_days"] if "recent_days" in config else 90
+    now = datetime.now()
+    dt_from = now - timedelta(days=days)
+    dt_to = now + timedelta(days=days)
+    ym = year_month_range(dt_from.year, dt_from.month, dt_to.year, dt_to.month)
+
+    params = normalize_event_params({"ym": ym, "keyword": None, "uid": None})
+    events, last_modified = request_events(params, force_refresh=True)
+
+    cache.set(params, Event.to_json(events), last_modified=last_modified,
+             ex=3600*72)  # 72 hours, matches GET /events' outer cache TTL
+
+    response.headers["Cache-Control"] = "no-store"
+    if last_modified is not None:
+        response.headers["Last-Modified"] = last_modified.strftime(
+            "%a, %d %b %Y %H:%M:%S GMT")
+    return events
+
+
 mcp = FastApiMCP(app, include_operations=[
     "list_events",
     "list_events_today",
@@ -564,7 +624,8 @@ def fetch_events(params, ex: int = 3600*72, cache_ttl: int = None):  # 72 hours
         cache.set(params, json, last_modified=last_modified, ex=ex)
 
 
-def request_events(params, cache_ttl: int = None) -> Tuple[List[Event], datetime]:
+def request_events(params, cache_ttl: int = None,
+                   force_refresh: bool = False) -> Tuple[List[Event], datetime]:
     global cache
 
     ym = params["ym"] if "ym" in params else None
@@ -584,7 +645,8 @@ def request_events(params, cache_ttl: int = None) -> Tuple[List[Event], datetime
                                      ym=ym, ymd=ymd, cache=cache,
                                      api_key=connpass_api_key,
                                      user_agent=user_agent,
-                                     cache_ttl=connpass_cache_ttl
+                                     cache_ttl=connpass_cache_ttl,
+                                     skip_cache=force_refresh
                                      )
             events += r.get_events()
             last_modified = max(last_modified, r.get_last_modified())
@@ -595,7 +657,8 @@ def request_events(params, cache_ttl: int = None) -> Tuple[List[Event], datetime
                                      ym=ym, ymd=ymd, cache=cache,
                                      api_key=connpass_api_key,
                                      user_agent=user_agent,
-                                     cache_ttl=connpass_cache_ttl
+                                     cache_ttl=connpass_cache_ttl,
+                                     skip_cache=force_refresh
                                      )
             events += r.get_events()
             last_modified = max(last_modified, r.get_last_modified())

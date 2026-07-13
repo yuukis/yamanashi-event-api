@@ -1034,6 +1034,106 @@ def test_legacy_routes_marked_deprecated_in_openapi_schema():
         assert not op.get("deprecated", False)
 
 
+class MockConnpassEventRequestCapturingSkipCache:
+    received_skip_cache = []
+
+    def __init__(self, **kwargs):
+        MockConnpassEventRequestCapturingSkipCache.received_skip_cache.append(
+            kwargs.get("skip_cache"))
+
+    def get_events(self):
+        return []
+
+    def get_last_modified(self):
+        return datetime.fromtimestamp(123, timezone.utc)
+
+
+@patch("app.main.events_refresh_token", None)
+def test_refresh_events_requires_token_configured():
+    response = client.post("/events/refresh",
+                           headers={"X-Refresh-Token": "anything"})
+    assert response.status_code == 503
+
+
+@patch("app.main.events_refresh_token", "secret-token")
+def test_refresh_events_rejects_missing_token():
+    response = client.post("/events/refresh")
+    assert response.status_code == 401
+
+
+@patch("app.main.events_refresh_token", "secret-token")
+def test_refresh_events_rejects_wrong_token():
+    response = client.post("/events/refresh",
+                           headers={"X-Refresh-Token": "wrong-token"})
+    assert response.status_code == 401
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.main.events_refresh_token", "secret-token")
+@patch("app.main.cache", EventRequestCache(prefix="test_refresh_success_"))
+def test_refresh_events_success_returns_fresh_data_and_updates_cache():
+    import app.main as main_module
+
+    response = client.post("/events/refresh",
+                           headers={"X-Refresh-Token": "secret-token"})
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "no-store"
+    events = response.json()
+    assert isinstance(events, list)
+    assert len(events) > 0
+
+    days = main_module.config["recent_days"] \
+        if "recent_days" in main_module.config else 90
+    now = datetime.now()
+    dt_from = now - timedelta(days=days)
+    dt_to = now + timedelta(days=days)
+    ym = main_module.year_month_range(dt_from.year, dt_from.month,
+                                      dt_to.year, dt_to.month)
+    params = main_module.normalize_event_params(
+        {"ym": ym, "keyword": None, "uid": None})
+    cached = main_module.cache.get(params)
+    assert cached is not None
+    assert cached["json"] is not None
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.main.events_refresh_token", "secret-token")
+@patch("app.main.cache", EventRequestCache(prefix="test_refresh_rate_limit_"))
+def test_refresh_events_rate_limited_on_second_call():
+    headers = {"X-Refresh-Token": "secret-token"}
+
+    first = client.post("/events/refresh", headers=headers)
+    assert first.status_code == 200
+
+    second = client.post("/events/refresh", headers=headers)
+    assert second.status_code == 429
+
+
+@patch("app.main.ConnpassEventRequest", MockConnpassEventRequestCapturingSkipCache)
+@patch("app.main.IcalEventRequest", MockICalEventRequest)
+@patch("app.main.events_refresh_token", "secret-token")
+@patch("app.main.cache", EventRequestCache(prefix="test_refresh_skip_cache_"))
+def test_refresh_events_forces_connpass_cache_bypass():
+    MockConnpassEventRequestCapturingSkipCache.received_skip_cache = []
+
+    response = client.post("/events/refresh",
+                           headers={"X-Refresh-Token": "secret-token"})
+    assert response.status_code == 200
+    assert len(MockConnpassEventRequestCapturingSkipCache.received_skip_cache) > 0
+    assert all(MockConnpassEventRequestCapturingSkipCache.received_skip_cache)
+
+
+def test_refresh_events_excluded_from_schema_and_mcp():
+    schema = client.get("/openapi.json").json()
+    assert "/events/refresh" not in schema["paths"]
+
+    from app.main import mcp
+    tool_names = {t.name for t in mcp.tools}
+    assert "refresh_events" not in tool_names
+
+
 def test_mcp_excludes_legacy_operations():
     from app.main import mcp
 
