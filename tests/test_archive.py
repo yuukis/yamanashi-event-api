@@ -1,5 +1,6 @@
 import unittest
 from unittest.mock import MagicMock, patch
+from datetime import datetime, timezone
 from app.providers.archive import ArchiveIndexRequest, ArchiveException
 from app.cache import EventRequestCache
 
@@ -137,7 +138,7 @@ class TestArchiveIndexRequest(unittest.TestCase):
         stored_last_modified = cache.peek(cache_key)["last_modified"]
 
         key = cache.generate_key(cache_key) + ":content"
-        cache._expiry[key] = 0
+        cache._expiry[key] = datetime.now(timezone.utc).timestamp() - 1
 
         second = ArchiveIndexRequest(url=url, cache=cache)
         second._ArchiveIndexRequest__get_json = MagicMock(
@@ -158,7 +159,7 @@ class TestArchiveIndexRequest(unittest.TestCase):
         first_last_modified = first.get_last_modified()
 
         key = cache.generate_key(cache_key) + ":content"
-        cache._expiry[key] = 0
+        cache._expiry[key] = datetime.now(timezone.utc).timestamp() - 1
 
         changed_index = self.__archive_index()
         changed_index["events"].append({

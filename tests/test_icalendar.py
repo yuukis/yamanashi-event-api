@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 from app.cache import EventRequestCache
 from app.providers.icalendar import IcalEventRequest
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class TestIcalEventRequest(unittest.TestCase):
@@ -205,7 +205,7 @@ END:VCALENDAR
         stored_last_modified = cache.peek(url)["last_modified"]
 
         key = cache.generate_key(url) + ":content"
-        cache._expiry[key] = 0
+        cache._expiry[key] = datetime.now(timezone.utc).timestamp() - 1
 
         second = IcalEventRequest(url=url, key="test_key", cache=cache)
         second._IcalEventRequest__get_content = MagicMock(return_value=content)
@@ -224,7 +224,7 @@ END:VCALENDAR
         first_last_modified = first.get_last_modified()
 
         key = cache.generate_key(url) + ":content"
-        cache._expiry[key] = 0
+        cache._expiry[key] = datetime.now(timezone.utc).timestamp() - 1
 
         second = IcalEventRequest(url=url, key="test_key", cache=cache)
         second._IcalEventRequest__get_content = MagicMock(

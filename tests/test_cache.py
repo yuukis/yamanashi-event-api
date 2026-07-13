@@ -122,6 +122,32 @@ class TestEventRequestCache(unittest.TestCase):
 
         self.assertIsNone(self.cache.peek({"param": "value"}))
 
+    def test_peek_purges_entry_stale_beyond_retention(self):
+        self.cache._store = {}
+        self.cache._expiry = {}
+
+        # Already expired long enough ago that it's past the retention
+        # window too, not just the original TTL.
+        already_stale_ex = -(EventRequestCache.STALE_RETENTION_SECONDS + 1)
+        self.cache.set({"param": "value"}, {"key": "value"}, ex=already_stale_ex)
+
+        self.assertIsNone(self.cache.peek({"param": "value"}))
+
+        # The underlying entries are actually gone, not just hidden.
+        key = self.cache.generate_key({"param": "value"})
+        self.assertNotIn(key + ":content", self.cache._store)
+        self.assertNotIn(key + ":content", self.cache._expiry)
+
+    def test_peek_keeps_entry_within_retention_window(self):
+        self.cache._store = {}
+        self.cache._expiry = {}
+
+        # Expired, but nowhere near STALE_RETENTION_SECONDS yet.
+        self.cache.set({"param": "value"}, {"key": "value"}, ex=-1)
+
+        response = self.cache.peek({"param": "value"})
+        self.assertEqual(response["json"], {"key": "value"})
+
     def test_generate_key(self):
         params = {"param": "value"}
 

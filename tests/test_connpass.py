@@ -1,5 +1,6 @@
 import unittest
 from unittest.mock import MagicMock
+from datetime import datetime, timezone
 from app.cache import EventRequestCache
 from app.providers.connpass import ConnpassEventRequest, ConnpassGroupRequest
 
@@ -428,7 +429,7 @@ class TestConnpassGroupRequest(unittest.TestCase):
         stored_last_modified = cache.peek(params)["last_modified"]
 
         key = cache.generate_key(params) + ":content"
-        cache._expiry[key] = 0
+        cache._expiry[key] = datetime.now(timezone.utc).timestamp() - 1
 
         second = ConnpassGroupRequest(cache=cache)
         second._ConnpassGroupRequest__get = MagicMock(
