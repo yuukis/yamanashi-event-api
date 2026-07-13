@@ -83,7 +83,7 @@ def fetch_events(params, ex: int = 3600*72, cache_ttl: int = None):  # 72 hours
     try:
         events, last_modified = request_events(params, cache_ttl=cache_ttl)
 
-    except (ConnpassException, IcalException, ArchiveException):
+    except HTTPException:
         return
 
     if events is not None:
@@ -217,7 +217,7 @@ def fetch_groups(params):
     try:
         groups, last_modified = request_groups(params)
 
-    except (ConnpassException, ArchiveException):
+    except HTTPException:
         return
 
     if groups is not None:

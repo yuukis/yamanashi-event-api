@@ -1,3 +1,4 @@
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from unittest.mock import patch
 import pytest
@@ -6,6 +7,7 @@ from app.service import get_user_agent, get_groups_from_icalendar
 from app.service import request_events, request_groups, get_groups_from_archives
 from app.service import get_archive_urls, preload_archive_indexes
 from app.service import get_events, get_groups, normalize_event_params
+from app.service import fetch_events, fetch_groups
 from app.cache import EventRequestCache
 from app.providers.archive import ArchiveException
 from app.models import Event, Group
@@ -889,6 +891,25 @@ def test_get_groups_without_background_tasks(mock_get_groups_from_icalendar):
 
     assert isinstance(groups, list)
     assert len(groups) > 0
+
+
+@patch("app.service.request_events")
+@patch("app.service.cache", EventRequestCache(prefix="test_fetch_events_swallow_"))
+def test_fetch_events_swallows_upstream_failure(mock_request_events):
+    # request_events() converts provider exceptions into HTTPException, so
+    # that's what fetch_events() actually needs to catch and swallow when
+    # running as a background stale-while-revalidate refresh.
+    mock_request_events.side_effect = HTTPException(status_code=502, detail="boom")
+
+    fetch_events({"ym": ["202401"], "keyword": None, "uid": None})
+
+
+@patch("app.service.request_groups")
+@patch("app.service.cache", EventRequestCache(prefix="test_fetch_groups_swallow_"))
+def test_fetch_groups_swallows_upstream_failure(mock_request_groups):
+    mock_request_groups.side_effect = HTTPException(status_code=502, detail="boom")
+
+    fetch_groups({})
 
 
 @patch("app.service.ArchiveIndexRequest", MockArchiveIndexRequest)
