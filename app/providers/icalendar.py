@@ -59,7 +59,7 @@ class IcalEventRequest:
         "now" -- otherwise every periodic refetch would look modified even
         when nothing actually changed upstream."""
         if previous is not None and previous["last_modified"] is not None \
-                and previous["content"] == content.decode("utf-8"):
+                and previous["content"].encode("utf-8") == content:
             return previous["last_modified"]
         return datetime.now(timezone.utc)
 

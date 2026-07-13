@@ -72,6 +72,12 @@ class ConnpassEventRequest:
                     json = response["json"]
                     last_modified = response["last_modified"]
             if json is None:
+                # peek() is read regardless of skip_cache: last_modified
+                # should reflect when the data actually last changed, not
+                # merely when it was last checked, so even a forced refresh
+                # still needs the previous value to compare against.
+                # skip_cache only bypasses using the cache to serve a
+                # response, not this comparison.
                 previous = self.cache.peek(params) if self.cache is not None else None
                 try:
                     response = self.__get(params)
