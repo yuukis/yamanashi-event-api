@@ -301,7 +301,7 @@ async def read_events_for_days(
     keyword: str = None,
     uid: str = None,
     fields: str = None,
-    if_modified_since: str = Header(None)
+    if_modified_since: str = None
 ):
     ymd = [(base_date + timedelta(days=i)).strftime("%Y%m%d") for i in range(days)]
     events, last_modified = service.get_events(

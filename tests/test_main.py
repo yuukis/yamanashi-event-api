@@ -526,6 +526,20 @@ def test_read_events_month_returns_200_when_modified_since_is_earlier():
     assert len(response.json()) > 0
 
 
+def test_read_events_for_days_if_modified_since_defaults_to_none():
+    # read_events_for_days() is a plain internal helper, not a route, so its
+    # if_modified_since default must be a real None -- not a
+    # fastapi.params.Header instance (which Header(None) would bind to here
+    # since FastAPI only performs that substitution for actual routes/
+    # dependencies).
+    import inspect
+    from app.routes import read_events_for_days
+
+    default = inspect.signature(read_events_for_days) \
+        .parameters["if_modified_since"].default
+    assert default is None
+
+
 def test_format_last_modified_is_locale_independent():
     import locale
     from app.routes import format_last_modified
