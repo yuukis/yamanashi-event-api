@@ -9,7 +9,7 @@ from app.service import get_archive_urls, preload_archive_indexes
 from app.service import get_events, get_groups, normalize_event_params
 from app.service import fetch_events, fetch_groups
 from app.service import split_connpass_scope, partition_and_relabel_chapter_events
-from app.service import get_groups_from_connpass_chapters
+from app.service import get_groups_from_connpass_chapters, merged_connpass_subdomains
 from app.cache import EventRequestCache
 from app.providers.archive import ArchiveException
 from app.models import Event, Group
@@ -1102,6 +1102,19 @@ def test_split_connpass_scope_separates_plain_and_chapter_entries():
     assert chapters == [CHAPTER_ENTRY]
 
 
+def test_merged_connpass_subdomains_dedupes_and_preserves_order():
+    chapters = [
+        {**CHAPTER_ENTRY, "key": "soracomug-yamanashi"},
+        {**CHAPTER_ENTRY, "key": "soracomug-tokyo-chapter",
+         "subdomain": "soracomug-tokyo"},  # same real subdomain, another chapter
+    ]
+
+    merged = merged_connpass_subdomains(
+        ["jagyamanashi", "soracomug-tokyo"], chapters)
+
+    assert merged == ["jagyamanashi", "soracomug-tokyo"]
+
+
 def test_partition_and_relabel_chapter_events_filters_by_title_only():
     events = [
         _make_subgroup_event("UID Yamanashi 1", "SORACOM UG 山梨 #1"),
@@ -1136,6 +1149,7 @@ def test_get_groups_from_connpass_chapters_without_real_group():
 
 def test_get_groups_from_connpass_chapters_inherits_unset_fields():
     real_group = Group.from_json({
+        "id": 999,
         "key": "soracomug-tokyo",
         "title": "SORACOM UG",
         "url": "https://soracomug-tokyo.connpass.com/",
@@ -1157,6 +1171,9 @@ def test_get_groups_from_connpass_chapters_inherits_unset_fields():
     assert groups[0].image_url == "https://example.com/real.png"
     assert groups[0].sub_title == "IoT platform community"
     assert groups[0].member_users_count == 1000
+    # id belongs to the shared group; two chapters carved out of the same
+    # shared group must not both report its id as their own
+    assert groups[0].id is None
 
 
 class MockConnpassEventRequestSubgroup:
@@ -1228,12 +1245,34 @@ def test_request_events_merges_chapters_into_single_subdomain_query():
     assert events[0].group_key == "soracomug-yamanashi"
 
 
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequestCountingCalls)
+@patch("app.service.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        # Two chapters carved out of the same shared subdomain
+        "connpass": [
+            CHAPTER_ENTRY,
+            {**CHAPTER_ENTRY, "key": "soracomug-tokyo-chapter",
+             "name": "SORACOM UG Tokyo", "title_keyword": "Tokyo"}
+        ]
+    }
+})
+def test_request_events_dedupes_repeated_chapter_subdomain():
+    MockConnpassEventRequestCountingCalls.instances = []
+
+    request_events({})
+
+    called_subdomain = MockConnpassEventRequestCountingCalls.instances[0]["subdomain"]
+    assert called_subdomain == ["soracomug-tokyo"]
+
+
 class MockConnpassGroupRequestForChapters:
     def __init__(self, **kwargs):
         pass
 
     def get_groups(self):
         return Group.from_json([{
+            "id": 999,
             "key": "soracomug-tokyo",
             "title": "SORACOM UG",
             "url": "https://soracomug-tokyo.connpass.com/",
@@ -1264,6 +1303,8 @@ def test_request_groups_from_connpass_chapters():
     # image_url wasn't configured, so it's inherited from the real group
     assert groups[0].image_url == "https://example.com/real.png"
     assert groups[0].member_users_count == 1000
+    # id belongs to the shared group, not this chapter
+    assert groups[0].id is None
     assert last_modified == datetime.fromtimestamp(789, timezone.utc)
 
 
