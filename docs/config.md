@@ -115,8 +115,8 @@ scope:
       ical_url: https://example.com/some-group/events/ical/
 ```
 
-- `key`, `name`, `ical_url` are required.
-- `image_url`, `group_url` are optional.
+- `key`, `name`, `group_url`, `ical_url` are required.
+- `image_url` is optional.
 
 ### scope.archives
 

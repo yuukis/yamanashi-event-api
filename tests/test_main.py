@@ -1102,6 +1102,32 @@ def test_split_connpass_scope_separates_plain_and_chapter_entries():
     assert chapters == [CHAPTER_ENTRY]
 
 
+@pytest.mark.parametrize("title_keyword", [None, ""])
+def test_split_connpass_scope_rejects_empty_title_keyword(title_keyword):
+    config = {
+        "scope": {
+            "connpass": [{**CHAPTER_ENTRY, "title_keyword": title_keyword}]
+        }
+    }
+
+    with pytest.raises(ValueError, match="non-empty string title_keyword"):
+        split_connpass_scope(config)
+
+
+def test_split_connpass_scope_rejects_subdomain_as_both_plain_and_chapter():
+    config = {
+        "scope": {
+            "connpass": [
+                {"subdomain": "soracomug-tokyo"},
+                CHAPTER_ENTRY
+            ]
+        }
+    }
+
+    with pytest.raises(ValueError, match="both a plain entry and a chapter entry"):
+        split_connpass_scope(config)
+
+
 def test_merged_connpass_subdomains_dedupes_and_preserves_order():
     chapters = [
         {**CHAPTER_ENTRY, "key": "soracomug-yamanashi"},
