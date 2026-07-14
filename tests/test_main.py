@@ -7,7 +7,7 @@ from app.service import get_user_agent, get_groups_from_icalendar
 from app.service import request_events, request_groups, get_groups_from_archives
 from app.service import get_archive_urls, preload_archive_indexes
 from app.service import get_events, get_groups, normalize_event_params
-from app.service import find_group_by_key
+from app.service import find_group_source
 from app.service import fetch_events, fetch_groups
 from app.service import split_connpass_scope, partition_and_relabel_chapter_events
 from app.service import get_groups_from_connpass_chapters, merged_connpass_subdomains
@@ -632,13 +632,10 @@ def test_read_events_fromto_year_month_invalid_legacy_path_still_works():
 
 @patch("app.service.cache", EventRequestCache(prefix="test_events_group_plain_"))
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
-@patch("app.service.get_groups_from_icalendar")
-def test_read_events_group_connpass_plain(mock_get_groups_from_icalendar):
-    mock_get_groups_from_icalendar.return_value = []
-
-    # MockConnpassGroupRequest always reports a single plain group, key "Key"
-    response = client.get("/events/group/Key")
+def test_read_events_group_connpass_plain():
+    # config.yaml's real plain connpass subdomain, resolved from config
+    # alone -- no connpass groups API call needed
+    response = client.get("/events/group/jagyamanashi")
     assert response.status_code == 200
     events = response.json()
     assert isinstance(events, list)
@@ -647,17 +644,13 @@ def test_read_events_group_connpass_plain(mock_get_groups_from_icalendar):
     # assert every recorded call was scoped the same way rather than count
     assert len(MockConnpassEventRequest.requests) >= 1
     for req in MockConnpassEventRequest.requests:
-        assert req["subdomain"] == ["Key"]
+        assert req["subdomain"] == ["jagyamanashi"]
         assert req["keyword"] is None
 
 
 @patch("app.service.cache", EventRequestCache(prefix="test_events_group_chapter_"))
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
-@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
-@patch("app.service.get_groups_from_icalendar")
-def test_read_events_group_connpass_chapter(mock_get_groups_from_icalendar):
-    mock_get_groups_from_icalendar.return_value = []
-
+def test_read_events_group_connpass_chapter():
     # config.yaml defines chapter key "soracomug-yamanashi" carved out of the
     # real subdomain "soracomug-tokyo" via title_keyword "山梨"
     response = client.get("/events/group/soracomug-yamanashi")
@@ -671,10 +664,8 @@ def test_read_events_group_connpass_chapter(mock_get_groups_from_icalendar):
 
 @patch("app.service.cache", EventRequestCache(prefix="test_events_group_ical_"))
 @patch("app.service.IcalEventRequest", MockICalEventRequest)
-@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
 def test_read_events_group_icalendar():
-    # config.yaml's real icalendar entry, resolved without mocking
-    # get_groups_from_icalendar since it does no network I/O itself
+    # config.yaml's real icalendar entry, resolved from config alone
     response = client.get("/events/group/yamanashi-wordpress-meetup-ical")
     assert response.status_code == 200
 
@@ -686,13 +677,12 @@ def test_read_events_group_icalendar():
 
 
 @patch("app.service.cache", EventRequestCache(prefix="test_events_group_archive_"))
-@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
-@patch("app.service.get_groups_from_icalendar")
-def test_read_events_group_archive(mock_get_groups_from_icalendar):
-    mock_get_groups_from_icalendar.return_value = []
-
-    # Archive indexes can't be queried per-group, so this must be filtered
-    # client-side against the mocked archive's fixed event list
+@patch("app.service.split_connpass_scope", return_value=([], []))
+def test_read_events_group_archive(mock_split_connpass_scope):
+    # config.yaml also has a real plain connpass subdomain "yamanashi-web";
+    # neutralize scope.connpass here to exercise the archive-only path
+    # (archive group identity has no config.yaml equivalent, so it's the
+    # one source find_group_source must actually query to confirm a match)
     response = client.get("/events/group/yamanashi-web")
     assert response.status_code == 200
     events = response.json()
@@ -701,24 +691,38 @@ def test_read_events_group_archive(mock_get_groups_from_icalendar):
 
 
 @patch("app.service.cache", EventRequestCache(prefix="test_events_group_404_"))
-@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
-@patch("app.service.get_groups_from_icalendar")
-def test_read_events_group_not_found(mock_get_groups_from_icalendar):
-    mock_get_groups_from_icalendar.return_value = []
-
+def test_read_events_group_not_found():
     response = client.get("/events/group/no-such-group")
     assert response.status_code == 404
 
 
-@patch("app.service.cache", EventRequestCache(prefix="test_find_group_by_key_"))
-def test_find_group_by_key():
-    groups = [
-        Group.from_json({"key": "a", "title": "A"}),
-        Group.from_json({"key": "b", "title": "B"}),
-    ]
-    with patch("app.service.get_groups", return_value=(groups, None)):
-        assert find_group_by_key("b").key == "b"
-        assert find_group_by_key("no-such") is None
+def test_find_group_source_connpass_plain():
+    source = find_group_source("jagyamanashi")
+    assert source == {"type": "connpass", "subdomain": "jagyamanashi",
+                      "keyword": None, "chapter_entry": None}
+
+
+def test_find_group_source_connpass_chapter():
+    source = find_group_source("soracomug-yamanashi")
+    assert source["type"] == "connpass"
+    assert source["subdomain"] == "soracomug-tokyo"
+    assert source["keyword"] == "山梨"
+
+
+def test_find_group_source_icalendar():
+    source = find_group_source("yamanashi-wordpress-meetup-ical")
+    assert source["type"] == "icalendar"
+    assert source["ical_url"] == \
+        "https://www.meetup.com/ja-JP/Yamanashi-WordPress-Meetup/events/ical/"
+
+
+@patch("app.service.split_connpass_scope", return_value=([], []))
+def test_find_group_source_archive(mock_split_connpass_scope):
+    assert find_group_source("yamanashi-web") == {"type": "archive"}
+
+
+def test_find_group_source_not_found():
+    assert find_group_source("no-such-group") is None
 
 
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
