@@ -37,7 +37,6 @@ scope:
       title_keyword: '山梨'
       key: 'soracomug-yamanashi'
       name: 'SORACOM UG 山梨'
-      group_url: https://soracom-ug.connpass.com/
 
   icalendar:
     - key: 'yamanashi-wordpress-meetup-ical'
