@@ -32,9 +32,7 @@ class MockConnpassEventRequest:
     def get_events_page(self, item_start, item_count, order="desc"):
         MockConnpassEventRequest.page_requests.append(
             {"item_start": item_start, "item_count": item_count, "order": order})
-        # _fixed_json() is in ascending (oldest-first) order; simulate
-        # connpass's native descending order the same way the real
-        # ConnpassEventRequest.get_events_page() treats "desc" as native.
+        # _fixed_json() is ascending; "desc" simulates connpass's native order.
         events = Event.from_json(self._fixed_json())
         if order == "desc":
             events = list(reversed(events))
@@ -650,11 +648,7 @@ def test_read_events_fromto_year_month_invalid_legacy_path_still_works():
 @patch("app.service.cache", EventRequestCache(prefix="test_group_events_plain_"))
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
 def test_read_group_events_connpass_plain():
-    # config.yaml's real plain connpass subdomain, resolved from config
-    # alone -- no connpass groups API call needed. Plain (non-chapter)
-    # group with no keyword/uid filter takes the upstream-pagination fast
-    # path, so exactly one connpass request is made -- no background
-    # refetch, since that path bypasses get_events() entirely.
+    # Plain group, no keyword/uid: fast path, one request, no background refetch.
     response = client.get("/groups/jagyamanashi/events")
     assert response.status_code == 200
     events = response.json()
@@ -672,9 +666,7 @@ def test_read_group_events_connpass_plain():
 @patch("app.service.cache", EventRequestCache(prefix="test_group_events_plain_filtered_"))
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
 def test_read_group_events_connpass_plain_with_uid_falls_back_to_full_fetch():
-    # A uid filter can't be applied correctly without the full result set,
-    # so this must fall back to get_events()'s crawl-everything path
-    # rather than the upstream-pagination fast path.
+    # uid filter forces the get_events() fallback, not the fast path.
     response = client.get("/groups/jagyamanashi/events", params={"uid": "UID 2"})
     assert response.status_code == 200
     events = response.json()
@@ -706,8 +698,7 @@ def test_read_group_events_default_pagination():
 @patch("app.service.cache", EventRequestCache(prefix="test_group_events_page_slice_"))
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
 def test_read_group_events_pagination_slices_pages():
-    # Default order is "desc" (native/newest-first): reversed, page 2 of
-    # 1-per-page is the earlier event, UID 1.
+    # Default order "desc" (newest-first): page 2 of 1-per-page is UID 1.
     response = client.get("/groups/jagyamanashi/events",
                           params={"per_page": 1, "page": 2})
     assert response.status_code == 200
@@ -754,8 +745,7 @@ def test_read_group_events_pagination_rejects_invalid_params():
 @patch("app.service.cache", EventRequestCache(prefix="test_group_events_order_asc_"))
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
 def test_read_group_events_ascending_order():
-    # order=asc reverses connpass's native descending order, so page 1 is
-    # the oldest event, UID 1.
+    # order=asc reverses the native descending order: page 1 is UID 1.
     response = client.get("/groups/jagyamanashi/events",
                           params={"per_page": 1, "order": "asc"})
     assert response.status_code == 200
@@ -795,10 +785,8 @@ def test_read_group_events_pagination_headers_kept_with_fields():
 @patch("app.service.cache", EventRequestCache(prefix="test_group_events_chapter_"))
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
 def test_read_group_events_connpass_chapter():
-    # config.yaml defines chapter key "soracomug-yamanashi" carved out of the
-    # real subdomain "soracomug-tokyo" via title_keyword "山梨". A chapter's
-    # title match can only be applied after fetching everything, so this
-    # falls back to get_events()'s crawl-everything path.
+    # Chapter "soracomug-yamanashi" (subdomain "soracomug-tokyo", keyword
+    # "山梨") falls back to get_events()'s crawl, not the fast path.
     response = client.get("/groups/soracomug-yamanashi/events")
     assert response.status_code == 200
 
@@ -826,10 +814,8 @@ def test_read_group_events_icalendar():
 @patch("app.service.cache", EventRequestCache(prefix="test_group_events_archive_"))
 @patch("app.service.split_connpass_scope", return_value=([], []))
 def test_read_group_events_archive(mock_split_connpass_scope):
-    # config.yaml also has a real plain connpass subdomain "yamanashi-web";
-    # neutralize scope.connpass here to exercise the archive-only path
-    # (archive group identity has no config.yaml equivalent, so it's the
-    # one source find_group_source must actually query to confirm a match)
+    # "yamanashi-web" is also a real plain subdomain; neutralize
+    # scope.connpass to force the archive-only resolution path.
     response = client.get("/groups/yamanashi-web/events")
     assert response.status_code == 200
     events = response.json()

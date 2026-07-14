@@ -203,16 +203,10 @@ def request_events(params, cache_ttl: int = None,
 
 
 def find_group_source(group_key) -> Optional[dict]:
-    """Resolve group_key to its configured source using only config.yaml --
-    scope.connpass (plain/chapter) and scope.icalendar identity is fully
-    known from config, so no connpass API call is needed to check those.
-    Only scope.archives requires fetching the archive index itself (not
-    connpass) to confirm the key exists there, since archive group
-    identity isn't declared in config.yaml.
-
-    Returns a dict describing the source, or None if group_key doesn't
-    match any configured group. Groups only discoverable via the
-    prefecture-wide connpass search are intentionally excluded."""
+    """Resolve group_key to its configured source using only config.yaml;
+    only scope.archives needs an actual fetch (its own index), since
+    archive group identity isn't declared in config.yaml. Returns None if
+    group_key isn't configured (prefecture-only discoveries don't count)."""
     global cache
 
     plain_subdomains, chapters = split_connpass_scope(config)
@@ -246,9 +240,7 @@ def find_group_source(group_key) -> Optional[dict]:
 def request_events_for_group(source: dict, group_key, ym, ymd, cache_ttl: int,
                              force_refresh: bool = False
                              ) -> Tuple[List[Event], datetime]:
-    """Fetch events for a group whose source was already resolved by
-    find_group_source(), scoping the upstream request to just that
-    group's source instead of the full configured scope."""
+    """Fetch events for a group whose source was resolved by find_group_source()."""
     global cache
 
     user_agent = get_user_agent(config)
@@ -262,10 +254,8 @@ def request_events_for_group(source: dict, group_key, ym, ymd, cache_ttl: int,
                                  api_key=connpass_api_key, user_agent=user_agent,
                                  cache_ttl=cache_ttl, skip_cache=force_refresh)
         fetched = r.get_events()
-        # partition_and_relabel_chapter_events still enforces the exact
-        # title match: connpass's keyword search also matches description/
-        # address text, so source["keyword"] above only narrows the
-        # upstream fetch -- it doesn't replace this correctness check.
+        # keyword only narrows the upstream fetch; the exact title match
+        # below still runs since connpass's keyword search is broader.
         events += (partition_and_relabel_chapter_events(fetched, [source["chapter_entry"]])
                    if source["chapter_entry"] is not None else fetched)
         last_modified = max(last_modified, r.get_last_modified())
@@ -291,29 +281,14 @@ def get_group_events_page(group_key, keyword, uid, page: int, per_page: int,
                           order: str = "desc",
                           background_tasks: BackgroundTasks = None
                           ) -> Tuple[List[Event], int, Optional[datetime]]:
-    """Serve one page of a group's events, sorted by started_at according
-    to order ("asc" or "desc").
+    """Serve one page of a group's events, sorted by started_at.
 
-    When the group is a plain connpass group (not a chapter) and no
-    keyword/uid filter is requested, paginates directly against connpass
-    via ConnpassEventRequest.get_events_page() -- fetching only as many
-    of connpass's own 100-item pages as needed to cover the requested
-    slice, at the same page boundaries a full crawl would use, so this
-    shares cache entries with any full crawl instead of adding one cache
-    entry per distinct page/per_page a caller happens to request.
-    order="desc" is connpass's own native order (no extra cost);
-    order="asc" needs the total result count first to mirror the
-    requested range onto that native order (see get_events_page()).
+    Paginates directly against connpass (see get_events_page()) for a
+    plain connpass group with no keyword/uid filter. Chapters and
+    keyword/uid filters need the full result set to apply correctly, so
+    those fall back to get_events() and slice locally.
 
-    Chapters and keyword/uid filters can only be applied correctly once
-    the full, unpaginated result set is known (a chapter's title match
-    and the keyword/uid filters can each drop items unpredictably), so
-    those fall back to the existing get_events() cached/background-
-    refreshed full fetch (always ascending) and slice locally, reversing
-    first if descending order was requested.
-
-    Returns (events_for_page, total_count, last_modified).
-    """
+    Returns (events_for_page, total_count, last_modified)."""
     global cache
 
     source = find_group_source(group_key)

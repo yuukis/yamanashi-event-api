@@ -12,12 +12,8 @@ class ConnpassException(Exception):
 
 
 class ConnpassEventRequest:
-    # Connpass's own page size for get_events()'s crawl and the chunk size
-    # get_events_page() aligns to. Keeping this one fixed value means both
-    # methods request identical (subdomain, start, count) params for the
-    # same underlying data, so they always share the same low-level cache
-    # entries regardless of which page size a particular API caller asked
-    # for -- get_events_page() never introduces cache keys of its own.
+    # Fixed so get_events() and get_events_page() always request the same
+    # (subdomain, start, count) params, sharing cache entries between them.
     PAGE_SIZE = 100
 
     def __init__(self, event_id=None, prefecture=None, subdomain=None,
@@ -68,22 +64,9 @@ class ConnpassEventRequest:
 
     def get_events_page(self, item_start: int, item_count: int, order: str = "desc"):
         """Return events [item_start, item_start + item_count) (1-indexed),
-        fetching only as many PAGE_SIZE-aligned chunks as needed to cover
-        that range -- not the whole result set -- while still requesting
-        connpass at the exact same chunk boundaries get_events() uses, so
-        this shares its cache entries with any full crawl (background or
-        otherwise) instead of fragmenting the cache with one entry per
-        distinct page/per_page a caller happens to ask for.
-
-        order="desc" fetches directly in connpass's own native order
-        (newest first -- connpass has no true ascending option). order=
-        "asc" mirrors the requested range onto that native descending
-        order, which needs the total result count first: this always
-        touches chunk 0 (typically an existing cache hit, since it's the
-        same chunk 0 every other access to this group also touches)
-        before fetching whichever chunk(s) the mirrored range actually
-        falls in, then reverses the result to hand back ascending order.
-        """
+        fetching only the PAGE_SIZE-aligned chunks that cover it.
+        order="desc" is connpass's native order; "asc" mirrors the range
+        onto it (needs the total count first) and reverses the result."""
         if order == "asc":
             self.__fetch_chunk(0)
             total = self.total_available or 0
@@ -118,9 +101,7 @@ class ConnpassEventRequest:
         return events[offset:offset + item_count]
 
     def __fetch_chunk(self, chunk_index: int):
-        """Fetch one PAGE_SIZE-aligned chunk (connpass's own native,
-        descending order). Returns (events, results_returned) and updates
-        self.total_available as a side effect."""
+        """Fetch one PAGE_SIZE-aligned chunk; returns (events, results_returned)."""
         params = self.__query_params()
         params["count"] = self.PAGE_SIZE
         params["order"] = 2
@@ -134,9 +115,7 @@ class ConnpassEventRequest:
         return self.last_modified
 
     def get_total_available(self):
-        """Total results matching the query's filters (subdomain/ym/ymd/
-        keyword) -- only meaningful after get_events()/get_events_page()
-        has been called."""
+        """Total results matching the query's filters; set after get_events()/get_events_page()."""
         return self.total_available
 
     def __query_params(self):

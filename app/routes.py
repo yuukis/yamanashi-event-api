@@ -352,10 +352,8 @@ def build_list_response(response: Response, items, model, last_modified,
                         fields: str = None, if_modified_since: str = None,
                         total: int = None, page: int = None,
                         per_page: int = None):
-    """items must already be the exact page to return -- this only adds
-    the X-Total-* pagination headers, it doesn't slice anything itself,
-    since where slicing happens (locally vs. pushed upstream) depends on
-    how items was fetched."""
+    """items must already be the exact page to return; this only adds
+    the X-Total-* headers, it doesn't slice anything itself."""
     headers = {"Cache-Control": LIST_CACHE_CONTROL}
     if last_modified is not None:
         headers["Last-Modified"] = format_last_modified(last_modified)
@@ -448,15 +446,8 @@ async def read_group_events(
         raise HTTPException(status_code=404,
                             detail=f"Group '{group_key}' not found")
 
-    # Unlike the date-scoped endpoints under /events, this URL carries no
-    # period of its own, so it targets the group's full history rather
-    # than silently applying the recent_days default -- paginated (default
-    # 50/page) to keep the response size bounded. get_group_events_page
-    # paginates directly against connpass when no keyword/uid/chapter
-    # filtering is needed, rather than crawling the group's entire
-    # history just to slice it locally. order defaults to "desc" (newest
-    # first) since that's connpass's own native order -- cheapest for the
-    # common case of just browsing a group's recent activity.
+    # No date scope here (unlike /events/*), so this targets the group's
+    # full history, paginated (default 50/page, order defaults to "desc").
     events, total, last_modified = service.get_group_events_page(
         group_key, keyword, uid, page, per_page, order, background_tasks)
 

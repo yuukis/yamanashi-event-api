@@ -266,10 +266,8 @@ class TestConnpassEventRequest(unittest.TestCase):
         self.assertEqual(seen_starts, [1, 101])
 
     def test_get_events_page_shares_cache_keys_with_get_events(self):
-        # The whole point of chunking to PAGE_SIZE boundaries is that a
-        # small get_events_page() request and a full get_events() crawl
-        # hit the exact same cache entries -- verify the params sent for
-        # the first chunk are identical either way.
+        # get_events_page() and get_events() must send identical params
+        # for the same chunk, so they share cache entries.
         mock_cache = MagicMock()
         mock_cache.get.return_value = None
         mock_get = MagicMock(
@@ -305,10 +303,8 @@ class TestConnpassEventRequest(unittest.TestCase):
                          list(reversed([e.event_id for e in descending])))
 
     def test_get_events_page_ascending_reuses_chunk_zero_when_range_fits(self):
-        # A real cache (not a bare mock) so the redundant chunk-0 request
-        # this needs to learn the total is an actual cache hit, exactly
-        # as it would be in production -- proving no second live fetch
-        # happens for a range that chunk 0 already covers.
+        # Real cache, not a bare mock: the redundant chunk-0 fetch to
+        # learn the total should be a cache hit, not a second live call.
         real_cache = EventRequestCache(prefix="test_page_asc_reuse_")
 
         connpass_request = ConnpassEventRequest(subdomain=['test'], cache=real_cache)
