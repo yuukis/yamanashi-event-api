@@ -294,14 +294,16 @@ def get_group_events_page(group_key, keyword, uid, page: int, per_page: int,
 
     When the group is a plain connpass group (not a chapter) and no
     keyword/uid filter is requested, paginates directly against connpass
-    -- one API call for exactly this page, using connpass's own result
-    count for the total -- instead of crawling the group's entire
-    history just to slice it locally. Chapters and keyword/uid filters
-    can only be applied correctly once the full, unpaginated result set
-    is known (a chapter's title match and the keyword/uid filters can
-    each drop items unpredictably), so those fall back to the existing
-    get_events() cached/background-refreshed full fetch and slice
-    locally.
+    via ConnpassEventRequest.get_events_page() -- fetching only as many
+    of connpass's own 100-item pages as needed to cover the requested
+    slice, at the same page boundaries a full crawl would use, so this
+    shares cache entries with any full crawl instead of adding one cache
+    entry per distinct page/per_page a caller happens to request.
+    Chapters and keyword/uid filters can only be applied correctly once
+    the full, unpaginated result set is known (a chapter's title match
+    and the keyword/uid filters can each drop items unpredictably), so
+    those fall back to the existing get_events() cached/background-
+    refreshed full fetch and slice locally.
 
     Returns (events_for_page, total_count, last_modified).
     """
@@ -322,10 +324,9 @@ def get_group_events_page(group_key, keyword, uid, page: int, per_page: int,
         user_agent = get_user_agent(config)
         r = ConnpassEventRequest(subdomain=[source["subdomain"]],
                                  cache=cache, api_key=connpass_api_key,
-                                 user_agent=user_agent,
-                                 start=(page - 1) * per_page + 1,
-                                 count=per_page)
-        events = r.get_events()
+                                 user_agent=user_agent)
+        item_start = (page - 1) * per_page + 1
+        events = r.get_events_page(item_start, per_page)
         for event in events:
             if event.keywords is None:
                 event.keywords = keyword_extractor.extract(event)

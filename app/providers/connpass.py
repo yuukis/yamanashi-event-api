@@ -12,10 +12,18 @@ class ConnpassException(Exception):
 
 
 class ConnpassEventRequest:
+    # Connpass's own page size for get_events()'s crawl and the chunk size
+    # get_events_page() aligns to. Keeping this one fixed value means both
+    # methods request identical (subdomain, start, count) params for the
+    # same underlying data, so they always share the same low-level cache
+    # entries regardless of which page size a particular API caller asked
+    # for -- get_events_page() never introduces cache keys of its own.
+    PAGE_SIZE = 100
+
     def __init__(self, event_id=None, prefecture=None, subdomain=None,
                  ym=None, ymd=None, keyword=None, cache=None,
                  api_key=None, user_agent=None, cache_ttl=3600,
-                 skip_cache=False, start=None, count=None):
+                 skip_cache=False):
         self.url = "https://connpass.com/api/v2/events/"
         self.api_key = api_key
         self.event_id = event_id
@@ -34,10 +42,6 @@ class ConnpassEventRequest:
         self.user_agent = user_agent
         self.cache_ttl = cache_ttl
         self.skip_cache = skip_cache
-        # When both are given, get_events() fetches exactly this one slice
-        # from connpass instead of crawling every page of the result set.
-        self.start = start
-        self.count = count
         self.last_modified = datetime.fromtimestamp(0, timezone.utc)
         self.total_available = None
 
@@ -48,6 +52,70 @@ class ConnpassEventRequest:
         return events[0]
 
     def get_events(self):
+        params = self.__query_params()
+        params["count"] = self.PAGE_SIZE
+        params["order"] = 2
+        page = 0
+        events = []
+        while True:
+            params["start"] = page * self.PAGE_SIZE + 1
+            json = self.__fetch_json(params)
+            events += self.__convert_to_events(json['events'])
+            self.total_available = json.get('results_available')
+
+            if json['results_returned'] < self.PAGE_SIZE:
+                break
+            page += 1
+
+        if len(self.prefecture) > 0:
+            events = list(filter(self.__is_in_pref, events))
+
+        return events
+
+    def get_events_page(self, item_start: int, item_count: int):
+        """Return events [item_start, item_start + item_count) (1-indexed),
+        fetching only as many PAGE_SIZE-aligned chunks as needed to cover
+        that range -- not the whole result set -- while still requesting
+        connpass at the exact same chunk boundaries get_events() uses, so
+        this shares its cache entries with any full crawl (background or
+        otherwise) instead of fragmenting the cache with one entry per
+        distinct page/per_page a caller happens to ask for."""
+        params = self.__query_params()
+        params["count"] = self.PAGE_SIZE
+        params["order"] = 2
+
+        item_end = item_start + item_count - 1
+        first_chunk = (item_start - 1) // self.PAGE_SIZE
+        last_chunk = (item_end - 1) // self.PAGE_SIZE
+
+        events = []
+        chunk = first_chunk
+        while chunk <= last_chunk:
+            params["start"] = chunk * self.PAGE_SIZE + 1
+            json = self.__fetch_json(params)
+            events += self.__convert_to_events(json['events'])
+            self.total_available = json.get('results_available')
+
+            if json['results_returned'] < self.PAGE_SIZE:
+                break
+            chunk += 1
+
+        if len(self.prefecture) > 0:
+            events = list(filter(self.__is_in_pref, events))
+
+        offset = item_start - 1 - first_chunk * self.PAGE_SIZE
+        return events[offset:offset + item_count]
+
+    def get_last_modified(self):
+        return self.last_modified
+
+    def get_total_available(self):
+        """Total results matching the query's filters (subdomain/ym/ymd/
+        keyword) -- only meaningful after get_events()/get_events_page()
+        has been called."""
+        return self.total_available
+
+    def __query_params(self):
         params = {}
         if self.event_id is not None:
             params["event_id"] = self.event_id
@@ -61,63 +129,39 @@ class ConnpassEventRequest:
             params["ymd"] = ",".join(self.ymd)
         if len(self.keyword) > 0:
             params["keyword"] = ",".join(self.keyword)
+        return params
 
-        single_page = self.start is not None and self.count is not None
-        page_size = self.count if single_page else 100
-        params["count"] = page_size
-        params["order"] = 2
-        page = 0
-        events = []
-        while True:
-            params["start"] = self.start if single_page else (page * page_size + 1)
+    def __fetch_json(self, params):
+        json = None
+        last_modified = None
+        if self.cache is not None and not self.skip_cache:
+            response = self.cache.get(params)
+            if response is not None:
+                json = response["json"]
+                last_modified = response["last_modified"]
+        if json is None:
+            # peek() is read regardless of skip_cache: last_modified
+            # should reflect when the data actually last changed, not
+            # merely when it was last checked, so even a forced refresh
+            # still needs the previous value to compare against.
+            # skip_cache only bypasses using the cache to serve a
+            # response, not this comparison.
+            previous = self.cache.peek(params) if self.cache is not None else None
+            try:
+                response = self.__get(params)
+            except ConnpassException as e:
+                raise e
 
-            json = None
-            if self.cache is not None and not self.skip_cache:
-                response = self.cache.get(params)
-                if response is not None:
-                    json = response["json"]
-                    last_modified = response["last_modified"]
-            if json is None:
-                # peek() is read regardless of skip_cache: last_modified
-                # should reflect when the data actually last changed, not
-                # merely when it was last checked, so even a forced refresh
-                # still needs the previous value to compare against.
-                # skip_cache only bypasses using the cache to serve a
-                # response, not this comparison.
-                previous = self.cache.peek(params) if self.cache is not None else None
-                try:
-                    response = self.__get(params)
-                except ConnpassException as e:
-                    raise e
+            json = response.json()
+            last_modified = self.__resolve_last_modified(previous, json)
+            if self.cache is not None:
+                self.cache.set(params, json, last_modified=last_modified,
+                               ex=self.cache_ttl)
 
-                json = response.json()
-                last_modified = self.__resolve_last_modified(previous, json)
-                if self.cache is not None:
-                    self.cache.set(params, json, last_modified=last_modified,
-                                   ex=self.cache_ttl)
-            events += self.__convert_to_events(json['events'])
-            self.total_available = json.get('results_available')
+        if last_modified is not None:
+            self.last_modified = max(self.last_modified, last_modified)
 
-            if last_modified is not None:
-                self.last_modified = max(self.last_modified, last_modified)
-
-            if single_page or json['results_returned'] < page_size:
-                break
-            page += 1
-
-        if len(self.prefecture) > 0:
-            events = list(filter(self.__is_in_pref, events))
-
-        return events
-
-    def get_last_modified(self):
-        return self.last_modified
-
-    def get_total_available(self):
-        """Total results matching the query's filters (subdomain/ym/ymd/
-        keyword), independent of start/count -- only meaningful after
-        get_events() has been called."""
-        return self.total_available
+        return json
 
     def __resolve_last_modified(self, previous, json):
         """Reuse the previously cached last_modified for this page if the
