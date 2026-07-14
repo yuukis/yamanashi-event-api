@@ -1128,6 +1128,49 @@ def test_split_connpass_scope_rejects_subdomain_as_both_plain_and_chapter():
         split_connpass_scope(config)
 
 
+@pytest.mark.parametrize("entry", ["jagyamanashi", ["jagyamanashi"], None])
+def test_split_connpass_scope_rejects_non_mapping_entry(entry):
+    config = {"scope": {"connpass": [entry]}}
+
+    with pytest.raises(ValueError, match="must be a mapping"):
+        split_connpass_scope(config)
+
+
+@pytest.mark.parametrize("subdomain", [None, "", 123])
+def test_split_connpass_scope_rejects_missing_subdomain(subdomain):
+    config = {"scope": {"connpass": [{"subdomain": subdomain}]}}
+
+    with pytest.raises(ValueError, match="non-empty string subdomain"):
+        split_connpass_scope(config)
+
+
+def test_split_connpass_scope_rejects_chapter_missing_key():
+    entry = {k: v for k, v in CHAPTER_ENTRY.items() if k != "key"}
+    config = {"scope": {"connpass": [entry]}}
+
+    with pytest.raises(ValueError, match="requires key and name"):
+        split_connpass_scope(config)
+
+
+def test_split_connpass_scope_rejects_chapter_missing_name():
+    entry = {k: v for k, v in CHAPTER_ENTRY.items() if k != "name"}
+    config = {"scope": {"connpass": [entry]}}
+
+    with pytest.raises(ValueError, match="requires key and name"):
+        split_connpass_scope(config)
+
+
+def test_split_connpass_scope_title_keyword_error_includes_real_subdomain():
+    config = {
+        "scope": {
+            "connpass": [{"subdomain": "soracomug-tokyo", "title_keyword": ""}]
+        }
+    }
+
+    with pytest.raises(ValueError, match="subdomain 'soracomug-tokyo'"):
+        split_connpass_scope(config)
+
+
 def test_merged_connpass_subdomains_dedupes_and_preserves_order():
     chapters = [
         {**CHAPTER_ENTRY, "key": "soracomug-yamanashi"},

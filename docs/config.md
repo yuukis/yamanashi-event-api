@@ -97,6 +97,13 @@ doesn't exist without either producing a low-quality name or re-fetching the
 shared group's real name, which would defeat the purpose). `image_url` and
 `group_url` are optional; when omitted, they (along with every other
 `/groups` field with no config equivalent, e.g. `description`,
+
+The same `subdomain` cannot be configured as both a plain entry and a
+chapter entry -- the app fails to start with a clear error if it is, since
+a plain entry means "include every event" while a chapter entry means
+"include only title-matching events under a different identity," and the
+two can't both apply to the same subdomain.
+
 `member_users_count`) fall back to the real shared group's own values
 instead of staying null.
 
