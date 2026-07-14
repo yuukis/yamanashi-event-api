@@ -40,33 +40,6 @@ async def read_events(
                                    keyword, uid, fields, if_modified_since)
 
 
-@app.get("/events/group/{group_key}", response_model=List[Event],
-         operation_id="list_events_by_group",
-         summary="List events for a specific group")
-async def read_events_group(
-    response: Response,
-    background_tasks: BackgroundTasks,
-    group_key: str,
-    keyword: str = None,
-    uid: str = None,
-    fields: str = None,
-    if_modified_since: str = Header(None)
-):
-    if service.find_group_source(group_key) is None:
-        raise HTTPException(status_code=404,
-                            detail=f"Group '{group_key}' not found")
-
-    # Unlike the date-scoped endpoints, this URL carries no period of its
-    # own, so it returns the group's full history rather than silently
-    # applying the recent_days default.
-    events, last_modified = service.get_events(
-        {"keyword": keyword, "uid": uid, "group_key": group_key},
-        background_tasks)
-
-    return build_list_response(response, events, Event, last_modified,
-                               fields, if_modified_since)
-
-
 @app.get("/events/day/today", response_model=List[Event],
          operation_id="list_events_today",
          summary="List today's events")
@@ -411,6 +384,33 @@ async def read_groups(
                                fields, if_modified_since)
 
 
+@app.get("/groups/{group_key}/events", response_model=List[Event],
+         operation_id="list_group_events",
+         summary="List events for a specific group")
+async def read_group_events(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    group_key: str,
+    keyword: str = None,
+    uid: str = None,
+    fields: str = None,
+    if_modified_since: str = Header(None)
+):
+    if service.find_group_source(group_key) is None:
+        raise HTTPException(status_code=404,
+                            detail=f"Group '{group_key}' not found")
+
+    # Unlike the date-scoped endpoints under /events, this URL carries no
+    # period of its own, so it returns the group's full history rather
+    # than silently applying the recent_days default.
+    events, last_modified = service.get_events(
+        {"keyword": keyword, "uid": uid, "group_key": group_key},
+        background_tasks)
+
+    return build_list_response(response, events, Event, last_modified,
+                               fields, if_modified_since)
+
+
 @app.get("/summary/events", response_model=EventsSummary,
          operation_id="summary_events",
          summary="Get yearly event summary with group highlights and activity heatmap")
@@ -564,7 +564,6 @@ async def refresh_events(
 
 mcp = FastApiMCP(app, include_operations=[
     "list_events",
-    "list_events_by_group",
     "list_events_today",
     "list_events_this_week",
     "list_events_next_week",
@@ -573,5 +572,6 @@ mcp = FastApiMCP(app, include_operations=[
     "list_events_by_day",
     "list_events_by_range",
     "list_groups",
+    "list_group_events",
 ])
 mcp.mount_http()
