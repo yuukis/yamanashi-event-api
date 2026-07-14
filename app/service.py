@@ -240,15 +240,22 @@ def request_groups(params) -> Tuple[List[Group], datetime]:
     last_modified = datetime.fromtimestamp(0, timezone.utc)
     try:
         plain_subdomains, chapters = split_connpass_scope(config)
+        chapter_subdomains = {c["subdomain"] for c in chapters}
+        subdomain = plain_subdomains + list(chapter_subdomains)
 
-        if len(plain_subdomains) > 0:
-            r = ConnpassGroupRequest(subdomain=plain_subdomains,
+        real_groups_by_key = {}
+        if len(subdomain) > 0:
+            r = ConnpassGroupRequest(subdomain=subdomain,
                                      cache=cache, api_key=connpass_api_key,
                                      user_agent=user_agent)
-            groups += r.get_groups()
+            fetched = r.get_groups()
             last_modified = max(last_modified, r.get_last_modified())
+            real_groups_by_key = {g.key: g for g in fetched
+                                  if g.key in chapter_subdomains}
+            groups += [g for g in fetched if g.key not in chapter_subdomains]
 
-        groups += get_groups_from_connpass_chapters(chapters)
+        groups += get_groups_from_connpass_chapters(
+            chapters, real_groups_by_key)
 
         if "scope" in config and "icalendar" in config["scope"]:
             groups += get_groups_from_icalendar(config)
@@ -310,20 +317,23 @@ def partition_and_relabel_chapter_events(events, chapters):
             if entry["title_keyword"] in ev.title:
                 ev.group_key = entry["key"]
                 ev.group_name = entry["name"]
-                ev.group_url = entry.get("group_url")
+                ev.group_url = entry.get("group_url", ev.group_url)
                 result.append(ev)
                 break
     return result
 
 
-def get_groups_from_connpass_chapters(chapters):
+def get_groups_from_connpass_chapters(chapters, real_groups_by_key):
     groups = []
     for entry in chapters:
+        real = real_groups_by_key.get(entry["subdomain"])
+        inherited = Group.to_json(real) if real is not None else {}
         g = Group.from_json({
+            **inherited,
             "key": entry["key"],
             "title": entry["name"],
-            "image_url": entry.get("image_url"),
-            "url": entry.get("group_url"),
+            "image_url": entry.get("image_url", inherited.get("image_url")),
+            "url": entry.get("group_url", inherited.get("url")),
         })
         groups.append(g)
 
