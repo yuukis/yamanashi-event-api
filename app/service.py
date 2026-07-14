@@ -120,8 +120,10 @@ def request_events(params, cache_ttl: int = None,
             events += r.get_events()
             last_modified = max(last_modified, r.get_last_modified())
 
-        if "scope" in config and "subdomain" in config["scope"]:
-            subdomain = config["scope"]["subdomain"]
+        plain_subdomains, chapters = split_connpass_scope(config)
+        subdomain = plain_subdomains + [c["subdomain"] for c in chapters]
+
+        if len(subdomain) > 0:
             r = ConnpassEventRequest(subdomain=subdomain,
                                      ym=ym, ymd=ymd, cache=cache,
                                      api_key=connpass_api_key,
@@ -129,7 +131,11 @@ def request_events(params, cache_ttl: int = None,
                                      cache_ttl=connpass_cache_ttl,
                                      skip_cache=force_refresh
                                      )
-            events += r.get_events()
+            # A single request covers every subdomain entry, plain or
+            # chapter alike, so this stays one connpass query no matter
+            # how many chapter entries are configured.
+            events += partition_and_relabel_chapter_events(
+                r.get_events(), chapters)
             last_modified = max(last_modified, r.get_last_modified())
 
         if "scope" in config and "icalendar" in config["scope"]:
@@ -236,13 +242,16 @@ def request_groups(params) -> Tuple[List[Group], datetime]:
     groups = []
     last_modified = datetime.fromtimestamp(0, timezone.utc)
     try:
-        if "scope" in config and "subdomain" in config["scope"]:
-            subdomain = config["scope"]["subdomain"]
-            r = ConnpassGroupRequest(subdomain=subdomain,
+        plain_subdomains, chapters = split_connpass_scope(config)
+
+        if len(plain_subdomains) > 0:
+            r = ConnpassGroupRequest(subdomain=plain_subdomains,
                                      cache=cache, api_key=connpass_api_key,
                                      user_agent=user_agent)
             groups += r.get_groups()
             last_modified = max(last_modified, r.get_last_modified())
+
+        groups += get_groups_from_connpass_chapters(chapters)
 
         if "scope" in config and "icalendar" in config["scope"]:
             groups += get_groups_from_icalendar(config)
@@ -269,6 +278,71 @@ def get_user_agent(config):
         user_agent = user_agent.replace("{version}", version)
         return user_agent
     return None
+
+
+def split_connpass_scope(config):
+    """Split scope.connpass entries into plain group subdomains (queried
+    via connpass as-is, using connpass's own group metadata) and chapter
+    entries (a `title_keyword`-filtered slice of a shared group, re-labeled
+    to its own key/name/group_url instead of the shared group's identity).
+    """
+    plain = []
+    chapters = []
+    if "scope" in config and "connpass" in config["scope"]:
+        for entry in config["scope"]["connpass"]:
+            if "title_keyword" in entry:
+                chapters.append(entry)
+            else:
+                plain.append(entry["subdomain"])
+    return plain, chapters
+
+
+def partition_and_relabel_chapter_events(events, chapters):
+    """Split the combined subdomain-fetch results: events whose group_key
+    matches a chapter entry's real subdomain are kept only if their title
+    mentions that entry's `title_keyword`, then re-labeled to the entry's
+    own key/name/url. All other events pass through unchanged.
+
+    Matching is done locally against the title only (not sent to connpass
+    as a `keyword` search param), since connpass's keyword search also
+    matches description/address text and would pull in other chapters'
+    events that merely mention the word in passing.
+    """
+    if not chapters:
+        return events
+
+    entries_by_subdomain = {}
+    for entry in chapters:
+        entries_by_subdomain.setdefault(entry["subdomain"], []).append(entry)
+
+    result = []
+    for ev in events:
+        entries = entries_by_subdomain.get(ev.group_key)
+        if entries is None:
+            result.append(ev)
+            continue
+        for entry in entries:
+            if entry["title_keyword"] in ev.title:
+                ev.group_key = entry["key"]
+                ev.group_name = entry["name"]
+                ev.group_url = entry.get("group_url")
+                result.append(ev)
+                break
+    return result
+
+
+def get_groups_from_connpass_chapters(chapters):
+    groups = []
+    for entry in chapters:
+        g = Group.from_json({
+            "key": entry["key"],
+            "title": entry["name"],
+            "image_url": entry.get("image_url"),
+            "url": entry.get("group_url"),
+        })
+        groups.append(g)
+
+    return groups
 
 
 def get_groups_from_icalendar(config):
