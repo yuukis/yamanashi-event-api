@@ -1082,7 +1082,6 @@ CHAPTER_ENTRY = {
     "title_keyword": "山梨",
     "key": "soracomug-yamanashi",
     "name": "SORACOM UG 山梨",
-    "image_url": None,
     "group_url": "https://soracom-ug.connpass.com/"
 }
 
@@ -1124,13 +1123,40 @@ def test_partition_and_relabel_chapter_events_filters_by_title_only():
     assert matched[1].group_key == "yamanashi-it"
 
 
-def test_get_groups_from_connpass_chapters():
-    groups = get_groups_from_connpass_chapters([CHAPTER_ENTRY])
+def test_get_groups_from_connpass_chapters_without_real_group():
+    groups = get_groups_from_connpass_chapters([CHAPTER_ENTRY], {})
 
     assert len(groups) == 1
     assert groups[0].key == "soracomug-yamanashi"
     assert groups[0].title == "SORACOM UG 山梨"
     assert groups[0].url == "https://soracom-ug.connpass.com/"
+    assert groups[0].image_url is None
+    assert groups[0].member_users_count is None
+
+
+def test_get_groups_from_connpass_chapters_inherits_unset_fields():
+    real_group = Group.from_json({
+        "key": "soracomug-tokyo",
+        "title": "SORACOM UG",
+        "url": "https://soracomug-tokyo.connpass.com/",
+        "image_url": "https://example.com/real.png",
+        "sub_title": "IoT platform community",
+        "member_users_count": 1000
+    })
+
+    groups = get_groups_from_connpass_chapters(
+        [CHAPTER_ENTRY], {"soracomug-tokyo": real_group})
+
+    assert len(groups) == 1
+    # Explicitly configured fields still win over the real group's values
+    assert groups[0].key == "soracomug-yamanashi"
+    assert groups[0].title == "SORACOM UG 山梨"
+    assert groups[0].url == "https://soracom-ug.connpass.com/"
+    # Fields with no config equivalent (or left unset) fall back to the
+    # real group's values instead of staying null
+    assert groups[0].image_url == "https://example.com/real.png"
+    assert groups[0].sub_title == "IoT platform community"
+    assert groups[0].member_users_count == 1000
 
 
 class MockConnpassEventRequestSubgroup:
@@ -1202,6 +1228,24 @@ def test_request_events_merges_chapters_into_single_subdomain_query():
     assert events[0].group_key == "soracomug-yamanashi"
 
 
+class MockConnpassGroupRequestForChapters:
+    def __init__(self, **kwargs):
+        pass
+
+    def get_groups(self):
+        return Group.from_json([{
+            "key": "soracomug-tokyo",
+            "title": "SORACOM UG",
+            "url": "https://soracomug-tokyo.connpass.com/",
+            "image_url": "https://example.com/real.png",
+            "member_users_count": 1000
+        }])
+
+    def get_last_modified(self):
+        return datetime.fromtimestamp(789, timezone.utc)
+
+
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequestForChapters)
 @patch("app.service.config", {
     "metadata": {"version": "1.0.0"},
     "scope": {
@@ -1211,9 +1255,16 @@ def test_request_events_merges_chapters_into_single_subdomain_query():
 def test_request_groups_from_connpass_chapters():
     groups, last_modified = request_groups({})
 
+    # The shared group itself must not leak into /groups, only the chapter
     assert len(groups) == 1
     assert groups[0].key == "soracomug-yamanashi"
     assert groups[0].title == "SORACOM UG 山梨"
+    # group_url was configured explicitly, so it wins over the real group's
+    assert groups[0].url == "https://soracom-ug.connpass.com/"
+    # image_url wasn't configured, so it's inherited from the real group
+    assert groups[0].image_url == "https://example.com/real.png"
+    assert groups[0].member_users_count == 1000
+    assert last_modified == datetime.fromtimestamp(789, timezone.utc)
 
 
 def test_get_archive_urls():
