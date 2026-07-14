@@ -12,27 +12,32 @@ scope:
   prefecture:
     - '山梨県'
 
-  subdomain:
-    - 'jagyamanashi' # 日本Androidの会 山梨支部
-    - 'coderdojokofu' # 子ども向けプログラミングクラブ コーダー道場甲府
-    - 'redmine-plugin-ymanasi' # Redmineプラグインもくもく会 山梨
-    - 'shingenpy' # shingen.py
-    - 'coderdojo-hokuto' # 子どものためのプログラミングクラブ CoderDojo北杜
-    - 'coderdojo-nirasaki' # 子どものためのプログラミングクラブ CoderDojo韮崎
-    - 'yamanashi-it' # 山梨IT同好会(仮)
-    - 'fujimokumokukai' # 富士もくもく会
-    - 'yamanashi-web' # 山梨Web勉強会
-    - 'yamanashi-spa' # 山梨SPA
-    - 'gdg-yamanashi' # GDG Yamanashi
-    - 'kainokuni' # 甲斐国もくもく会
-    - 'jaws-ug-yamanashi' # JAWS-UG山梨
-    - 'houtoupm' # Houtou.pm
-    - 'aibase' # AI BASE
-    - 'kofurb' # Kofu.rb
-    - 'ai-meetup' # 東京-山梨 AI ミートアップ
-    - 'yamanashi-encareer' # やまなしエンxキャリ（Engineer × Career）
-    - 'techmujin' # テック無尽
-    - 'ura-techmujin' # 裏テック無尽
+  connpass:
+    - subdomain: 'jagyamanashi' # 日本Androidの会 山梨支部
+    - subdomain: 'coderdojokofu' # 子ども向けプログラミングクラブ コーダー道場甲府
+    - subdomain: 'redmine-plugin-ymanasi' # Redmineプラグインもくもく会 山梨
+    - subdomain: 'shingenpy' # shingen.py
+    - subdomain: 'coderdojo-hokuto' # 子どものためのプログラミングクラブ CoderDojo北杜
+    - subdomain: 'coderdojo-nirasaki' # 子どものためのプログラミングクラブ CoderDojo韮崎
+    - subdomain: 'yamanashi-it' # 山梨IT同好会(仮)
+    - subdomain: 'fujimokumokukai' # 富士もくもく会
+    - subdomain: 'yamanashi-web' # 山梨Web勉強会
+    - subdomain: 'yamanashi-spa' # 山梨SPA
+    - subdomain: 'gdg-yamanashi' # GDG Yamanashi
+    - subdomain: 'kainokuni' # 甲斐国もくもく会
+    - subdomain: 'jaws-ug-yamanashi' # JAWS-UG山梨
+    - subdomain: 'houtoupm' # Houtou.pm
+    - subdomain: 'aibase' # AI BASE
+    - subdomain: 'kofurb' # Kofu.rb
+    - subdomain: 'ai-meetup' # 東京-山梨 AI ミートアップ
+    - subdomain: 'yamanashi-encareer' # やまなしエンxキャリ（Engineer × Career）
+    - subdomain: 'techmujin' # テック無尽
+    - subdomain: 'ura-techmujin' # 裏テック無尽
+    - subdomain: 'soracomug-tokyo' # SORACOM UG 山梨
+      title_keyword: '山梨'
+      key: 'soracomug-yamanashi'
+      name: 'SORACOM UG 山梨'
+      group_url: https://soracom-ug.connpass.com/
 
   icalendar:
     - key: 'yamanashi-wordpress-meetup-ical'

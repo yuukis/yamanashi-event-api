@@ -8,6 +8,8 @@ from app.service import request_events, request_groups, get_groups_from_archives
 from app.service import get_archive_urls, preload_archive_indexes
 from app.service import get_events, get_groups, normalize_event_params
 from app.service import fetch_events, fetch_groups
+from app.service import split_connpass_scope, partition_and_relabel_chapter_events
+from app.service import get_groups_from_connpass_chapters, merged_connpass_subdomains
 from app.cache import EventRequestCache
 from app.providers.archive import ArchiveException
 from app.models import Event, Group
@@ -813,7 +815,7 @@ def test_read_group_with_fields_keeps_cache_headers(mock_get_groups_from_icalend
 @patch("app.service.config", {
     "metadata": {"version": "1.0.0"},
     "scope": {
-        "subdomain": ["test"],
+        "connpass": [{"subdomain": "test"}],
         "archives": [
             {
                 "url": "https://example.com/archive/index.json"
@@ -1046,6 +1048,333 @@ def test_get_groups_from_archives():
     assert groups[0].archive_source == "yamanashi-event-archive"
     assert groups[0].archive_url == \
         "https://github.com/yuukis/yamanashi-event-archive"
+
+
+def _make_subgroup_event(uid, title, description=None):
+    return Event.from_json({
+        "uid": uid,
+        "event_id": 1,
+        "title": title,
+        "catch": None,
+        "hash_tag": None,
+        "event_url": "Event URL",
+        "started_at": "2022-01-01T12:00:00+09:00",
+        "ended_at": "2022-01-01T13:00:00+09:00",
+        "updated_at": "2022-01-01T00:00:00+09:00",
+        "open_status": "preopen",
+        "limit": None,
+        "accepted": None,
+        "waiting": None,
+        "owner_name": None,
+        "place": "Place",
+        "address": "山梨県甲府市",
+        "group_key": "soracomug-tokyo",
+        "group_name": "SORACOM UG",
+        "group_url": "https://soracomug-tokyo.connpass.com/",
+        "description": description,
+        "lat": None,
+        "lon": None
+    })
+
+
+CHAPTER_ENTRY = {
+    "subdomain": "soracomug-tokyo",
+    "title_keyword": "山梨",
+    "key": "soracomug-yamanashi",
+    "name": "SORACOM UG 山梨",
+    "group_url": "https://soracom-ug.connpass.com/"
+}
+
+
+def test_split_connpass_scope_separates_plain_and_chapter_entries():
+    config = {
+        "scope": {
+            "connpass": [
+                {"subdomain": "jagyamanashi"},
+                CHAPTER_ENTRY
+            ]
+        }
+    }
+
+    plain, chapters = split_connpass_scope(config)
+
+    assert plain == ["jagyamanashi"]
+    assert chapters == [CHAPTER_ENTRY]
+
+
+@pytest.mark.parametrize("title_keyword", [None, ""])
+def test_split_connpass_scope_rejects_empty_title_keyword(title_keyword):
+    config = {
+        "scope": {
+            "connpass": [{**CHAPTER_ENTRY, "title_keyword": title_keyword}]
+        }
+    }
+
+    with pytest.raises(ValueError, match="non-empty string title_keyword"):
+        split_connpass_scope(config)
+
+
+def test_split_connpass_scope_rejects_subdomain_as_both_plain_and_chapter():
+    config = {
+        "scope": {
+            "connpass": [
+                {"subdomain": "soracomug-tokyo"},
+                CHAPTER_ENTRY
+            ]
+        }
+    }
+
+    with pytest.raises(ValueError, match="both a plain entry and a chapter entry"):
+        split_connpass_scope(config)
+
+
+@pytest.mark.parametrize("entry", ["jagyamanashi", ["jagyamanashi"], None])
+def test_split_connpass_scope_rejects_non_mapping_entry(entry):
+    config = {"scope": {"connpass": [entry]}}
+
+    with pytest.raises(ValueError, match="must be a mapping"):
+        split_connpass_scope(config)
+
+
+@pytest.mark.parametrize("subdomain", [None, "", 123])
+def test_split_connpass_scope_rejects_missing_subdomain(subdomain):
+    config = {"scope": {"connpass": [{"subdomain": subdomain}]}}
+
+    with pytest.raises(ValueError, match="non-empty string subdomain"):
+        split_connpass_scope(config)
+
+
+def test_split_connpass_scope_rejects_chapter_missing_key():
+    entry = {k: v for k, v in CHAPTER_ENTRY.items() if k != "key"}
+    config = {"scope": {"connpass": [entry]}}
+
+    with pytest.raises(ValueError, match="requires key and name"):
+        split_connpass_scope(config)
+
+
+def test_split_connpass_scope_rejects_chapter_missing_name():
+    entry = {k: v for k, v in CHAPTER_ENTRY.items() if k != "name"}
+    config = {"scope": {"connpass": [entry]}}
+
+    with pytest.raises(ValueError, match="requires key and name"):
+        split_connpass_scope(config)
+
+
+def test_split_connpass_scope_title_keyword_error_includes_real_subdomain():
+    config = {
+        "scope": {
+            "connpass": [{"subdomain": "soracomug-tokyo", "title_keyword": ""}]
+        }
+    }
+
+    with pytest.raises(ValueError, match="subdomain 'soracomug-tokyo'"):
+        split_connpass_scope(config)
+
+
+def test_merged_connpass_subdomains_dedupes_and_preserves_order():
+    chapters = [
+        {**CHAPTER_ENTRY, "key": "soracomug-yamanashi"},
+        {**CHAPTER_ENTRY, "key": "soracomug-tokyo-chapter",
+         "subdomain": "soracomug-tokyo"},  # same real subdomain, another chapter
+    ]
+
+    merged = merged_connpass_subdomains(
+        ["jagyamanashi", "soracomug-tokyo"], chapters)
+
+    assert merged == ["jagyamanashi", "soracomug-tokyo"]
+
+
+def test_partition_and_relabel_chapter_events_filters_by_title_only():
+    events = [
+        _make_subgroup_event("UID Yamanashi 1", "SORACOM UG 山梨 #1"),
+        _make_subgroup_event("UID Tokyo 1", "SORACOM UG Tokyo #1",
+                             description="山梨から来たゲストを迎えます"),
+        _make_subgroup_event("UID Other 1", "山梨IT同好会もくもく会"),
+    ]
+    events[2].group_key = "yamanashi-it"  # unrelated plain-subdomain group
+
+    matched = partition_and_relabel_chapter_events(events, [CHAPTER_ENTRY])
+
+    assert len(matched) == 2
+    assert matched[0].uid == "UID Yamanashi 1"
+    assert matched[0].group_key == "soracomug-yamanashi"
+    assert matched[0].group_name == "SORACOM UG 山梨"
+    assert matched[0].group_url == "https://soracom-ug.connpass.com/"
+    # Events from groups outside the configured chapters pass through untouched
+    assert matched[1].uid == "UID Other 1"
+    assert matched[1].group_key == "yamanashi-it"
+
+
+def test_get_groups_from_connpass_chapters_without_real_group():
+    groups = get_groups_from_connpass_chapters([CHAPTER_ENTRY], {})
+
+    assert len(groups) == 1
+    assert groups[0].key == "soracomug-yamanashi"
+    assert groups[0].title == "SORACOM UG 山梨"
+    assert groups[0].url == "https://soracom-ug.connpass.com/"
+    assert groups[0].image_url is None
+    assert groups[0].member_users_count is None
+
+
+def test_get_groups_from_connpass_chapters_inherits_unset_fields():
+    real_group = Group.from_json({
+        "id": 999,
+        "key": "soracomug-tokyo",
+        "title": "SORACOM UG",
+        "url": "https://soracomug-tokyo.connpass.com/",
+        "image_url": "https://example.com/real.png",
+        "sub_title": "IoT platform community",
+        "member_users_count": 1000
+    })
+
+    groups = get_groups_from_connpass_chapters(
+        [CHAPTER_ENTRY], {"soracomug-tokyo": real_group})
+
+    assert len(groups) == 1
+    # Explicitly configured fields still win over the real group's values
+    assert groups[0].key == "soracomug-yamanashi"
+    assert groups[0].title == "SORACOM UG 山梨"
+    assert groups[0].url == "https://soracom-ug.connpass.com/"
+    # Fields with no config equivalent (or left unset) fall back to the
+    # real group's values instead of staying null
+    assert groups[0].image_url == "https://example.com/real.png"
+    assert groups[0].sub_title == "IoT platform community"
+    assert groups[0].member_users_count == 1000
+    # id belongs to the shared group; two chapters carved out of the same
+    # shared group must not both report its id as their own
+    assert groups[0].id is None
+
+
+class MockConnpassEventRequestSubgroup:
+    def __init__(self, **kwargs):
+        pass
+
+    def get_events(self):
+        return [
+            _make_subgroup_event("UID Yamanashi 1", "SORACOM UG 山梨 #1"),
+            _make_subgroup_event("UID Tokyo 1", "SORACOM UG Tokyo #1",
+                                 description="山梨から来たゲストを迎えます"),
+        ]
+
+    def get_last_modified(self):
+        return datetime.fromtimestamp(456, timezone.utc)
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequestSubgroup)
+@patch("app.service.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "connpass": [CHAPTER_ENTRY]
+    }
+})
+def test_request_events_from_connpass_chapters():
+    events, last_modified = request_events({})
+
+    assert len(events) == 1
+    assert events[0].uid == "UID Yamanashi 1"
+    assert events[0].group_key == "soracomug-yamanashi"
+    assert events[0].group_name == "SORACOM UG 山梨"
+    assert last_modified == datetime.fromtimestamp(456, timezone.utc)
+
+
+class MockConnpassEventRequestCountingCalls:
+    instances = []
+
+    def __init__(self, **kwargs):
+        MockConnpassEventRequestCountingCalls.instances.append(kwargs)
+
+    def get_events(self):
+        return [
+            _make_subgroup_event("UID Yamanashi 1", "SORACOM UG 山梨 #1"),
+            _make_subgroup_event("UID Tokyo 1", "SORACOM UG Tokyo #1"),
+        ]
+
+    def get_last_modified(self):
+        return datetime.fromtimestamp(456, timezone.utc)
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequestCountingCalls)
+@patch("app.service.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "connpass": [{"subdomain": "jagyamanashi"}, CHAPTER_ENTRY]
+    }
+})
+def test_request_events_merges_chapters_into_single_subdomain_query():
+    MockConnpassEventRequestCountingCalls.instances = []
+
+    events, _ = request_events({})
+
+    # Plain and chapter entries under scope.connpass must share a single
+    # ConnpassEventRequest call (no extra connpass query per chapter).
+    assert len(MockConnpassEventRequestCountingCalls.instances) == 1
+    called_subdomain = MockConnpassEventRequestCountingCalls.instances[0]["subdomain"]
+    assert set(called_subdomain) == {"jagyamanashi", "soracomug-tokyo"}
+    assert len(events) == 1
+    assert events[0].group_key == "soracomug-yamanashi"
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequestCountingCalls)
+@patch("app.service.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        # Two chapters carved out of the same shared subdomain
+        "connpass": [
+            CHAPTER_ENTRY,
+            {**CHAPTER_ENTRY, "key": "soracomug-tokyo-chapter",
+             "name": "SORACOM UG Tokyo", "title_keyword": "Tokyo"}
+        ]
+    }
+})
+def test_request_events_dedupes_repeated_chapter_subdomain():
+    MockConnpassEventRequestCountingCalls.instances = []
+
+    request_events({})
+
+    called_subdomain = MockConnpassEventRequestCountingCalls.instances[0]["subdomain"]
+    assert called_subdomain == ["soracomug-tokyo"]
+
+
+class MockConnpassGroupRequestForChapters:
+    def __init__(self, **kwargs):
+        pass
+
+    def get_groups(self):
+        return Group.from_json([{
+            "id": 999,
+            "key": "soracomug-tokyo",
+            "title": "SORACOM UG",
+            "url": "https://soracomug-tokyo.connpass.com/",
+            "image_url": "https://example.com/real.png",
+            "member_users_count": 1000
+        }])
+
+    def get_last_modified(self):
+        return datetime.fromtimestamp(789, timezone.utc)
+
+
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequestForChapters)
+@patch("app.service.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "connpass": [CHAPTER_ENTRY]
+    }
+})
+def test_request_groups_from_connpass_chapters():
+    groups, last_modified = request_groups({})
+
+    # The shared group itself must not leak into /groups, only the chapter
+    assert len(groups) == 1
+    assert groups[0].key == "soracomug-yamanashi"
+    assert groups[0].title == "SORACOM UG 山梨"
+    # group_url was configured explicitly, so it wins over the real group's
+    assert groups[0].url == "https://soracom-ug.connpass.com/"
+    # image_url wasn't configured, so it's inherited from the real group
+    assert groups[0].image_url == "https://example.com/real.png"
+    assert groups[0].member_users_count == 1000
+    # id belongs to the shared group, not this chapter
+    assert groups[0].id is None
+    assert last_modified == datetime.fromtimestamp(789, timezone.utc)
 
 
 def test_get_archive_urls():

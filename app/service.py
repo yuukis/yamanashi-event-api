@@ -120,8 +120,10 @@ def request_events(params, cache_ttl: int = None,
             events += r.get_events()
             last_modified = max(last_modified, r.get_last_modified())
 
-        if "scope" in config and "subdomain" in config["scope"]:
-            subdomain = config["scope"]["subdomain"]
+        plain_subdomains, chapters = split_connpass_scope(config)
+        subdomain = merged_connpass_subdomains(plain_subdomains, chapters)
+
+        if len(subdomain) > 0:
             r = ConnpassEventRequest(subdomain=subdomain,
                                      ym=ym, ymd=ymd, cache=cache,
                                      api_key=connpass_api_key,
@@ -129,7 +131,8 @@ def request_events(params, cache_ttl: int = None,
                                      cache_ttl=connpass_cache_ttl,
                                      skip_cache=force_refresh
                                      )
-            events += r.get_events()
+            events += partition_and_relabel_chapter_events(
+                r.get_events(), chapters)
             last_modified = max(last_modified, r.get_last_modified())
 
         if "scope" in config and "icalendar" in config["scope"]:
@@ -236,13 +239,23 @@ def request_groups(params) -> Tuple[List[Group], datetime]:
     groups = []
     last_modified = datetime.fromtimestamp(0, timezone.utc)
     try:
-        if "scope" in config and "subdomain" in config["scope"]:
-            subdomain = config["scope"]["subdomain"]
+        plain_subdomains, chapters = split_connpass_scope(config)
+        chapter_subdomains = {c["subdomain"] for c in chapters}
+        subdomain = merged_connpass_subdomains(plain_subdomains, chapters)
+
+        real_groups_by_key = {}
+        if len(subdomain) > 0:
             r = ConnpassGroupRequest(subdomain=subdomain,
                                      cache=cache, api_key=connpass_api_key,
                                      user_agent=user_agent)
-            groups += r.get_groups()
+            fetched = r.get_groups()
             last_modified = max(last_modified, r.get_last_modified())
+            real_groups_by_key = {g.key: g for g in fetched
+                                  if g.key in chapter_subdomains}
+            groups += [g for g in fetched if g.key not in chapter_subdomains]
+
+        groups += get_groups_from_connpass_chapters(
+            chapters, real_groups_by_key)
 
         if "scope" in config and "icalendar" in config["scope"]:
             groups += get_groups_from_icalendar(config)
@@ -269,6 +282,106 @@ def get_user_agent(config):
         user_agent = user_agent.replace("{version}", version)
         return user_agent
     return None
+
+
+def split_connpass_scope(config):
+    plain = []
+    chapters = []
+    if "scope" in config and "connpass" in config["scope"]:
+        for entry in config["scope"]["connpass"]:
+            if not isinstance(entry, dict):
+                raise ValueError(
+                    "scope.connpass: each entry must be a mapping with "
+                    f"at least a subdomain key, got {entry!r}")
+
+            subdomain = entry.get("subdomain")
+            if not isinstance(subdomain, str) or subdomain == "":
+                raise ValueError(
+                    "scope.connpass: each entry requires a non-empty "
+                    f"string subdomain, got {entry!r}")
+
+            if "title_keyword" in entry:
+                title_keyword = entry.get("title_keyword")
+                if not isinstance(title_keyword, str) or title_keyword == "":
+                    raise ValueError(
+                        "scope.connpass: chapter entry for subdomain "
+                        f"'{subdomain}' requires a non-empty string "
+                        "title_keyword")
+                if not entry.get("key") or not entry.get("name"):
+                    raise ValueError(
+                        "scope.connpass: chapter entry for subdomain "
+                        f"'{subdomain}' requires key and name")
+                chapters.append(entry)
+            else:
+                plain.append(subdomain)
+
+    conflicting = {c["subdomain"] for c in chapters} & set(plain)
+    if conflicting:
+        raise ValueError(
+            f"scope.connpass: subdomain(s) {sorted(conflicting)} are "
+            "configured as both a plain entry and a chapter entry "
+            "(title_keyword set) -- a subdomain can only be one or the "
+            "other")
+
+    return plain, chapters
+
+
+def merged_connpass_subdomains(plain_subdomains, chapters):
+    # dict.fromkeys, not set(): dedupes while preserving insertion order,
+    # so the connpass query params (and their cache key) stay stable
+    # regardless of set iteration/hash-seed order.
+    merged = dict.fromkeys(plain_subdomains)
+    for entry in chapters:
+        merged.setdefault(entry["subdomain"], None)
+    return list(merged)
+
+
+def partition_and_relabel_chapter_events(events, chapters):
+    # Matched against the title only, not sent to connpass as a `keyword`
+    # search param: connpass's keyword search also matches description/
+    # address text, which would pull in other chapters' events.
+    if not chapters:
+        return events
+
+    entries_by_subdomain = {}
+    for entry in chapters:
+        entries_by_subdomain.setdefault(entry["subdomain"], []).append(entry)
+
+    result = []
+    for ev in events:
+        entries = entries_by_subdomain.get(ev.group_key)
+        if entries is None:
+            result.append(ev)
+            continue
+        for entry in entries:
+            if entry["title_keyword"] in ev.title:
+                ev.group_key = entry["key"]
+                ev.group_name = entry["name"]
+                ev.group_url = entry.get("group_url", ev.group_url)
+                result.append(ev)
+                break
+    return result
+
+
+def get_groups_from_connpass_chapters(chapters, real_groups_by_key):
+    groups = []
+    for entry in chapters:
+        real = real_groups_by_key.get(entry["subdomain"])
+        inherited = Group.to_json(real) if real is not None else {}
+        # id belongs to the shared group, not this chapter -- multiple
+        # chapters carved out of the same shared group would otherwise
+        # all report the same id.
+        inherited.pop("id", None)
+        g = Group.from_json({
+            **inherited,
+            "key": entry["key"],
+            "title": entry["name"],
+            "image_url": entry.get("image_url", inherited.get("image_url")),
+            "url": entry.get("group_url", inherited.get("url")),
+        })
+        groups.append(g)
+
+    return groups
 
 
 def get_groups_from_icalendar(config):
@@ -327,3 +440,8 @@ def get_archive_urls(config):
             urls.append(url)
 
     return urls
+
+
+# Fail fast at startup if scope.connpass is misconfigured, rather than
+# only surfacing a clear error on the first /events or /groups request.
+split_connpass_scope(config)
