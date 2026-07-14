@@ -131,9 +131,6 @@ def request_events(params, cache_ttl: int = None,
                                      cache_ttl=connpass_cache_ttl,
                                      skip_cache=force_refresh
                                      )
-            # A single request covers every subdomain entry, plain or
-            # chapter alike, so this stays one connpass query no matter
-            # how many chapter entries are configured.
             events += partition_and_relabel_chapter_events(
                 r.get_events(), chapters)
             last_modified = max(last_modified, r.get_last_modified())
@@ -281,11 +278,6 @@ def get_user_agent(config):
 
 
 def split_connpass_scope(config):
-    """Split scope.connpass entries into plain group subdomains (queried
-    via connpass as-is, using connpass's own group metadata) and chapter
-    entries (a `title_keyword`-filtered slice of a shared group, re-labeled
-    to its own key/name/group_url instead of the shared group's identity).
-    """
     plain = []
     chapters = []
     if "scope" in config and "connpass" in config["scope"]:
@@ -298,16 +290,9 @@ def split_connpass_scope(config):
 
 
 def partition_and_relabel_chapter_events(events, chapters):
-    """Split the combined subdomain-fetch results: events whose group_key
-    matches a chapter entry's real subdomain are kept only if their title
-    mentions that entry's `title_keyword`, then re-labeled to the entry's
-    own key/name/url. All other events pass through unchanged.
-
-    Matching is done locally against the title only (not sent to connpass
-    as a `keyword` search param), since connpass's keyword search also
-    matches description/address text and would pull in other chapters'
-    events that merely mention the word in passing.
-    """
+    # Matched against the title only, not sent to connpass as a `keyword`
+    # search param: connpass's keyword search also matches description/
+    # address text, which would pull in other chapters' events.
     if not chapters:
         return events
 
