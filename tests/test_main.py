@@ -648,6 +648,71 @@ def test_read_group_events_connpass_plain():
         assert req["keyword"] is None
 
 
+@patch("app.service.cache", EventRequestCache(prefix="test_group_events_page_default_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+def test_read_group_events_default_pagination():
+    # MockConnpassEventRequest always returns exactly 2 events (UID 1, UID 2)
+    response = client.get("/groups/jagyamanashi/events")
+    assert response.status_code == 200
+    events = response.json()
+    assert len(events) == 2
+
+    assert response.headers["X-Total-Count"] == "2"
+    assert response.headers["X-Page"] == "1"
+    assert response.headers["X-Per-Page"] == "50"
+    assert response.headers["X-Total-Pages"] == "1"
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_group_events_page_slice_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+def test_read_group_events_pagination_slices_pages():
+    response = client.get("/groups/jagyamanashi/events",
+                          params={"per_page": 1, "page": 2})
+    assert response.status_code == 200
+    events = response.json()
+    assert len(events) == 1
+    assert events[0]["uid"] == "UID 2"
+
+    assert response.headers["X-Total-Count"] == "2"
+    assert response.headers["X-Page"] == "2"
+    assert response.headers["X-Per-Page"] == "1"
+    assert response.headers["X-Total-Pages"] == "2"
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_group_events_page_oob_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+def test_read_group_events_pagination_out_of_range_page_is_empty():
+    response = client.get("/groups/jagyamanashi/events",
+                          params={"per_page": 1, "page": 99})
+    assert response.status_code == 200
+    assert response.json() == []
+    assert response.headers["X-Total-Count"] == "2"
+    assert response.headers["X-Total-Pages"] == "2"
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_group_events_page_invalid_"))
+def test_read_group_events_pagination_rejects_invalid_params():
+    response = client.get("/groups/jagyamanashi/events", params={"page": 0})
+    assert response.status_code == 422
+
+    response = client.get("/groups/jagyamanashi/events", params={"per_page": 0})
+    assert response.status_code == 422
+
+    response = client.get("/groups/jagyamanashi/events", params={"per_page": 201})
+    assert response.status_code == 422
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_group_events_page_fields_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+def test_read_group_events_pagination_headers_kept_with_fields():
+    response = client.get("/groups/jagyamanashi/events",
+                          params={"per_page": 1, "fields": "uid"})
+    assert response.status_code == 200
+    assert response.json() == [{"uid": "UID 1"}]
+    assert response.headers["X-Total-Count"] == "2"
+    assert response.headers["X-Per-Page"] == "1"
+
+
 @patch("app.service.cache", EventRequestCache(prefix="test_group_events_chapter_"))
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
 def test_read_group_events_connpass_chapter():

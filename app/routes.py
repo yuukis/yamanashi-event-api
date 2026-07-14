@@ -1,5 +1,5 @@
 from typing import List
-from fastapi import BackgroundTasks, Path, HTTPException, Depends, Header
+from fastapi import BackgroundTasks, Path, Query, HTTPException, Depends, Header
 from fastapi.responses import RedirectResponse, Response, JSONResponse
 from fastapi_mcp import FastApiMCP
 from . import service
@@ -349,13 +349,24 @@ def filter_model_fields(items, model, fields: str = None):
 
 
 def build_list_response(response: Response, items, model, last_modified,
-                        fields: str = None, if_modified_since: str = None):
+                        fields: str = None, if_modified_since: str = None,
+                        page: int = None, per_page: int = None):
     headers = {"Cache-Control": LIST_CACHE_CONTROL}
     if last_modified is not None:
         headers["Last-Modified"] = format_last_modified(last_modified)
 
     if is_not_modified(if_modified_since, last_modified):
         return Response(status_code=304, headers=headers)
+
+    if page is not None and per_page is not None:
+        total = len(items)
+        total_pages = (total + per_page - 1) // per_page if total > 0 else 0
+        start = (page - 1) * per_page
+        items = items[start:start + per_page]
+        headers["X-Total-Count"] = str(total)
+        headers["X-Page"] = str(page)
+        headers["X-Per-Page"] = str(per_page)
+        headers["X-Total-Pages"] = str(total_pages)
 
     filtered = filter_model_fields(items, model, fields)
     if filtered is None:
@@ -426,6 +437,8 @@ async def read_group_events(
     keyword: str = None,
     uid: str = None,
     fields: str = None,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=200),
     if_modified_since: str = Header(None)
 ):
     if service.find_group_source(group_key) is None:
@@ -433,14 +446,16 @@ async def read_group_events(
                             detail=f"Group '{group_key}' not found")
 
     # Unlike the date-scoped endpoints under /events, this URL carries no
-    # period of its own, so it returns the group's full history rather
-    # than silently applying the recent_days default.
+    # period of its own, so it targets the group's full history rather
+    # than silently applying the recent_days default -- paginated (default
+    # 50/page) to keep the response size bounded.
     events, last_modified = service.get_events(
         {"keyword": keyword, "uid": uid, "group_key": group_key},
         background_tasks)
 
     return build_list_response(response, events, Event, last_modified,
-                               fields, if_modified_since)
+                               fields, if_modified_since,
+                               page=page, per_page=per_page)
 
 
 @app.get("/summary/events", response_model=EventsSummary,
