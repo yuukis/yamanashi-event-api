@@ -56,14 +56,11 @@ async def read_events_group(
         raise HTTPException(status_code=404,
                             detail=f"Group '{group_key}' not found")
 
-    days = service.config["recent_days"] if "recent_days" in service.config else 90
-    now = datetime.now()
-    dt_from = now - timedelta(days=days)
-    dt_to = now + timedelta(days=days)
-    ym = year_month_range(dt_from.year, dt_from.month, dt_to.year, dt_to.month)
-
+    # Unlike the date-scoped endpoints, this URL carries no period of its
+    # own, so it returns the group's full history rather than silently
+    # applying the recent_days default.
     events, last_modified = service.get_events(
-        {"ym": ym, "keyword": keyword, "uid": uid, "group_key": group_key},
+        {"keyword": keyword, "uid": uid, "group_key": group_key},
         background_tasks)
 
     return build_list_response(response, events, Event, last_modified,
