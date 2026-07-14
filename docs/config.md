@@ -88,7 +88,6 @@ scope:
       title_keyword: 'xxx'
       key: 'some-shared-group-xxx'
       name: 'Some Shared Group XXX'
-      image_url: null
       group_url: https://example.com/
 ```
 
@@ -96,7 +95,10 @@ scope:
 entry (no auto-generated fallback is provided for `key`/`name`: a good one
 doesn't exist without either producing a low-quality name or re-fetching the
 shared group's real name, which would defeat the purpose). `image_url` and
-`group_url` are optional.
+`group_url` are optional; when omitted, they (along with every other
+`/groups` field with no config equivalent, e.g. `description`,
+`member_users_count`) fall back to the real shared group's own values
+instead of staying null.
 
 ### scope.icalendar
 
