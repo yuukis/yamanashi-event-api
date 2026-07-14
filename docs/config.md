@@ -59,9 +59,44 @@ scope:
 
 ### scope.connpass
 
-The connpass groups (subdomains) this API pulls events from, including how
-to scope down to a single chapter within a larger shared connpass group.
-See [Connpass Group Scope](connpass-scope.md).
+The connpass groups (subdomains) this API pulls events from. Each entry is
+either a plain entry or a chapter entry.
+
+A plain entry includes every event from that group as-is, using connpass's
+own group metadata for `/groups`. Only `subdomain` is required.
+
+```yaml
+scope:
+  connpass:
+    - subdomain: 'some-group'
+```
+
+A chapter entry scopes down to a single regional chapter inside a larger
+shared group (e.g. one national group hosting per-prefecture chapters under
+a single subdomain, where a plain entry would pull in every other chapter's
+events too). Every event from `subdomain` is fetched, only the ones whose
+*title* contains `title_keyword` are kept (checked locally, not sent to
+connpass, since connpass's own keyword search also matches
+description/address text and would pull in other chapters' events), then
+re-labeled to `key`/`name`/`group_url` so they appear as their own community
+rather than the shared group's.
+
+```yaml
+scope:
+  connpass:
+    - subdomain: 'some-shared-group'
+      title_keyword: 'xxx'
+      key: 'some-shared-group-xxx'
+      name: 'Some Shared Group XXX'
+      image_url: null
+      group_url: https://example.com/
+```
+
+`subdomain`, `title_keyword`, `key` and `name` are required for a chapter
+entry (no auto-generated fallback is provided for `key`/`name`: a good one
+doesn't exist without either producing a low-quality name or re-fetching the
+shared group's real name, which would defeat the purpose). `image_url` and
+`group_url` are optional.
 
 ### scope.icalendar
 
