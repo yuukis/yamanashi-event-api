@@ -287,6 +287,57 @@ def request_events_for_group(source: dict, group_key, ym, ymd, cache_ttl: int,
     return events, last_modified
 
 
+def get_group_events_page(group_key, keyword, uid, page: int, per_page: int,
+                          background_tasks: BackgroundTasks = None
+                          ) -> Tuple[List[Event], int, Optional[datetime]]:
+    """Serve one page of a group's events.
+
+    When the group is a plain connpass group (not a chapter) and no
+    keyword/uid filter is requested, paginates directly against connpass
+    -- one API call for exactly this page, using connpass's own result
+    count for the total -- instead of crawling the group's entire
+    history just to slice it locally. Chapters and keyword/uid filters
+    can only be applied correctly once the full, unpaginated result set
+    is known (a chapter's title match and the keyword/uid filters can
+    each drop items unpredictably), so those fall back to the existing
+    get_events() cached/background-refreshed full fetch and slice
+    locally.
+
+    Returns (events_for_page, total_count, last_modified).
+    """
+    global cache
+
+    source = find_group_source(group_key)
+    if source is None:
+        return [], 0, None
+
+    can_paginate_upstream = (
+        source["type"] == "connpass"
+        and source["chapter_entry"] is None
+        and keyword is None
+        and uid is None
+    )
+
+    if can_paginate_upstream:
+        user_agent = get_user_agent(config)
+        r = ConnpassEventRequest(subdomain=[source["subdomain"]],
+                                 cache=cache, api_key=connpass_api_key,
+                                 user_agent=user_agent,
+                                 start=(page - 1) * per_page + 1,
+                                 count=per_page)
+        events = r.get_events()
+        for event in events:
+            if event.keywords is None:
+                event.keywords = keyword_extractor.extract(event)
+        return events, r.get_total_available() or 0, r.get_last_modified()
+
+    events, last_modified = get_events(
+        {"keyword": keyword, "uid": uid, "group_key": group_key},
+        background_tasks)
+    start = (page - 1) * per_page
+    return events[start:start + per_page], len(events), last_modified
+
+
 def get_groups(params,
                background_tasks: BackgroundTasks = None
                ) -> Tuple[List[Group], datetime]:

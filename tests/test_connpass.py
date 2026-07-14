@@ -185,6 +185,60 @@ class TestConnpassEventRequest(unittest.TestCase):
         # ...but the freshly fetched result must still be written back.
         mock_cache.set.assert_called_once()
 
+    def test_get_events_with_start_and_count_fetches_single_page(self):
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            'events': [
+                {
+                    'id': 123,
+                    'title': 'Test Event',
+                    'catch': None,
+                    'hash_tag': None,
+                    'url': 'https://test.connpass.com',
+                    'started_at': '2020-01-01T00:00:00+09:00',
+                    'ended_at': '2020-01-01T00:00:00+09:00',
+                    'updated_at': '2020-01-01T00:00:00+09:00',
+                    'open_status': 'preopen',
+                    'limit': 100,
+                    'accepted': 50,
+                    'waiting': 50,
+                    'owner_id': 1234,
+                    'owner_nickname': 'test',
+                    'owner_display_name': 'Test',
+                    'place': None,
+                    'address': None,
+                    'lat': None,
+                    'lon': None,
+                    'description': None,
+                    'event_type': 'participation',
+                    'group': None
+                }
+            ],
+            # A full page (results_returned == count) would make the
+            # crawl-everything loop continue to a second page -- this must
+            # not happen when start/count are given.
+            'results_returned': 20,
+            'results_available': 42
+        }
+
+        mock_cache = MagicMock()
+        mock_cache.get.return_value = None
+
+        connpass_request = ConnpassEventRequest(
+            subdomain=['test'], cache=mock_cache, start=21, count=20)
+        mock_get = MagicMock(return_value=mock_response)
+        connpass_request._ConnpassEventRequest__get = mock_get
+
+        events = connpass_request.get_events()
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(connpass_request.get_total_available(), 42)
+
+        mock_get.assert_called_once()
+        sent_params = mock_get.call_args[0][0]
+        self.assertEqual(sent_params['start'], 21)
+        self.assertEqual(sent_params['count'], 20)
+
     def _make_event_response(self, event_id):
         mock_response = MagicMock()
         mock_response.json.return_value = {

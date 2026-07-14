@@ -24,6 +24,8 @@ class MockConnpassEventRequest:
 
     def __init__(self, **kwargs):
         MockConnpassEventRequest.requests.append(kwargs)
+        self.start = kwargs.get("start")
+        self.count = kwargs.get("count")
 
     def get_events(self):
         json = [
@@ -77,7 +79,14 @@ class MockConnpassEventRequest:
             }
         ]
         events = Event.from_json(json)
+        # Simulates connpass's own start/count pagination, so tests can
+        # exercise get_group_events_page's upstream-pagination fast path.
+        if self.start is not None and self.count is not None:
+            return events[self.start - 1:self.start - 1 + self.count]
         return events
+
+    def get_total_available(self):
+        return 2
 
     def get_last_modified(self):
         last_modified = datetime.fromtimestamp(123, timezone.utc)
@@ -634,24 +643,46 @@ def test_read_events_fromto_year_month_invalid_legacy_path_still_works():
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
 def test_read_group_events_connpass_plain():
     # config.yaml's real plain connpass subdomain, resolved from config
-    # alone -- no connpass groups API call needed
+    # alone -- no connpass groups API call needed. Plain (non-chapter)
+    # group with no keyword/uid filter takes the upstream-pagination fast
+    # path, so exactly one connpass request is made -- no background
+    # refetch, since that path bypasses get_events() entirely.
     response = client.get("/groups/jagyamanashi/events")
     assert response.status_code == 200
     events = response.json()
     assert isinstance(events, list)
 
-    # background_tasks refetches once more after the initial response, so
-    # assert every recorded call was scoped the same way rather than count
+    assert len(MockConnpassEventRequest.requests) == 1
+    req = MockConnpassEventRequest.requests[0]
+    assert req["subdomain"] == ["jagyamanashi"]
+    assert "keyword" not in req
+    assert req["start"] == 1
+    assert req["count"] == 50
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_group_events_plain_filtered_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+def test_read_group_events_connpass_plain_with_uid_falls_back_to_full_fetch():
+    # A uid filter can't be applied correctly without the full result set,
+    # so this must fall back to get_events()'s crawl-everything path
+    # (no start/count) rather than the upstream-pagination fast path.
+    response = client.get("/groups/jagyamanashi/events", params={"uid": "UID 2"})
+    assert response.status_code == 200
+    events = response.json()
+    assert len(events) == 1
+    assert events[0]["uid"] == "UID 2"
+
     assert len(MockConnpassEventRequest.requests) >= 1
     for req in MockConnpassEventRequest.requests:
         assert req["subdomain"] == ["jagyamanashi"]
         assert req["keyword"] is None
+        assert req.get("start") is None
 
 
 @patch("app.service.cache", EventRequestCache(prefix="test_group_events_page_default_"))
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
 def test_read_group_events_default_pagination():
-    # MockConnpassEventRequest always returns exactly 2 events (UID 1, UID 2)
+    # MockConnpassEventRequest always reports 2 events available (UID 1, UID 2)
     response = client.get("/groups/jagyamanashi/events")
     assert response.status_code == 200
     events = response.json()
@@ -677,6 +708,10 @@ def test_read_group_events_pagination_slices_pages():
     assert response.headers["X-Page"] == "2"
     assert response.headers["X-Per-Page"] == "1"
     assert response.headers["X-Total-Pages"] == "2"
+
+    assert len(MockConnpassEventRequest.requests) == 1
+    assert MockConnpassEventRequest.requests[0]["start"] == 2
+    assert MockConnpassEventRequest.requests[0]["count"] == 1
 
 
 @patch("app.service.cache", EventRequestCache(prefix="test_group_events_page_oob_"))
@@ -717,7 +752,9 @@ def test_read_group_events_pagination_headers_kept_with_fields():
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
 def test_read_group_events_connpass_chapter():
     # config.yaml defines chapter key "soracomug-yamanashi" carved out of the
-    # real subdomain "soracomug-tokyo" via title_keyword "山梨"
+    # real subdomain "soracomug-tokyo" via title_keyword "山梨". A chapter's
+    # title match can only be applied after fetching everything, so this
+    # falls back to get_events()'s crawl-everything path (no start/count).
     response = client.get("/groups/soracomug-yamanashi/events")
     assert response.status_code == 200
 
@@ -725,6 +762,7 @@ def test_read_group_events_connpass_chapter():
     for req in MockConnpassEventRequest.requests:
         assert req["subdomain"] == ["soracomug-tokyo"]
         assert req["keyword"] == "山梨"
+        assert req.get("start") is None
 
 
 @patch("app.service.cache", EventRequestCache(prefix="test_group_events_ical_"))

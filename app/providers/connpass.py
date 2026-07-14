@@ -15,7 +15,7 @@ class ConnpassEventRequest:
     def __init__(self, event_id=None, prefecture=None, subdomain=None,
                  ym=None, ymd=None, keyword=None, cache=None,
                  api_key=None, user_agent=None, cache_ttl=3600,
-                 skip_cache=False):
+                 skip_cache=False, start=None, count=None):
         self.url = "https://connpass.com/api/v2/events/"
         self.api_key = api_key
         self.event_id = event_id
@@ -34,7 +34,12 @@ class ConnpassEventRequest:
         self.user_agent = user_agent
         self.cache_ttl = cache_ttl
         self.skip_cache = skip_cache
+        # When both are given, get_events() fetches exactly this one slice
+        # from connpass instead of crawling every page of the result set.
+        self.start = start
+        self.count = count
         self.last_modified = datetime.fromtimestamp(0, timezone.utc)
+        self.total_available = None
 
     def get_event(self):
         events = self.get_events()
@@ -57,13 +62,14 @@ class ConnpassEventRequest:
         if len(self.keyword) > 0:
             params["keyword"] = ",".join(self.keyword)
 
-        page_size = 100
+        single_page = self.start is not None and self.count is not None
+        page_size = self.count if single_page else 100
         params["count"] = page_size
         params["order"] = 2
         page = 0
         events = []
         while True:
-            params["start"] = page * page_size + 1
+            params["start"] = self.start if single_page else (page * page_size + 1)
 
             json = None
             if self.cache is not None and not self.skip_cache:
@@ -90,11 +96,12 @@ class ConnpassEventRequest:
                     self.cache.set(params, json, last_modified=last_modified,
                                    ex=self.cache_ttl)
             events += self.__convert_to_events(json['events'])
+            self.total_available = json.get('results_available')
 
             if last_modified is not None:
                 self.last_modified = max(self.last_modified, last_modified)
 
-            if json['results_returned'] < page_size:
+            if single_page or json['results_returned'] < page_size:
                 break
             page += 1
 
@@ -105,6 +112,12 @@ class ConnpassEventRequest:
 
     def get_last_modified(self):
         return self.last_modified
+
+    def get_total_available(self):
+        """Total results matching the query's filters (subdomain/ym/ymd/
+        keyword), independent of start/count -- only meaningful after
+        get_events() has been called."""
+        return self.total_available
 
     def __resolve_last_modified(self, previous, json):
         """Reuse the previously cached last_modified for this page if the
