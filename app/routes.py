@@ -1,5 +1,5 @@
-from typing import List
-from fastapi import BackgroundTasks, Path, HTTPException, Depends, Header
+from typing import List, Literal
+from fastapi import BackgroundTasks, Path, Query, HTTPException, Depends, Header
 from fastapi.responses import RedirectResponse, Response, JSONResponse
 from fastapi_mcp import FastApiMCP
 from . import service
@@ -349,13 +349,24 @@ def filter_model_fields(items, model, fields: str = None):
 
 
 def build_list_response(response: Response, items, model, last_modified,
-                        fields: str = None, if_modified_since: str = None):
+                        fields: str = None, if_modified_since: str = None,
+                        total: int = None, page: int = None,
+                        per_page: int = None):
+    """items must already be the exact page to return; this only adds
+    the X-Total-* headers, it doesn't slice anything itself."""
     headers = {"Cache-Control": LIST_CACHE_CONTROL}
     if last_modified is not None:
         headers["Last-Modified"] = format_last_modified(last_modified)
 
     if is_not_modified(if_modified_since, last_modified):
         return Response(status_code=304, headers=headers)
+
+    if total is not None and page is not None and per_page is not None:
+        total_pages = (total + per_page - 1) // per_page if total > 0 else 0
+        headers["X-Total-Count"] = str(total)
+        headers["X-Page"] = str(page)
+        headers["X-Per-Page"] = str(per_page)
+        headers["X-Total-Pages"] = str(total_pages)
 
     filtered = filter_model_fields(items, model, fields)
     if filtered is None:
@@ -382,6 +393,69 @@ async def read_groups(
 
     return build_list_response(response, groups, Group, last_modified,
                                fields, if_modified_since)
+
+
+@app.get("/groups/{group_key}", response_model=Group,
+         operation_id="get_group",
+         summary="Get a single community group")
+async def read_group(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    group_key: str,
+    fields: str = None,
+    if_modified_since: str = Header(None)
+):
+    groups, last_modified = service.get_groups({}, background_tasks)
+    group = next((g for g in groups if g.key == group_key), None)
+    if group is None:
+        raise HTTPException(status_code=404,
+                            detail=f"Group '{group_key}' not found")
+
+    headers = {"Cache-Control": LIST_CACHE_CONTROL}
+    if last_modified is not None:
+        headers["Last-Modified"] = format_last_modified(last_modified)
+
+    if is_not_modified(if_modified_since, last_modified):
+        return Response(status_code=304, headers=headers)
+
+    filtered = filter_model_fields([group], Group, fields)
+    if filtered is None:
+        for key, value in headers.items():
+            response.headers[key] = value
+        return group
+
+    return JSONResponse(content=filtered[0], headers=headers)
+
+
+@app.get("/groups/{group_key}/events", response_model=List[Event],
+         operation_id="list_group_events",
+         summary="List events for a specific group")
+async def read_group_events(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    group_key: str,
+    keyword: str = None,
+    uid: str = None,
+    fields: str = None,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=200),
+    order: Literal["asc", "desc"] = "desc",
+    if_modified_since: str = Header(None)
+):
+    source = service.find_group_source(group_key)
+    if source is None:
+        raise HTTPException(status_code=404,
+                            detail=f"Group '{group_key}' not found")
+
+    # No date scope here (unlike /events/*), so this targets the group's
+    # full history, paginated (default 50/page, order defaults to "desc").
+    events, total, last_modified = service.get_group_events_page(
+        group_key, keyword, uid, page, per_page, order, background_tasks,
+        source=source)
+
+    return build_list_response(response, events, Event, last_modified,
+                               fields, if_modified_since,
+                               total=total, page=page, per_page=per_page)
 
 
 @app.get("/summary/events", response_model=EventsSummary,
@@ -545,5 +619,7 @@ mcp = FastApiMCP(app, include_operations=[
     "list_events_by_day",
     "list_events_by_range",
     "list_groups",
+    "get_group",
+    "list_group_events",
 ])
 mcp.mount_http()

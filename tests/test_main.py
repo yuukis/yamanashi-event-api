@@ -7,6 +7,7 @@ from app.service import get_user_agent, get_groups_from_icalendar
 from app.service import request_events, request_groups, get_groups_from_archives
 from app.service import get_archive_urls, preload_archive_indexes
 from app.service import get_events, get_groups, normalize_event_params
+from app.service import find_group_source
 from app.service import fetch_events, fetch_groups
 from app.service import split_connpass_scope, partition_and_relabel_chapter_events
 from app.service import get_groups_from_connpass_chapters, merged_connpass_subdomains
@@ -19,11 +20,29 @@ client = TestClient(app)
 
 
 class MockConnpassEventRequest:
+    requests = []
+    page_requests = []
+
     def __init__(self, **kwargs):
-        pass
+        MockConnpassEventRequest.requests.append(kwargs)
 
     def get_events(self):
-        json = [
+        return Event.from_json(self._fixed_json())
+
+    def get_events_page(self, item_start, item_count, order="desc"):
+        MockConnpassEventRequest.page_requests.append(
+            {"item_start": item_start, "item_count": item_count, "order": order})
+        # _fixed_json() is ascending; "desc" simulates connpass's native order.
+        events = Event.from_json(self._fixed_json())
+        if order == "desc":
+            events = list(reversed(events))
+        return events[item_start - 1:item_start - 1 + item_count]
+
+    def get_total_available(self):
+        return 2
+
+    def _fixed_json(self):
+        return [
             {
                 "uid": "UID 1",
                 "event_id": 1,
@@ -73,8 +92,6 @@ class MockConnpassEventRequest:
                 "lon": ""
             }
         ]
-        events = Event.from_json(json)
-        return events
 
     def get_last_modified(self):
         last_modified = datetime.fromtimestamp(123, timezone.utc)
@@ -111,8 +128,10 @@ class MockConnpassGroupRequest:
 
 
 class MockICalEventRequest:
+    requests = []
+
     def __init__(self, **kwargs):
-        pass
+        MockICalEventRequest.requests.append(kwargs)
 
     def get_events(self):
         json = [
@@ -229,6 +248,19 @@ def mock_archive_index_request():
     MockArchiveIndexRequest.preloaded_urls = []
     with patch("app.service.ArchiveIndexRequest", MockArchiveIndexRequest):
         yield
+
+
+@pytest.fixture(autouse=True)
+def mock_connpass_event_request_calls():
+    MockConnpassEventRequest.requests = []
+    MockConnpassEventRequest.page_requests = []
+    yield
+
+
+@pytest.fixture(autouse=True)
+def mock_ical_event_request_calls():
+    MockICalEventRequest.requests = []
+    yield
 
 
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
@@ -613,6 +645,231 @@ def test_read_events_fromto_year_month_invalid_legacy_path_still_works():
     assert response.status_code == 400
 
 
+@patch("app.service.cache", EventRequestCache(prefix="test_group_events_plain_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+def test_read_group_events_connpass_plain():
+    # Plain group, no keyword/uid: fast path, one request, no background refetch.
+    response = client.get("/groups/jagyamanashi/events")
+    assert response.status_code == 200
+    events = response.json()
+    assert isinstance(events, list)
+
+    assert len(MockConnpassEventRequest.requests) == 1
+    req = MockConnpassEventRequest.requests[0]
+    assert req["subdomain"] == ["jagyamanashi"]
+    assert "keyword" not in req
+
+    assert MockConnpassEventRequest.page_requests == [
+        {"item_start": 1, "item_count": 50, "order": "desc"}]
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_group_events_plain_filtered_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+def test_read_group_events_connpass_plain_with_uid_falls_back_to_full_fetch():
+    # uid filter forces the get_events() fallback, not the fast path.
+    response = client.get("/groups/jagyamanashi/events", params={"uid": "UID 2"})
+    assert response.status_code == 200
+    events = response.json()
+    assert len(events) == 1
+    assert events[0]["uid"] == "UID 2"
+
+    assert len(MockConnpassEventRequest.requests) >= 1
+    for req in MockConnpassEventRequest.requests:
+        assert req["subdomain"] == ["jagyamanashi"]
+        assert req["keyword"] is None
+    assert MockConnpassEventRequest.page_requests == []
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_group_events_plain_blank_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+def test_read_group_events_connpass_plain_with_blank_filters_still_uses_fast_path():
+    # Blank keyword/uid must not defeat the upstream-pagination fast path.
+    response = client.get("/groups/jagyamanashi/events",
+                          params={"keyword": "", "uid": "  ", "per_page": 1})
+    assert response.status_code == 200
+
+    assert MockConnpassEventRequest.page_requests == [
+        {"item_start": 1, "item_count": 1, "order": "desc"}]
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_group_events_page_default_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+def test_read_group_events_default_pagination():
+    # MockConnpassEventRequest always reports 2 events available (UID 1, UID 2)
+    response = client.get("/groups/jagyamanashi/events")
+    assert response.status_code == 200
+    events = response.json()
+    assert len(events) == 2
+
+    assert response.headers["X-Total-Count"] == "2"
+    assert response.headers["X-Page"] == "1"
+    assert response.headers["X-Per-Page"] == "50"
+    assert response.headers["X-Total-Pages"] == "1"
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_group_events_page_slice_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+def test_read_group_events_pagination_slices_pages():
+    # Default order "desc" (newest-first): page 2 of 1-per-page is UID 1.
+    response = client.get("/groups/jagyamanashi/events",
+                          params={"per_page": 1, "page": 2})
+    assert response.status_code == 200
+    events = response.json()
+    assert len(events) == 1
+    assert events[0]["uid"] == "UID 1"
+
+    assert response.headers["X-Total-Count"] == "2"
+    assert response.headers["X-Page"] == "2"
+    assert response.headers["X-Per-Page"] == "1"
+    assert response.headers["X-Total-Pages"] == "2"
+
+    assert len(MockConnpassEventRequest.requests) == 1
+    assert MockConnpassEventRequest.page_requests == [
+        {"item_start": 2, "item_count": 1, "order": "desc"}]
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_group_events_page_oob_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+def test_read_group_events_pagination_out_of_range_page_is_empty():
+    response = client.get("/groups/jagyamanashi/events",
+                          params={"per_page": 1, "page": 99})
+    assert response.status_code == 200
+    assert response.json() == []
+    assert response.headers["X-Total-Count"] == "2"
+    assert response.headers["X-Total-Pages"] == "2"
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_group_events_page_invalid_"))
+def test_read_group_events_pagination_rejects_invalid_params():
+    response = client.get("/groups/jagyamanashi/events", params={"page": 0})
+    assert response.status_code == 422
+
+    response = client.get("/groups/jagyamanashi/events", params={"per_page": 0})
+    assert response.status_code == 422
+
+    response = client.get("/groups/jagyamanashi/events", params={"per_page": 201})
+    assert response.status_code == 422
+
+    response = client.get("/groups/jagyamanashi/events", params={"order": "sideways"})
+    assert response.status_code == 422
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_group_events_order_asc_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+def test_read_group_events_ascending_order():
+    # order=asc reverses the native descending order: page 1 is UID 1.
+    response = client.get("/groups/jagyamanashi/events",
+                          params={"per_page": 1, "order": "asc"})
+    assert response.status_code == 200
+    events = response.json()
+    assert len(events) == 1
+    assert events[0]["uid"] == "UID 1"
+
+    assert MockConnpassEventRequest.page_requests == [
+        {"item_start": 1, "item_count": 1, "order": "asc"}]
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_group_events_chapter_desc_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+def test_read_group_events_chapter_descending_order():
+    # Chapters fall back to get_events() (always ascending); order=desc
+    # must reverse that result locally.
+    response = client.get("/groups/soracomug-yamanashi/events",
+                          params={"order": "desc"})
+    assert response.status_code == 200
+    events = response.json()
+    started_ats = [e["started_at"] for e in events]
+    assert started_ats == sorted(started_ats, reverse=True)
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_group_events_page_fields_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+def test_read_group_events_pagination_headers_kept_with_fields():
+    # Default order "desc": page 1 of 1-per-page is the newest event, UID 2.
+    response = client.get("/groups/jagyamanashi/events",
+                          params={"per_page": 1, "fields": "uid"})
+    assert response.status_code == 200
+    assert response.json() == [{"uid": "UID 2"}]
+    assert response.headers["X-Total-Count"] == "2"
+    assert response.headers["X-Per-Page"] == "1"
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_group_events_chapter_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+def test_read_group_events_connpass_chapter():
+    # Chapter "soracomug-yamanashi" (subdomain "soracomug-tokyo", keyword
+    # "山梨") falls back to get_events()'s crawl, not the fast path.
+    response = client.get("/groups/soracomug-yamanashi/events")
+    assert response.status_code == 200
+
+    assert len(MockConnpassEventRequest.requests) >= 1
+    for req in MockConnpassEventRequest.requests:
+        assert req["subdomain"] == ["soracomug-tokyo"]
+        assert req["keyword"] == "山梨"
+    assert MockConnpassEventRequest.page_requests == []
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_group_events_ical_"))
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+def test_read_group_events_icalendar():
+    # config.yaml's real icalendar entry, resolved from config alone
+    response = client.get("/groups/yamanashi-wordpress-meetup-ical/events")
+    assert response.status_code == 200
+
+    assert len(MockICalEventRequest.requests) >= 1
+    for req in MockICalEventRequest.requests:
+        assert req["key"] == "yamanashi-wordpress-meetup-ical"
+        assert req["url"] == \
+            "https://www.meetup.com/ja-JP/Yamanashi-WordPress-Meetup/events/ical/"
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_group_events_archive_"))
+@patch("app.service.split_connpass_scope", return_value=([], []))
+def test_read_group_events_archive(mock_split_connpass_scope):
+    # "yamanashi-web" is also a real plain subdomain; neutralize
+    # scope.connpass to force the archive-only resolution path.
+    response = client.get("/groups/yamanashi-web/events")
+    assert response.status_code == 200
+    events = response.json()
+    assert len(events) == 1
+    assert events[0]["group_key"] == "yamanashi-web"
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_group_events_404_"))
+def test_read_group_events_not_found():
+    response = client.get("/groups/no-such-group/events")
+    assert response.status_code == 404
+
+
+def test_find_group_source_connpass_plain():
+    source = find_group_source("jagyamanashi")
+    assert source == {"type": "connpass", "subdomain": "jagyamanashi",
+                      "keyword": None, "chapter_entry": None}
+
+
+def test_find_group_source_connpass_chapter():
+    source = find_group_source("soracomug-yamanashi")
+    assert source["type"] == "connpass"
+    assert source["subdomain"] == "soracomug-tokyo"
+    assert source["keyword"] == "山梨"
+
+
+def test_find_group_source_icalendar():
+    source = find_group_source("yamanashi-wordpress-meetup-ical")
+    assert source["type"] == "icalendar"
+    assert source["ical_url"] == \
+        "https://www.meetup.com/ja-JP/Yamanashi-WordPress-Meetup/events/ical/"
+
+
+@patch("app.service.split_connpass_scope", return_value=([], []))
+def test_find_group_source_archive(mock_split_connpass_scope):
+    assert find_group_source("yamanashi-web") == {"type": "archive"}
+
+
+def test_find_group_source_not_found():
+    assert find_group_source("no-such-group") is None
+
+
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
 @patch("app.service.IcalEventRequest", MockICalEventRequest)
 @patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
@@ -838,6 +1095,53 @@ def test_read_group_includes_archive_source(mock_get_groups_from_icalendar):
     assert archive_group["archive_source"] == "yamanashi-event-archive"
     assert archive_group["archive_url"] == \
         "https://github.com/yuukis/yamanashi-event-archive"
+
+
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+def test_read_group_by_key(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    response = client.get("/groups/Key")
+    assert response.status_code == 200
+    group = response.json()
+    assert isinstance(group, dict)
+    assert group["key"] == "Key"
+    assert group["title"] == "Title"
+
+
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+def test_read_group_by_key_not_found(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    response = client.get("/groups/no-such-group")
+    assert response.status_code == 404
+
+
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+def test_read_group_by_key_with_fields(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    response = client.get("/groups/Key", params={"fields": "key,title"})
+    assert response.status_code == 200
+    assert response.json() == {"key": "Key", "title": "Title"}
+
+
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+def test_read_group_by_key_returns_304_when_not_modified_since(
+        mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    baseline = client.get("/groups/Key")
+    last_modified = baseline.headers["Last-Modified"]
+
+    response = client.get("/groups/Key",
+                          headers={"If-Modified-Since": last_modified})
+    assert response.status_code == 304
+    assert response.content == b""
 
 
 def test_events_refresh_min_interval_falls_back_on_invalid_env_value(monkeypatch):

@@ -185,6 +185,165 @@ class TestConnpassEventRequest(unittest.TestCase):
         # ...but the freshly fetched result must still be written back.
         mock_cache.set.assert_called_once()
 
+    def _make_page_response(self, num_events, results_returned, results_available):
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            'events': [
+                {
+                    'id': i,
+                    'title': f'Test Event {i}',
+                    'catch': None,
+                    'hash_tag': None,
+                    'url': 'https://test.connpass.com',
+                    'started_at': '2020-01-01T00:00:00+09:00',
+                    'ended_at': '2020-01-01T00:00:00+09:00',
+                    'updated_at': '2020-01-01T00:00:00+09:00',
+                    'open_status': 'preopen',
+                    'limit': 100,
+                    'accepted': 50,
+                    'waiting': 50,
+                    'owner_id': 1234,
+                    'owner_nickname': 'test',
+                    'owner_display_name': 'Test',
+                    'place': None,
+                    'address': None,
+                    'lat': None,
+                    'lon': None,
+                    'description': None,
+                    'event_type': 'participation',
+                    'group': None
+                }
+                for i in range(num_events)
+            ],
+            'results_returned': results_returned,
+            'results_available': results_available
+        }
+        return mock_response
+
+    def test_get_events_page_fetches_one_chunk_when_range_fits(self):
+        mock_cache = MagicMock()
+        mock_cache.get.return_value = None
+
+        connpass_request = ConnpassEventRequest(subdomain=['test'], cache=mock_cache)
+        mock_get = MagicMock(
+            return_value=self._make_page_response(100, 100, 250))
+        connpass_request._ConnpassEventRequest__get = mock_get
+
+        # Items 1-10 fit entirely within the first PAGE_SIZE=100 chunk.
+        events = connpass_request.get_events_page(1, 10)
+
+        self.assertEqual(len(events), 10)
+        self.assertEqual(connpass_request.get_total_available(), 250)
+        mock_get.assert_called_once()
+        sent_params = mock_get.call_args[0][0]
+        self.assertEqual(sent_params['start'], 1)
+        self.assertEqual(sent_params['count'], ConnpassEventRequest.PAGE_SIZE)
+
+    def test_get_events_page_fetches_only_chunks_the_range_spans(self):
+        mock_cache = MagicMock()
+        mock_cache.get.return_value = None
+
+        connpass_request = ConnpassEventRequest(subdomain=['test'], cache=mock_cache)
+        responses = [
+            self._make_page_response(100, 100, 250),  # chunk 0: items 1-100
+            self._make_page_response(100, 100, 250),  # chunk 1: items 101-200
+        ]
+        seen_starts = []
+
+        def fake_get(params):
+            seen_starts.append(params['start'])
+            return responses[len(seen_starts) - 1]
+
+        mock_get = MagicMock(side_effect=fake_get)
+        connpass_request._ConnpassEventRequest__get = mock_get
+
+        # Items 95-114 span chunk 0 (1-100) and chunk 1 (101-200), but must
+        # not reach chunk 2 (201-300).
+        events = connpass_request.get_events_page(95, 20)
+
+        self.assertEqual(len(events), 20)
+        self.assertEqual(mock_get.call_count, 2)
+        self.assertEqual(seen_starts, [1, 101])
+
+    def test_get_events_page_shares_cache_keys_with_get_events(self):
+        # get_events_page() and get_events() must send identical params
+        # for the same chunk, so they share cache entries.
+        mock_cache = MagicMock()
+        mock_cache.get.return_value = None
+        mock_get = MagicMock(
+            return_value=self._make_page_response(1, 1, 1))
+
+        crawl_request = ConnpassEventRequest(subdomain=['test'], cache=mock_cache)
+        crawl_request._ConnpassEventRequest__get = mock_get
+        crawl_request.get_events()
+        crawl_params = mock_get.call_args[0][0]
+
+        mock_get.reset_mock()
+        page_request = ConnpassEventRequest(subdomain=['test'], cache=mock_cache)
+        page_request._ConnpassEventRequest__get = mock_get
+        page_request.get_events_page(1, 10)
+        page_params = mock_get.call_args[0][0]
+
+        self.assertEqual(crawl_params, page_params)
+
+    def test_get_events_page_ascending_is_reverse_of_descending(self):
+        mock_cache = MagicMock()
+        mock_cache.get.return_value = None
+
+        def make_request():
+            r = ConnpassEventRequest(subdomain=['test'], cache=mock_cache)
+            r._ConnpassEventRequest__get = MagicMock(
+                return_value=self._make_page_response(5, 5, 5))
+            return r
+
+        descending = make_request().get_events_page(1, 5, order="desc")
+        ascending = make_request().get_events_page(1, 5, order="asc")
+
+        self.assertEqual([e.event_id for e in ascending],
+                         list(reversed([e.event_id for e in descending])))
+
+    def test_get_events_page_ascending_reuses_chunk_zero_when_range_fits(self):
+        # Real cache, not a bare mock: the redundant chunk-0 fetch to
+        # learn the total should be a cache hit, not a second live call.
+        real_cache = EventRequestCache(prefix="test_page_asc_reuse_")
+
+        connpass_request = ConnpassEventRequest(subdomain=['test'], cache=real_cache)
+        mock_get = MagicMock(return_value=self._make_page_response(5, 5, 5))
+        connpass_request._ConnpassEventRequest__get = mock_get
+
+        # Ascending item 1 (oldest) maps to descending position 5, which
+        # already lives in chunk 0 -- no second chunk fetch needed.
+        events = connpass_request.get_events_page(1, 1, order="asc")
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].event_id, 4)
+        mock_get.assert_called_once()
+
+    def test_get_events_page_ascending_spans_multiple_chunks_when_needed(self):
+        mock_cache = MagicMock()
+        mock_cache.get.return_value = None
+
+        connpass_request = ConnpassEventRequest(subdomain=['test'], cache=mock_cache)
+        responses = {
+            1: self._make_page_response(100, 100, 150),   # chunk 0
+            101: self._make_page_response(50, 50, 150),   # chunk 1
+        }
+        seen_starts = []
+
+        def fake_get(params):
+            seen_starts.append(params['start'])
+            return responses[params['start']]
+
+        connpass_request._ConnpassEventRequest__get = MagicMock(side_effect=fake_get)
+
+        # Ascending items 1-10 (oldest 10 of 150) map to descending
+        # positions 141-150, which live in chunk 1 -- must touch chunk 0
+        # (to learn the total) and chunk 1 (for the actual range).
+        events = connpass_request.get_events_page(1, 10, order="asc")
+
+        self.assertEqual(len(events), 10)
+        self.assertEqual(sorted(set(seen_starts)), [1, 101])
+
     def _make_event_response(self, event_id):
         mock_response = MagicMock()
         mock_response.json.return_value = {
