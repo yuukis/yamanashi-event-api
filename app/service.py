@@ -289,16 +289,31 @@ def split_connpass_scope(config):
     chapters = []
     if "scope" in config and "connpass" in config["scope"]:
         for entry in config["scope"]["connpass"]:
+            if not isinstance(entry, dict):
+                raise ValueError(
+                    "scope.connpass: each entry must be a mapping with "
+                    f"at least a subdomain key, got {entry!r}")
+
+            subdomain = entry.get("subdomain")
+            if not isinstance(subdomain, str) or subdomain == "":
+                raise ValueError(
+                    "scope.connpass: each entry requires a non-empty "
+                    f"string subdomain, got {entry!r}")
+
             if "title_keyword" in entry:
                 title_keyword = entry.get("title_keyword")
                 if not isinstance(title_keyword, str) or title_keyword == "":
                     raise ValueError(
                         "scope.connpass: chapter entry for subdomain "
-                        f"'{entry.get('subdomain')}' requires a non-empty "
-                        "string title_keyword")
+                        f"'{subdomain}' requires a non-empty string "
+                        "title_keyword")
+                if not entry.get("key") or not entry.get("name"):
+                    raise ValueError(
+                        "scope.connpass: chapter entry for subdomain "
+                        f"'{subdomain}' requires key and name")
                 chapters.append(entry)
             else:
-                plain.append(entry["subdomain"])
+                plain.append(subdomain)
 
     conflicting = {c["subdomain"] for c in chapters} & set(plain)
     if conflicting:
@@ -425,3 +440,8 @@ def get_archive_urls(config):
             urls.append(url)
 
     return urls
+
+
+# Fail fast at startup if scope.connpass is misconfigured, rather than
+# only surfacing a clear error on the first /events or /groups request.
+split_connpass_scope(config)
