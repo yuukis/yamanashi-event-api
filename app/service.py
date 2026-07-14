@@ -290,9 +290,24 @@ def split_connpass_scope(config):
     if "scope" in config and "connpass" in config["scope"]:
         for entry in config["scope"]["connpass"]:
             if "title_keyword" in entry:
+                title_keyword = entry.get("title_keyword")
+                if not isinstance(title_keyword, str) or title_keyword == "":
+                    raise ValueError(
+                        "scope.connpass: chapter entry for subdomain "
+                        f"'{entry.get('subdomain')}' requires a non-empty "
+                        "string title_keyword")
                 chapters.append(entry)
             else:
                 plain.append(entry["subdomain"])
+
+    conflicting = {c["subdomain"] for c in chapters} & set(plain)
+    if conflicting:
+        raise ValueError(
+            f"scope.connpass: subdomain(s) {sorted(conflicting)} are "
+            "configured as both a plain entry and a chapter entry "
+            "(title_keyword set) -- a subdomain can only be one or the "
+            "other")
+
     return plain, chapters
 
 
