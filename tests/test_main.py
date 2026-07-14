@@ -952,6 +952,53 @@ def test_read_group_includes_archive_source(mock_get_groups_from_icalendar):
         "https://github.com/yuukis/yamanashi-event-archive"
 
 
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+def test_read_group_by_key(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    response = client.get("/groups/Key")
+    assert response.status_code == 200
+    group = response.json()
+    assert isinstance(group, dict)
+    assert group["key"] == "Key"
+    assert group["title"] == "Title"
+
+
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+def test_read_group_by_key_not_found(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    response = client.get("/groups/no-such-group")
+    assert response.status_code == 404
+
+
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+def test_read_group_by_key_with_fields(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    response = client.get("/groups/Key", params={"fields": "key,title"})
+    assert response.status_code == 200
+    assert response.json() == {"key": "Key", "title": "Title"}
+
+
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+def test_read_group_by_key_returns_304_when_not_modified_since(
+        mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    baseline = client.get("/groups/Key")
+    last_modified = baseline.headers["Last-Modified"]
+
+    response = client.get("/groups/Key",
+                          headers={"If-Modified-Since": last_modified})
+    assert response.status_code == 304
+    assert response.content == b""
+
+
 def test_events_refresh_min_interval_falls_back_on_invalid_env_value(monkeypatch):
     import importlib
     import app.service as service_module

@@ -384,6 +384,38 @@ async def read_groups(
                                fields, if_modified_since)
 
 
+@app.get("/groups/{group_key}", response_model=Group,
+         operation_id="get_group",
+         summary="Get a single community group")
+async def read_group(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    group_key: str,
+    fields: str = None,
+    if_modified_since: str = Header(None)
+):
+    groups, last_modified = service.get_groups({}, background_tasks)
+    group = next((g for g in groups if g.key == group_key), None)
+    if group is None:
+        raise HTTPException(status_code=404,
+                            detail=f"Group '{group_key}' not found")
+
+    headers = {"Cache-Control": LIST_CACHE_CONTROL}
+    if last_modified is not None:
+        headers["Last-Modified"] = format_last_modified(last_modified)
+
+    if is_not_modified(if_modified_since, last_modified):
+        return Response(status_code=304, headers=headers)
+
+    filtered = filter_model_fields([group], Group, fields)
+    if filtered is None:
+        for key, value in headers.items():
+            response.headers[key] = value
+        return group
+
+    return JSONResponse(content=filtered[0], headers=headers)
+
+
 @app.get("/groups/{group_key}/events", response_model=List[Event],
          operation_id="list_group_events",
          summary="List events for a specific group")
@@ -572,6 +604,7 @@ mcp = FastApiMCP(app, include_operations=[
     "list_events_by_day",
     "list_events_by_range",
     "list_groups",
+    "get_group",
     "list_group_events",
 ])
 mcp.mount_http()
