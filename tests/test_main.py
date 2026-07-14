@@ -7,6 +7,7 @@ from app.service import get_user_agent, get_groups_from_icalendar
 from app.service import request_events, request_groups, get_groups_from_archives
 from app.service import get_archive_urls, preload_archive_indexes
 from app.service import get_events, get_groups, normalize_event_params
+from app.service import find_group_by_key
 from app.service import fetch_events, fetch_groups
 from app.service import split_connpass_scope, partition_and_relabel_chapter_events
 from app.service import get_groups_from_connpass_chapters, merged_connpass_subdomains
@@ -19,8 +20,10 @@ client = TestClient(app)
 
 
 class MockConnpassEventRequest:
+    requests = []
+
     def __init__(self, **kwargs):
-        pass
+        MockConnpassEventRequest.requests.append(kwargs)
 
     def get_events(self):
         json = [
@@ -111,8 +114,10 @@ class MockConnpassGroupRequest:
 
 
 class MockICalEventRequest:
+    requests = []
+
     def __init__(self, **kwargs):
-        pass
+        MockICalEventRequest.requests.append(kwargs)
 
     def get_events(self):
         json = [
@@ -229,6 +234,18 @@ def mock_archive_index_request():
     MockArchiveIndexRequest.preloaded_urls = []
     with patch("app.service.ArchiveIndexRequest", MockArchiveIndexRequest):
         yield
+
+
+@pytest.fixture(autouse=True)
+def mock_connpass_event_request_calls():
+    MockConnpassEventRequest.requests = []
+    yield
+
+
+@pytest.fixture(autouse=True)
+def mock_ical_event_request_calls():
+    MockICalEventRequest.requests = []
+    yield
 
 
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
@@ -611,6 +628,97 @@ def test_read_events_fromto_year_month_legacy_path_still_works():
 def test_read_events_fromto_year_month_invalid_legacy_path_still_works():
     response = client.get("/events/from/2023/12/to/2022/11")
     assert response.status_code == 400
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_events_group_plain_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+def test_read_events_group_connpass_plain(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    # MockConnpassGroupRequest always reports a single plain group, key "Key"
+    response = client.get("/events/group/Key")
+    assert response.status_code == 200
+    events = response.json()
+    assert isinstance(events, list)
+
+    # background_tasks refetches once more after the initial response, so
+    # assert every recorded call was scoped the same way rather than count
+    assert len(MockConnpassEventRequest.requests) >= 1
+    for req in MockConnpassEventRequest.requests:
+        assert req["subdomain"] == ["Key"]
+        assert req["keyword"] is None
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_events_group_chapter_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+def test_read_events_group_connpass_chapter(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    # config.yaml defines chapter key "soracomug-yamanashi" carved out of the
+    # real subdomain "soracomug-tokyo" via title_keyword "山梨"
+    response = client.get("/events/group/soracomug-yamanashi")
+    assert response.status_code == 200
+
+    assert len(MockConnpassEventRequest.requests) >= 1
+    for req in MockConnpassEventRequest.requests:
+        assert req["subdomain"] == ["soracomug-tokyo"]
+        assert req["keyword"] == "山梨"
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_events_group_ical_"))
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+def test_read_events_group_icalendar():
+    # config.yaml's real icalendar entry, resolved without mocking
+    # get_groups_from_icalendar since it does no network I/O itself
+    response = client.get("/events/group/yamanashi-wordpress-meetup-ical")
+    assert response.status_code == 200
+
+    assert len(MockICalEventRequest.requests) >= 1
+    for req in MockICalEventRequest.requests:
+        assert req["key"] == "yamanashi-wordpress-meetup-ical"
+        assert req["url"] == \
+            "https://www.meetup.com/ja-JP/Yamanashi-WordPress-Meetup/events/ical/"
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_events_group_archive_"))
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+def test_read_events_group_archive(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    # Archive indexes can't be queried per-group, so this must be filtered
+    # client-side against the mocked archive's fixed event list
+    response = client.get("/events/group/yamanashi-web")
+    assert response.status_code == 200
+    events = response.json()
+    assert len(events) == 1
+    assert events[0]["group_key"] == "yamanashi-web"
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_events_group_404_"))
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+def test_read_events_group_not_found(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    response = client.get("/events/group/no-such-group")
+    assert response.status_code == 404
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_find_group_by_key_"))
+def test_find_group_by_key():
+    groups = [
+        Group.from_json({"key": "a", "title": "A"}),
+        Group.from_json({"key": "b", "title": "B"}),
+    ]
+    with patch("app.service.get_groups", return_value=(groups, None)):
+        assert find_group_by_key("b").key == "b"
+        assert find_group_by_key("no-such") is None
 
 
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
