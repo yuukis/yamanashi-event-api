@@ -134,22 +134,11 @@ Archive events inherit their own `keywords` field if present; otherwise
 they're extracted the same way. The `keyword` query parameter matches
 extracted keywords too.
 
-## Archive Index
+## Configuration
 
-Historical events can be loaded from external archive index JSON files. This is
-intended for event data maintained outside this API repository, such as a
-community or regional tech event archive.
-
-Add archive index URLs to `app/config.yaml`.
-
-```yaml
-scope:
-  archives:
-    - url:
-        - https://yuukis.github.io/yamanashi-event-archive/index.json
-```
-
-See [Archive Index](docs/archive-index.md) for the JSON format.
+`app/config.yaml` controls the API's metadata and which events/groups it
+serves (connpass groups, iCal feeds, external archive indexes, prefecture
+matching, etc). See [Configuration](docs/config.md) for the full reference.
 
 <!-- LICENSE -->
 ## License
