@@ -683,8 +683,7 @@ def test_read_group_events_connpass_plain_with_uid_falls_back_to_full_fetch():
 @patch("app.service.cache", EventRequestCache(prefix="test_group_events_plain_blank_"))
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
 def test_read_group_events_connpass_plain_with_blank_filters_still_uses_fast_path():
-    # Blank keyword/uid are effectively "no filter" and must not defeat
-    # the upstream-pagination fast path.
+    # Blank keyword/uid must not defeat the upstream-pagination fast path.
     response = client.get("/groups/jagyamanashi/events",
                           params={"keyword": "", "uid": "  ", "per_page": 1})
     assert response.status_code == 200
