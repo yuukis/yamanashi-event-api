@@ -33,7 +33,7 @@ scope:
     - subdomain: 'yamanashi-encareer' # やまなしエンxキャリ（Engineer × Career）
     - subdomain: 'techmujin' # テック無尽
     - subdomain: 'ura-techmujin' # 裏テック無尽
-    - subdomain: 'soracomug-tokyo' # SORACOM UG(全国)の山梨支部だけを抽出
+    - subdomain: 'soracomug-tokyo' # SORACOM UG 山梨
       title_keyword: '山梨'
       key: 'soracomug-yamanashi'
       name: 'SORACOM UG 山梨'
