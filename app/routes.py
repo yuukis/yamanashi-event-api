@@ -40,6 +40,37 @@ async def read_events(
                                    keyword, uid, fields, if_modified_since)
 
 
+@app.get("/events/group/{group_key}", response_model=List[Event],
+         operation_id="list_events_by_group",
+         summary="List events for a specific group")
+async def read_events_group(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    group_key: str,
+    keyword: str = None,
+    uid: str = None,
+    fields: str = None,
+    if_modified_since: str = Header(None)
+):
+    group = service.find_group_by_key(group_key)
+    if group is None:
+        raise HTTPException(status_code=404,
+                            detail=f"Group '{group_key}' not found")
+
+    days = service.config["recent_days"] if "recent_days" in service.config else 90
+    now = datetime.now()
+    dt_from = now - timedelta(days=days)
+    dt_to = now + timedelta(days=days)
+    ym = year_month_range(dt_from.year, dt_from.month, dt_to.year, dt_to.month)
+
+    events, last_modified = service.get_events(
+        {"ym": ym, "keyword": keyword, "uid": uid, "group_key": group_key},
+        background_tasks)
+
+    return build_list_response(response, events, Event, last_modified,
+                               fields, if_modified_since)
+
+
 @app.get("/events/day/today", response_model=List[Event],
          operation_id="list_events_today",
          summary="List today's events")
@@ -537,6 +568,7 @@ async def refresh_events(
 
 mcp = FastApiMCP(app, include_operations=[
     "list_events",
+    "list_events_by_group",
     "list_events_today",
     "list_events_this_week",
     "list_events_next_week",
