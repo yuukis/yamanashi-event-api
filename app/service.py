@@ -39,7 +39,18 @@ def normalize_event_params(params):
         uid = uid.strip()
         if uid == "":
             uid = None
-    return {**params, "uid": uid}
+
+    result = {**params, "uid": uid}
+
+    if "group_key" in params:
+        group_key = params.get("group_key")
+        if group_key is not None:
+            group_key = group_key.strip()
+            if group_key == "":
+                group_key = None
+        result["group_key"] = group_key
+
+    return result
 
 
 def get_events(params,
@@ -101,6 +112,7 @@ def request_events(params, cache_ttl: int = None,
     ymd = params["ymd"] if "ymd" in params else None
     keyword = params["keyword"] if "keyword" in params else None
     uid = params["uid"] if "uid" in params else None
+    group_key = params.get("group_key")
     connpass_cache_ttl = cache_ttl if cache_ttl is not None else 3600
 
     user_agent = get_user_agent(config)
@@ -108,54 +120,61 @@ def request_events(params, cache_ttl: int = None,
     events = []
     last_modified = datetime.fromtimestamp(0, timezone.utc)
     try:
-        if "scope" in config and "prefecture" in config["scope"]:
-            prefecture = config["scope"]["prefecture"]
-            r = ConnpassEventRequest(prefecture=prefecture,
-                                     ym=ym, ymd=ymd, cache=cache,
-                                     api_key=connpass_api_key,
-                                     user_agent=user_agent,
-                                     cache_ttl=connpass_cache_ttl,
-                                     skip_cache=force_refresh
-                                     )
-            events += r.get_events()
-            last_modified = max(last_modified, r.get_last_modified())
+        if group_key is not None:
+            group = find_group_by_key(group_key)
+            if group is not None:
+                events, last_modified = request_events_for_group(
+                    group, ym, ymd, connpass_cache_ttl, force_refresh)
 
-        plain_subdomains, chapters = split_connpass_scope(config)
-        subdomain = merged_connpass_subdomains(plain_subdomains, chapters)
-
-        if len(subdomain) > 0:
-            r = ConnpassEventRequest(subdomain=subdomain,
-                                     ym=ym, ymd=ymd, cache=cache,
-                                     api_key=connpass_api_key,
-                                     user_agent=user_agent,
-                                     cache_ttl=connpass_cache_ttl,
-                                     skip_cache=force_refresh
-                                     )
-            events += partition_and_relabel_chapter_events(
-                r.get_events(), chapters)
-            last_modified = max(last_modified, r.get_last_modified())
-
-        if "scope" in config and "icalendar" in config["scope"]:
-            icalendar = config["scope"]["icalendar"]
-            for group in icalendar:
-                key = group["key"]
-                name = group["name"]
-                image_url = group.get("image_url")
-                group_url = group.get("group_url")
-                ical_url = group["ical_url"]
-                r = IcalEventRequest(url=ical_url,
-                                     key=key, name=name,
-                                     image_url=image_url, group_url=group_url,
-                                     ym=ym, ymd=ymd, cache=cache)
+        else:
+            if "scope" in config and "prefecture" in config["scope"]:
+                prefecture = config["scope"]["prefecture"]
+                r = ConnpassEventRequest(prefecture=prefecture,
+                                         ym=ym, ymd=ymd, cache=cache,
+                                         api_key=connpass_api_key,
+                                         user_agent=user_agent,
+                                         cache_ttl=connpass_cache_ttl,
+                                         skip_cache=force_refresh
+                                         )
                 events += r.get_events()
                 last_modified = max(last_modified, r.get_last_modified())
 
-        if "scope" in config and "archives" in config["scope"]:
-            for url in get_archive_urls(config):
-                r = ArchiveIndexRequest(url=url,
-                                        ym=ym, ymd=ymd, cache=cache)
-                events += r.get_events()
+            plain_subdomains, chapters = split_connpass_scope(config)
+            subdomain = merged_connpass_subdomains(plain_subdomains, chapters)
+
+            if len(subdomain) > 0:
+                r = ConnpassEventRequest(subdomain=subdomain,
+                                         ym=ym, ymd=ymd, cache=cache,
+                                         api_key=connpass_api_key,
+                                         user_agent=user_agent,
+                                         cache_ttl=connpass_cache_ttl,
+                                         skip_cache=force_refresh
+                                         )
+                events += partition_and_relabel_chapter_events(
+                    r.get_events(), chapters)
                 last_modified = max(last_modified, r.get_last_modified())
+
+            if "scope" in config and "icalendar" in config["scope"]:
+                icalendar = config["scope"]["icalendar"]
+                for group in icalendar:
+                    key = group["key"]
+                    name = group["name"]
+                    image_url = group.get("image_url")
+                    group_url = group.get("group_url")
+                    ical_url = group["ical_url"]
+                    r = IcalEventRequest(url=ical_url,
+                                         key=key, name=name,
+                                         image_url=image_url, group_url=group_url,
+                                         ym=ym, ymd=ymd, cache=cache)
+                    events += r.get_events()
+                    last_modified = max(last_modified, r.get_last_modified())
+
+            if "scope" in config and "archives" in config["scope"]:
+                for url in get_archive_urls(config):
+                    r = ArchiveIndexRequest(url=url,
+                                            ym=ym, ymd=ymd, cache=cache)
+                    events += r.get_events()
+                    last_modified = max(last_modified, r.get_last_modified())
 
     except ConnpassException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
@@ -179,6 +198,65 @@ def request_events(params, cache_ttl: int = None,
 
     if uid is not None:
         events = [ev for ev in events if ev.uid == uid]
+
+    return events, last_modified
+
+
+def find_group_by_key(group_key) -> Optional[Group]:
+    """Resolve a group_key against the configured groups (scope.connpass
+    plain/chapter, scope.icalendar, scope.archives). Groups only discovered
+    via the prefecture-wide connpass search are not included here, since
+    they aren't part of the configured scope."""
+    groups, _ = get_groups({})
+    return next((g for g in groups if g.key == group_key), None)
+
+
+def request_events_for_group(group: Group, ym, ymd, cache_ttl: int,
+                             force_refresh: bool = False
+                             ) -> Tuple[List[Event], datetime]:
+    """Fetch events for a single already-resolved group, scoping the
+    upstream request to just that group's source instead of the full
+    configured scope."""
+    global cache
+
+    user_agent = get_user_agent(config)
+    events = []
+    last_modified = datetime.fromtimestamp(0, timezone.utc)
+
+    if group.ical_url is not None:
+        r = IcalEventRequest(url=group.ical_url, key=group.key, name=group.title,
+                             image_url=group.image_url, group_url=group.url,
+                             ym=ym, ymd=ymd, cache=cache)
+        events += r.get_events()
+        last_modified = max(last_modified, r.get_last_modified())
+
+    elif group.archive_source is not None:
+        # Archive indexes have no per-group query -- filter client-side.
+        for url in get_archive_urls(config):
+            r = ArchiveIndexRequest(url=url, ym=ym, ymd=ymd, cache=cache)
+            events += [ev for ev in r.get_events() if ev.group_key == group.key]
+            last_modified = max(last_modified, r.get_last_modified())
+
+    else:
+        # connpass-sourced (plain group or chapter). A chapter's key is a
+        # virtual key distinct from the real subdomain it's carved out of.
+        _, chapters = split_connpass_scope(config)
+        chapter_entry = next((c for c in chapters if c["key"] == group.key), None)
+        subdomain = chapter_entry["subdomain"] if chapter_entry is not None else group.key
+        keyword = chapter_entry["title_keyword"] if chapter_entry is not None else None
+
+        r = ConnpassEventRequest(subdomain=[subdomain], keyword=keyword,
+                                 ym=ym, ymd=ymd, cache=cache,
+                                 api_key=connpass_api_key, user_agent=user_agent,
+                                 cache_ttl=cache_ttl, skip_cache=force_refresh)
+        fetched = r.get_events()
+        # partition_and_relabel_chapter_events still enforces the exact
+        # title match: connpass's keyword search also matches description/
+        # address text, so the keyword param above only narrows the
+        # upstream fetch -- it doesn't replace this correctness check.
+        events += (partition_and_relabel_chapter_events(fetched, [chapter_entry])
+                   if chapter_entry is not None else fetched)
+        last_modified = max(last_modified, r.get_last_modified())
 
     return events, last_modified
 
