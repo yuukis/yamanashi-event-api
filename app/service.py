@@ -121,7 +121,7 @@ def request_events(params, cache_ttl: int = None,
             last_modified = max(last_modified, r.get_last_modified())
 
         plain_subdomains, chapters = split_connpass_scope(config)
-        subdomain = plain_subdomains + [c["subdomain"] for c in chapters]
+        subdomain = merged_connpass_subdomains(plain_subdomains, chapters)
 
         if len(subdomain) > 0:
             r = ConnpassEventRequest(subdomain=subdomain,
@@ -241,7 +241,7 @@ def request_groups(params) -> Tuple[List[Group], datetime]:
     try:
         plain_subdomains, chapters = split_connpass_scope(config)
         chapter_subdomains = {c["subdomain"] for c in chapters}
-        subdomain = plain_subdomains + list(chapter_subdomains)
+        subdomain = merged_connpass_subdomains(plain_subdomains, chapters)
 
         real_groups_by_key = {}
         if len(subdomain) > 0:
@@ -296,6 +296,16 @@ def split_connpass_scope(config):
     return plain, chapters
 
 
+def merged_connpass_subdomains(plain_subdomains, chapters):
+    # dict.fromkeys, not set(): dedupes while preserving insertion order,
+    # so the connpass query params (and their cache key) stay stable
+    # regardless of set iteration/hash-seed order.
+    merged = dict.fromkeys(plain_subdomains)
+    for entry in chapters:
+        merged.setdefault(entry["subdomain"], None)
+    return list(merged)
+
+
 def partition_and_relabel_chapter_events(events, chapters):
     # Matched against the title only, not sent to connpass as a `keyword`
     # search param: connpass's keyword search also matches description/
@@ -328,6 +338,10 @@ def get_groups_from_connpass_chapters(chapters, real_groups_by_key):
     for entry in chapters:
         real = real_groups_by_key.get(entry["subdomain"])
         inherited = Group.to_json(real) if real is not None else {}
+        # id belongs to the shared group, not this chapter -- multiple
+        # chapters carved out of the same shared group would otherwise
+        # all report the same id.
+        inherited.pop("id", None)
         g = Group.from_json({
             **inherited,
             "key": entry["key"],
