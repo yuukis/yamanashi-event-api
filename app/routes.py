@@ -52,8 +52,7 @@ async def read_events_group(
     fields: str = None,
     if_modified_since: str = Header(None)
 ):
-    group = service.find_group_by_key(group_key)
-    if group is None:
+    if service.find_group_source(group_key) is None:
         raise HTTPException(status_code=404,
                             detail=f"Group '{group_key}' not found")
 

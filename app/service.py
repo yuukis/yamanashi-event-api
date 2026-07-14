@@ -121,10 +121,10 @@ def request_events(params, cache_ttl: int = None,
     last_modified = datetime.fromtimestamp(0, timezone.utc)
     try:
         if group_key is not None:
-            group = find_group_by_key(group_key)
-            if group is not None:
+            source = find_group_source(group_key)
+            if source is not None:
                 events, last_modified = request_events_for_group(
-                    group, ym, ymd, connpass_cache_ttl, force_refresh)
+                    source, group_key, ym, ymd, connpass_cache_ttl, force_refresh)
 
         else:
             if "scope" in config and "prefecture" in config["scope"]:
@@ -202,61 +202,87 @@ def request_events(params, cache_ttl: int = None,
     return events, last_modified
 
 
-def find_group_by_key(group_key) -> Optional[Group]:
-    """Resolve a group_key against the configured groups (scope.connpass
-    plain/chapter, scope.icalendar, scope.archives). Groups only discovered
-    via the prefecture-wide connpass search are not included here, since
-    they aren't part of the configured scope."""
-    groups, _ = get_groups({})
-    return next((g for g in groups if g.key == group_key), None)
+def find_group_source(group_key) -> Optional[dict]:
+    """Resolve group_key to its configured source using only config.yaml --
+    scope.connpass (plain/chapter) and scope.icalendar identity is fully
+    known from config, so no connpass API call is needed to check those.
+    Only scope.archives requires fetching the archive index itself (not
+    connpass) to confirm the key exists there, since archive group
+    identity isn't declared in config.yaml.
+
+    Returns a dict describing the source, or None if group_key doesn't
+    match any configured group. Groups only discoverable via the
+    prefecture-wide connpass search are intentionally excluded."""
+    global cache
+
+    plain_subdomains, chapters = split_connpass_scope(config)
+
+    chapter_entry = next((c for c in chapters if c["key"] == group_key), None)
+    if chapter_entry is not None:
+        return {"type": "connpass", "subdomain": chapter_entry["subdomain"],
+                "keyword": chapter_entry["title_keyword"],
+                "chapter_entry": chapter_entry}
+
+    if group_key in plain_subdomains:
+        return {"type": "connpass", "subdomain": group_key, "keyword": None,
+                "chapter_entry": None}
+
+    if "scope" in config and "icalendar" in config["scope"]:
+        for entry in config["scope"]["icalendar"]:
+            if entry["key"] == group_key:
+                return {"type": "icalendar", "ical_url": entry["ical_url"],
+                        "name": entry["name"],
+                        "group_url": entry.get("group_url")}
+
+    if "scope" in config and "archives" in config["scope"]:
+        for url in get_archive_urls(config):
+            r = ArchiveIndexRequest(url=url, cache=cache)
+            if any(g.key == group_key for g in r.get_groups()):
+                return {"type": "archive"}
+
+    return None
 
 
-def request_events_for_group(group: Group, ym, ymd, cache_ttl: int,
+def request_events_for_group(source: dict, group_key, ym, ymd, cache_ttl: int,
                              force_refresh: bool = False
                              ) -> Tuple[List[Event], datetime]:
-    """Fetch events for a single already-resolved group, scoping the
-    upstream request to just that group's source instead of the full
-    configured scope."""
+    """Fetch events for a group whose source was already resolved by
+    find_group_source(), scoping the upstream request to just that
+    group's source instead of the full configured scope."""
     global cache
 
     user_agent = get_user_agent(config)
     events = []
     last_modified = datetime.fromtimestamp(0, timezone.utc)
 
-    if group.ical_url is not None:
-        r = IcalEventRequest(url=group.ical_url, key=group.key, name=group.title,
-                             image_url=group.image_url, group_url=group.url,
-                             ym=ym, ymd=ymd, cache=cache)
-        events += r.get_events()
-        last_modified = max(last_modified, r.get_last_modified())
-
-    elif group.archive_source is not None:
-        # Archive indexes have no per-group query -- filter client-side.
-        for url in get_archive_urls(config):
-            r = ArchiveIndexRequest(url=url, ym=ym, ymd=ymd, cache=cache)
-            events += [ev for ev in r.get_events() if ev.group_key == group.key]
-            last_modified = max(last_modified, r.get_last_modified())
-
-    else:
-        # connpass-sourced (plain group or chapter). A chapter's key is a
-        # virtual key distinct from the real subdomain it's carved out of.
-        _, chapters = split_connpass_scope(config)
-        chapter_entry = next((c for c in chapters if c["key"] == group.key), None)
-        subdomain = chapter_entry["subdomain"] if chapter_entry is not None else group.key
-        keyword = chapter_entry["title_keyword"] if chapter_entry is not None else None
-
-        r = ConnpassEventRequest(subdomain=[subdomain], keyword=keyword,
+    if source["type"] == "connpass":
+        r = ConnpassEventRequest(subdomain=[source["subdomain"]],
+                                 keyword=source["keyword"],
                                  ym=ym, ymd=ymd, cache=cache,
                                  api_key=connpass_api_key, user_agent=user_agent,
                                  cache_ttl=cache_ttl, skip_cache=force_refresh)
         fetched = r.get_events()
         # partition_and_relabel_chapter_events still enforces the exact
         # title match: connpass's keyword search also matches description/
-        # address text, so the keyword param above only narrows the
+        # address text, so source["keyword"] above only narrows the
         # upstream fetch -- it doesn't replace this correctness check.
-        events += (partition_and_relabel_chapter_events(fetched, [chapter_entry])
-                   if chapter_entry is not None else fetched)
+        events += (partition_and_relabel_chapter_events(fetched, [source["chapter_entry"]])
+                   if source["chapter_entry"] is not None else fetched)
         last_modified = max(last_modified, r.get_last_modified())
+
+    elif source["type"] == "icalendar":
+        r = IcalEventRequest(url=source["ical_url"], key=group_key,
+                             name=source["name"], group_url=source["group_url"],
+                             ym=ym, ymd=ymd, cache=cache)
+        events += r.get_events()
+        last_modified = max(last_modified, r.get_last_modified())
+
+    elif source["type"] == "archive":
+        # Archive indexes have no per-group query -- filter client-side.
+        for url in get_archive_urls(config):
+            r = ArchiveIndexRequest(url=url, ym=ym, ymd=ymd, cache=cache)
+            events += [ev for ev in r.get_events() if ev.group_key == group_key]
+            last_modified = max(last_modified, r.get_last_modified())
 
     return events, last_modified
 
