@@ -279,7 +279,8 @@ def request_events_for_group(source: dict, group_key, ym, ymd, cache_ttl: int,
 
 def get_group_events_page(group_key, keyword, uid, page: int, per_page: int,
                           order: str = "desc",
-                          background_tasks: BackgroundTasks = None
+                          background_tasks: BackgroundTasks = None,
+                          source: Optional[dict] = None
                           ) -> Tuple[List[Event], int, Optional[datetime]]:
     """Serve one page of a group's events, sorted by started_at.
 
@@ -291,7 +292,7 @@ def get_group_events_page(group_key, keyword, uid, page: int, per_page: int,
     Returns (events_for_page, total_count, last_modified)."""
     global cache
 
-    source = find_group_source(group_key)
+    source = source or find_group_source(group_key)
     if source is None:
         return [], 0, None
 

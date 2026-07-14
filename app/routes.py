@@ -442,14 +442,16 @@ async def read_group_events(
     order: Literal["asc", "desc"] = "desc",
     if_modified_since: str = Header(None)
 ):
-    if service.find_group_source(group_key) is None:
+    source = service.find_group_source(group_key)
+    if source is None:
         raise HTTPException(status_code=404,
                             detail=f"Group '{group_key}' not found")
 
     # No date scope here (unlike /events/*), so this targets the group's
     # full history, paginated (default 50/page, order defaults to "desc").
     events, total, last_modified = service.get_group_events_page(
-        group_key, keyword, uid, page, per_page, order, background_tasks)
+        group_key, keyword, uid, page, per_page, order, background_tasks,
+        source=source)
 
     return build_list_response(response, events, Event, last_modified,
                                fields, if_modified_since,
