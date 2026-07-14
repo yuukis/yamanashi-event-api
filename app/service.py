@@ -296,6 +296,13 @@ def get_group_events_page(group_key, keyword, uid, page: int, per_page: int,
     if source is None:
         return [], 0, None
 
+    # Blank/whitespace-only values are effectively "no filter" (see
+    # normalize_event_params), but arrive here as non-None strings from
+    # query params -- normalize before deciding on the fast path so an
+    # empty ?keyword= or ?uid= doesn't force the slow full-fetch path.
+    keyword = (keyword.strip() or None) if keyword is not None else None
+    uid = (uid.strip() or None) if uid is not None else None
+
     can_paginate_upstream = (
         source["type"] == "connpass"
         and source["chapter_entry"] is None
