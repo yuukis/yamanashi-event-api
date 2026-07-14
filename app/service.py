@@ -288,9 +288,11 @@ def request_events_for_group(source: dict, group_key, ym, ymd, cache_ttl: int,
 
 
 def get_group_events_page(group_key, keyword, uid, page: int, per_page: int,
+                          order: str = "desc",
                           background_tasks: BackgroundTasks = None
                           ) -> Tuple[List[Event], int, Optional[datetime]]:
-    """Serve one page of a group's events.
+    """Serve one page of a group's events, sorted by started_at according
+    to order ("asc" or "desc").
 
     When the group is a plain connpass group (not a chapter) and no
     keyword/uid filter is requested, paginates directly against connpass
@@ -299,11 +301,16 @@ def get_group_events_page(group_key, keyword, uid, page: int, per_page: int,
     slice, at the same page boundaries a full crawl would use, so this
     shares cache entries with any full crawl instead of adding one cache
     entry per distinct page/per_page a caller happens to request.
+    order="desc" is connpass's own native order (no extra cost);
+    order="asc" needs the total result count first to mirror the
+    requested range onto that native order (see get_events_page()).
+
     Chapters and keyword/uid filters can only be applied correctly once
     the full, unpaginated result set is known (a chapter's title match
     and the keyword/uid filters can each drop items unpredictably), so
     those fall back to the existing get_events() cached/background-
-    refreshed full fetch and slice locally.
+    refreshed full fetch (always ascending) and slice locally, reversing
+    first if descending order was requested.
 
     Returns (events_for_page, total_count, last_modified).
     """
@@ -326,7 +333,7 @@ def get_group_events_page(group_key, keyword, uid, page: int, per_page: int,
                                  cache=cache, api_key=connpass_api_key,
                                  user_agent=user_agent)
         item_start = (page - 1) * per_page + 1
-        events = r.get_events_page(item_start, per_page)
+        events = r.get_events_page(item_start, per_page, order=order)
         for event in events:
             if event.keywords is None:
                 event.keywords = keyword_extractor.extract(event)
@@ -335,6 +342,8 @@ def get_group_events_page(group_key, keyword, uid, page: int, per_page: int,
     events, last_modified = get_events(
         {"keyword": keyword, "uid": uid, "group_key": group_key},
         background_tasks)
+    if order == "desc":
+        events = list(reversed(events))
     start = (page - 1) * per_page
     return events[start:start + per_page], len(events), last_modified
 

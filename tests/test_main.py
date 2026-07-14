@@ -29,10 +29,15 @@ class MockConnpassEventRequest:
     def get_events(self):
         return Event.from_json(self._fixed_json())
 
-    def get_events_page(self, item_start, item_count):
+    def get_events_page(self, item_start, item_count, order="desc"):
         MockConnpassEventRequest.page_requests.append(
-            {"item_start": item_start, "item_count": item_count})
+            {"item_start": item_start, "item_count": item_count, "order": order})
+        # _fixed_json() is in ascending (oldest-first) order; simulate
+        # connpass's native descending order the same way the real
+        # ConnpassEventRequest.get_events_page() treats "desc" as native.
         events = Event.from_json(self._fixed_json())
+        if order == "desc":
+            events = list(reversed(events))
         return events[item_start - 1:item_start - 1 + item_count]
 
     def get_total_available(self):
@@ -661,7 +666,7 @@ def test_read_group_events_connpass_plain():
     assert "keyword" not in req
 
     assert MockConnpassEventRequest.page_requests == [
-        {"item_start": 1, "item_count": 50}]
+        {"item_start": 1, "item_count": 50, "order": "desc"}]
 
 
 @patch("app.service.cache", EventRequestCache(prefix="test_group_events_plain_filtered_"))
@@ -701,12 +706,14 @@ def test_read_group_events_default_pagination():
 @patch("app.service.cache", EventRequestCache(prefix="test_group_events_page_slice_"))
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
 def test_read_group_events_pagination_slices_pages():
+    # Default order is "desc" (native/newest-first): reversed, page 2 of
+    # 1-per-page is the earlier event, UID 1.
     response = client.get("/groups/jagyamanashi/events",
                           params={"per_page": 1, "page": 2})
     assert response.status_code == 200
     events = response.json()
     assert len(events) == 1
-    assert events[0]["uid"] == "UID 2"
+    assert events[0]["uid"] == "UID 1"
 
     assert response.headers["X-Total-Count"] == "2"
     assert response.headers["X-Page"] == "2"
@@ -715,7 +722,7 @@ def test_read_group_events_pagination_slices_pages():
 
     assert len(MockConnpassEventRequest.requests) == 1
     assert MockConnpassEventRequest.page_requests == [
-        {"item_start": 2, "item_count": 1}]
+        {"item_start": 2, "item_count": 1, "order": "desc"}]
 
 
 @patch("app.service.cache", EventRequestCache(prefix="test_group_events_page_oob_"))
@@ -740,14 +747,47 @@ def test_read_group_events_pagination_rejects_invalid_params():
     response = client.get("/groups/jagyamanashi/events", params={"per_page": 201})
     assert response.status_code == 422
 
+    response = client.get("/groups/jagyamanashi/events", params={"order": "sideways"})
+    assert response.status_code == 422
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_group_events_order_asc_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+def test_read_group_events_ascending_order():
+    # order=asc reverses connpass's native descending order, so page 1 is
+    # the oldest event, UID 1.
+    response = client.get("/groups/jagyamanashi/events",
+                          params={"per_page": 1, "order": "asc"})
+    assert response.status_code == 200
+    events = response.json()
+    assert len(events) == 1
+    assert events[0]["uid"] == "UID 1"
+
+    assert MockConnpassEventRequest.page_requests == [
+        {"item_start": 1, "item_count": 1, "order": "asc"}]
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_group_events_chapter_desc_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+def test_read_group_events_chapter_descending_order():
+    # Chapters fall back to get_events() (always ascending); order=desc
+    # must reverse that result locally.
+    response = client.get("/groups/soracomug-yamanashi/events",
+                          params={"order": "desc"})
+    assert response.status_code == 200
+    events = response.json()
+    started_ats = [e["started_at"] for e in events]
+    assert started_ats == sorted(started_ats, reverse=True)
+
 
 @patch("app.service.cache", EventRequestCache(prefix="test_group_events_page_fields_"))
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
 def test_read_group_events_pagination_headers_kept_with_fields():
+    # Default order "desc": page 1 of 1-per-page is the newest event, UID 2.
     response = client.get("/groups/jagyamanashi/events",
                           params={"per_page": 1, "fields": "uid"})
     assert response.status_code == 200
-    assert response.json() == [{"uid": "UID 1"}]
+    assert response.json() == [{"uid": "UID 2"}]
     assert response.headers["X-Total-Count"] == "2"
     assert response.headers["X-Per-Page"] == "1"
 

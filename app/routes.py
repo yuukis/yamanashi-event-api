@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Literal
 from fastapi import BackgroundTasks, Path, Query, HTTPException, Depends, Header
 from fastapi.responses import RedirectResponse, Response, JSONResponse
 from fastapi_mcp import FastApiMCP
@@ -441,6 +441,7 @@ async def read_group_events(
     fields: str = None,
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=200),
+    order: Literal["asc", "desc"] = "desc",
     if_modified_since: str = Header(None)
 ):
     if service.find_group_source(group_key) is None:
@@ -453,9 +454,11 @@ async def read_group_events(
     # 50/page) to keep the response size bounded. get_group_events_page
     # paginates directly against connpass when no keyword/uid/chapter
     # filtering is needed, rather than crawling the group's entire
-    # history just to slice it locally.
+    # history just to slice it locally. order defaults to "desc" (newest
+    # first) since that's connpass's own native order -- cheapest for the
+    # common case of just browsing a group's recent activity.
     events, total, last_modified = service.get_group_events_page(
-        group_key, keyword, uid, page, per_page, background_tasks)
+        group_key, keyword, uid, page, per_page, order, background_tasks)
 
     return build_list_response(response, events, Event, last_modified,
                                fields, if_modified_since,

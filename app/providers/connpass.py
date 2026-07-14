@@ -52,38 +52,52 @@ class ConnpassEventRequest:
         return events[0]
 
     def get_events(self):
-        params = self.__query_params()
-        params["count"] = self.PAGE_SIZE
-        params["order"] = 2
-        page = 0
         events = []
+        chunk = 0
         while True:
-            params["start"] = page * self.PAGE_SIZE + 1
-            json = self.__fetch_json(params)
-            events += self.__convert_to_events(json['events'])
-            self.total_available = json.get('results_available')
-
-            if json['results_returned'] < self.PAGE_SIZE:
+            chunk_events, results_returned = self.__fetch_chunk(chunk)
+            events += chunk_events
+            if results_returned < self.PAGE_SIZE:
                 break
-            page += 1
+            chunk += 1
 
         if len(self.prefecture) > 0:
             events = list(filter(self.__is_in_pref, events))
 
         return events
 
-    def get_events_page(self, item_start: int, item_count: int):
+    def get_events_page(self, item_start: int, item_count: int, order: str = "desc"):
         """Return events [item_start, item_start + item_count) (1-indexed),
         fetching only as many PAGE_SIZE-aligned chunks as needed to cover
         that range -- not the whole result set -- while still requesting
         connpass at the exact same chunk boundaries get_events() uses, so
         this shares its cache entries with any full crawl (background or
         otherwise) instead of fragmenting the cache with one entry per
-        distinct page/per_page a caller happens to ask for."""
-        params = self.__query_params()
-        params["count"] = self.PAGE_SIZE
-        params["order"] = 2
+        distinct page/per_page a caller happens to ask for.
 
+        order="desc" fetches directly in connpass's own native order
+        (newest first -- connpass has no true ascending option). order=
+        "asc" mirrors the requested range onto that native descending
+        order, which needs the total result count first: this always
+        touches chunk 0 (typically an existing cache hit, since it's the
+        same chunk 0 every other access to this group also touches)
+        before fetching whichever chunk(s) the mirrored range actually
+        falls in, then reverses the result to hand back ascending order.
+        """
+        if order == "asc":
+            self.__fetch_chunk(0)
+            total = self.total_available or 0
+            if item_start > total:
+                return []
+            desc_start = max(total - item_start - item_count + 2, 1)
+            desc_count = min(item_count, total - item_start + 1)
+            events = self.__fetch_range(desc_start, desc_count)
+            events.reverse()
+            return events
+
+        return self.__fetch_range(item_start, item_count)
+
+    def __fetch_range(self, item_start: int, item_count: int):
         item_end = item_start + item_count - 1
         first_chunk = (item_start - 1) // self.PAGE_SIZE
         last_chunk = (item_end - 1) // self.PAGE_SIZE
@@ -91,12 +105,9 @@ class ConnpassEventRequest:
         events = []
         chunk = first_chunk
         while chunk <= last_chunk:
-            params["start"] = chunk * self.PAGE_SIZE + 1
-            json = self.__fetch_json(params)
-            events += self.__convert_to_events(json['events'])
-            self.total_available = json.get('results_available')
-
-            if json['results_returned'] < self.PAGE_SIZE:
+            chunk_events, results_returned = self.__fetch_chunk(chunk)
+            events += chunk_events
+            if results_returned < self.PAGE_SIZE:
                 break
             chunk += 1
 
@@ -105,6 +116,19 @@ class ConnpassEventRequest:
 
         offset = item_start - 1 - first_chunk * self.PAGE_SIZE
         return events[offset:offset + item_count]
+
+    def __fetch_chunk(self, chunk_index: int):
+        """Fetch one PAGE_SIZE-aligned chunk (connpass's own native,
+        descending order). Returns (events, results_returned) and updates
+        self.total_available as a side effect."""
+        params = self.__query_params()
+        params["count"] = self.PAGE_SIZE
+        params["order"] = 2
+        params["start"] = chunk_index * self.PAGE_SIZE + 1
+
+        json = self.__fetch_json(params)
+        self.total_available = json.get('results_available')
+        return self.__convert_to_events(json['events']), json['results_returned']
 
     def get_last_modified(self):
         return self.last_modified
