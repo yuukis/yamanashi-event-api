@@ -10,6 +10,7 @@ class Event:
     catch: Optional[str]
     hash_tag: Optional[str]
     event_url: str
+    image_url: Optional[str]
     started_at: str
     ended_at: str
     updated_at: str
@@ -81,6 +82,7 @@ class Event:
                 catch=data.get("catch"),
                 hash_tag=data.get("hash_tag"),
                 event_url=data["event_url"],
+                image_url=data.get("image_url"),
                 started_at=data["started_at"],
                 ended_at=data["ended_at"],
                 updated_at=data["updated_at"],
@@ -125,6 +127,7 @@ class Event:
                 "catch": data.catch,
                 "hash_tag": data.hash_tag,
                 "event_url": data.event_url,
+                "image_url": data.image_url,
                 "started_at": data.started_at,
                 "ended_at": data.ended_at,
                 "updated_at": data.updated_at,
