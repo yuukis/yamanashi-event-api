@@ -707,6 +707,19 @@ def test_read_group_events_default_pagination():
     assert response.headers["X-Total-Pages"] == "1"
 
 
+@patch("app.service.cache", EventRequestCache(prefix="test_group_events_page_cors_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+def test_read_group_events_exposes_pagination_headers_for_cors():
+    response = client.get("/groups/jagyamanashi/events",
+                          headers={"Origin": "https://example.com"})
+    assert response.status_code == 200
+
+    exposed = response.headers["access-control-expose-headers"]
+    exposed_headers = {h.strip() for h in exposed.split(",")}
+    assert exposed_headers == {
+        "X-Total-Count", "X-Page", "X-Per-Page", "X-Total-Pages"}
+
+
 @patch("app.service.cache", EventRequestCache(prefix="test_group_events_page_slice_"))
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
 def test_read_group_events_pagination_slices_pages():
