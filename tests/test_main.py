@@ -7,11 +7,12 @@ from app.service import get_user_agent, get_groups_from_icalendar
 from app.service import request_events, request_groups, get_groups_from_archives
 from app.service import get_archive_urls, preload_archive_indexes
 from app.service import get_events, get_groups, normalize_event_params
-from app.service import find_group_source
+from app.service import find_group_source, get_archive_group_keys
 from app.service import fetch_events, fetch_groups
 from app.service import split_connpass_scope, partition_and_relabel_chapter_events
 from app.service import get_groups_from_connpass_chapters, merged_connpass_subdomains
 from app.service import merge_duplicate_groups
+from app import service
 from app.cache import EventRequestCache
 from app.providers.archive import ArchiveException
 from app.models import Event, Group
@@ -324,8 +325,13 @@ class MockFailingPreloadArchiveIndexRequest:
 def mock_archive_index_request():
     MockArchiveIndexRequest.requested_urls = []
     MockArchiveIndexRequest.preloaded_urls = []
+    # get_archive_group_keys() memoizes across calls for the life of the
+    # process; reset it per test so one test's archive mock/config can't
+    # leak into another's.
+    service._archive_group_keys = None
     with patch("app.service.ArchiveIndexRequest", MockArchiveIndexRequest):
         yield
+    service._archive_group_keys = None
 
 
 @pytest.fixture(autouse=True)
@@ -970,6 +976,18 @@ def test_find_group_source_also_archive_when_archive_key_matches_primary():
     assert source["type"] == "connpass"
     assert source["subdomain"] == "jagyamanashi"
     assert source["also_archive"] is True
+
+
+def test_get_archive_group_keys_is_memoized():
+    first = get_archive_group_keys()
+    assert first == {"yamanashi-web"}
+
+    requests_before = len(MockArchiveIndexRequest.requested_urls)
+    second = get_archive_group_keys()
+
+    assert second is first
+    # No new ArchiveIndexRequest was constructed for the memoized call.
+    assert len(MockArchiveIndexRequest.requested_urls) == requests_before
 
 
 @patch("app.service.cache", EventRequestCache(prefix="test_group_events_archive_merge_"))

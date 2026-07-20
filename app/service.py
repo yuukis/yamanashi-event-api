@@ -19,6 +19,10 @@ config_file = os.path.join(dirname, "config.yaml")
 cache = EventRequestCache()
 keyword_extractor = KeywordExtractor()
 
+# Lazily computed set of every community key across configured archives,
+# memoized for the life of the process (see get_archive_group_keys()).
+_archive_group_keys = None
+
 with open(config_file, "r", encoding="utf-8") as yml:
     config = yaml.safe_load(yml)
 
@@ -203,6 +207,29 @@ def request_events(params, cache_ttl: int = None,
     return events, last_modified
 
 
+def get_archive_group_keys() -> set:
+    """All community keys across every configured archive index, memoized
+    for the life of the process. Safe to memoize indefinitely: once an
+    archive index is successfully fetched, ArchiveIndexRequest caches its
+    JSON without expiration for the rest of the process too (see
+    docs/archive-index.md), so this set can't go stale mid-process either.
+    A fetch failure is not memoized, so a later call retries instead of
+    permanently assuming "no archive communities"."""
+    global _archive_group_keys, cache
+
+    if _archive_group_keys is not None:
+        return _archive_group_keys
+
+    keys = set()
+    if "scope" in config and "archives" in config["scope"]:
+        for url in get_archive_urls(config):
+            r = ArchiveIndexRequest(url=url, cache=cache)
+            keys |= {g.key for g in r.get_groups()}
+
+    _archive_group_keys = keys
+    return _archive_group_keys
+
+
 def find_group_source(group_key) -> Optional[dict]:
     """Resolve group_key to its configured source. A connpass/icalendar
     primary source and an archive can both back the same group_key (a
@@ -212,8 +239,6 @@ def find_group_source(group_key) -> Optional[dict]:
     so callers know to merge in archive events too. Returns None if
     group_key isn't configured anywhere (prefecture-only discoveries don't
     count)."""
-    global cache
-
     plain_subdomains, chapters = split_connpass_scope(config)
 
     primary = None
@@ -235,13 +260,7 @@ def find_group_source(group_key) -> Optional[dict]:
                            "group_url": entry.get("group_url")}
                 break
 
-    has_archive_group = False
-    if "scope" in config and "archives" in config["scope"]:
-        for url in get_archive_urls(config):
-            r = ArchiveIndexRequest(url=url, cache=cache)
-            if any(g.key == group_key for g in r.get_groups()):
-                has_archive_group = True
-                break
+    has_archive_group = group_key in get_archive_group_keys()
 
     if primary is not None:
         if has_archive_group:
