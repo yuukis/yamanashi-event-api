@@ -11,6 +11,7 @@ from app.service import find_group_source
 from app.service import fetch_events, fetch_groups
 from app.service import split_connpass_scope, partition_and_relabel_chapter_events
 from app.service import get_groups_from_connpass_chapters, merged_connpass_subdomains
+from app.service import merge_duplicate_groups
 from app.cache import EventRequestCache
 from app.providers.archive import ArchiveException
 from app.models import Event, Group
@@ -232,6 +233,83 @@ class MockArchiveIndexRequest:
 
     def preload(self):
         MockArchiveIndexRequest.preloaded_urls.append(self.url)
+
+
+class MockArchiveIndexRequestJagyamanashi(MockArchiveIndexRequest):
+    """An archive whose community was migrated under the same key as the
+    real config.yaml connpass entry "jagyamanashi", for testing the
+    connpass+archive merge behavior."""
+
+    def get_events(self):
+        json = [
+            {
+                "uid": "jagyamanashi-2015-01-01-001@yamanashi-event-archive",
+                "event_id": None,
+                "title": "日本Androidの会 山梨支部 第1回",
+                "catch": None,
+                "hash_tag": None,
+                "event_url": "https://example.com/archive/jagyamanashi/2015-01-01-001",
+                "started_at": "2015-01-01T14:00:00+09:00",
+                "ended_at": "2015-01-01T17:00:00+09:00",
+                "updated_at": "2026-06-30T00:00:00+09:00",
+                "open_status": "close",
+                "limit": None,
+                "accepted": None,
+                "waiting": None,
+                "owner_name": None,
+                "place": None,
+                "address": None,
+                "group_key": "jagyamanashi",
+                "group_name": "日本Androidの会 山梨支部",
+                "group_url": "https://jagyamanashi.connpass.com/",
+                "description": None,
+                "lat": None,
+                "lon": None
+            }
+        ]
+        return Event.from_json(json)
+
+    def get_groups(self):
+        json = [
+            {
+                "key": "jagyamanashi",
+                "title": "日本Androidの会 山梨支部（アーカイブ）",
+                "sub_title": None,
+                "url": "https://example.com/jagyamanashi",
+                "description": None,
+                "owner_text": None,
+                "image_url": None,
+                "website_url": None,
+                "x_username": None,
+                "facebook_url": None,
+                "member_users_count": None,
+                "ical_url": None,
+                "archive_source": "yamanashi-event-archive",
+                "archive_url": "https://github.com/yuukis/yamanashi-event-archive"
+            }
+        ]
+        return Group.from_json(json)
+
+
+class MockConnpassGroupRequestJagyamanashi(MockConnpassGroupRequest):
+    def get_groups(self):
+        json = [
+            {
+                "id": 1,
+                "key": "jagyamanashi",
+                "title": "日本Androidの会 山梨支部",
+                "sub_title": None,
+                "url": "https://jagyamanashi.connpass.com/",
+                "description": None,
+                "owner_text": None,
+                "image_url": None,
+                "website_url": None,
+                "x_username": None,
+                "facebook_url": None,
+                "member_users_count": 50
+            }
+        ]
+        return Group.from_json(json)
 
 
 class MockFailingPreloadArchiveIndexRequest:
@@ -883,6 +961,38 @@ def test_find_group_source_not_found():
     assert find_group_source("no-such-group") is None
 
 
+@patch("app.service.ArchiveIndexRequest", MockArchiveIndexRequestJagyamanashi)
+def test_find_group_source_also_archive_when_archive_key_matches_primary():
+    # "jagyamanashi" is a real plain connpass entry in config.yaml; when an
+    # archive also has a community under that same key, the primary source
+    # is flagged so callers know to merge in archive events too.
+    source = find_group_source("jagyamanashi")
+    assert source["type"] == "connpass"
+    assert source["subdomain"] == "jagyamanashi"
+    assert source["also_archive"] is True
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_group_events_archive_merge_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.ArchiveIndexRequest", MockArchiveIndexRequestJagyamanashi)
+def test_read_group_events_merges_archive_when_key_matches_connpass():
+    response = client.get("/groups/jagyamanashi/events")
+    assert response.status_code == 200
+    events = response.json()
+
+    # 2 connpass events + 1 archive event sharing the "jagyamanashi" key
+    assert len(events) == 3
+    assert response.headers["X-Total-Count"] == "3"
+    assert any(ev["uid"] == "jagyamanashi-2015-01-01-001@yamanashi-event-archive"
+              for ev in events)
+    assert all(ev["group_key"] == "jagyamanashi" for ev in events
+              if ev["uid"].startswith("jagyamanashi-"))
+
+    # also_archive disables the connpass upstream-pagination fast path,
+    # since only a local merge+sort can produce a correct combined total.
+    assert MockConnpassEventRequest.page_requests == []
+
+
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
 @patch("app.service.IcalEventRequest", MockICalEventRequest)
 @patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
@@ -1107,6 +1217,40 @@ def test_read_group_includes_archive_source(mock_get_groups_from_icalendar):
     ][0]
     assert archive_group["archive_source"] == "yamanashi-event-archive"
     assert archive_group["archive_url"] == \
+        "https://github.com/yuukis/yamanashi-event-archive"
+
+
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequestJagyamanashi)
+@patch("app.service.get_groups_from_icalendar")
+@patch("app.service.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "connpass": [{"subdomain": "jagyamanashi"}],
+        "archives": [
+            {
+                "url": "https://example.com/archive/index.json"
+            }
+        ]
+    }
+})
+@patch("app.service.ArchiveIndexRequest", MockArchiveIndexRequestJagyamanashi)
+@patch("app.service.cache", EventRequestCache(prefix="test_groups_merge_archive_"))
+def test_read_groups_merges_duplicate_key_from_archive(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    response = client.get("/groups")
+
+    assert response.status_code == 200
+    matching = [g for g in response.json() if g["key"] == "jagyamanashi"]
+    assert len(matching) == 1
+
+    merged = matching[0]
+    # connpass's own (non-null) fields win over the archive's duplicate entry...
+    assert merged["title"] == "日本Androidの会 山梨支部"
+    assert merged["member_users_count"] == 50
+    # ...but archive-only fields (null on the connpass entry) get backfilled.
+    assert merged["archive_source"] == "yamanashi-event-archive"
+    assert merged["archive_url"] == \
         "https://github.com/yuukis/yamanashi-event-archive"
 
 
@@ -1499,6 +1643,44 @@ def test_merged_connpass_subdomains_dedupes_and_preserves_order():
         ["jagyamanashi", "soracomug-tokyo"], chapters)
 
     assert merged == ["jagyamanashi", "soracomug-tokyo"]
+
+
+def _make_group(key, **overrides):
+    fields = {
+        "id": None, "key": key, "title": None, "sub_title": None, "url": None,
+        "description": None, "owner_text": None, "image_url": None,
+        "website_url": None, "x_username": None, "facebook_url": None,
+        "member_users_count": None, "ical_url": None,
+        "archive_source": None, "archive_url": None,
+    }
+    fields.update(overrides)
+    return Group(**fields)
+
+
+def test_merge_duplicate_groups_backfills_null_fields_without_overwriting():
+    base = _make_group("k", id=1, title="Title A", url="https://a",
+                       member_users_count=10)
+    dup = _make_group("k", id=2, title="Title B", sub_title="Sub B",
+                      description="Desc B", archive_source="src",
+                      archive_url="https://archive")
+    other = _make_group("other", title="Other")
+
+    merged = merge_duplicate_groups([base, dup, other])
+
+    assert [g.key for g in merged] == ["k", "other"]
+    result = merged[0]
+    assert result.id == 1  # base's own id/key kept, not overwritten
+    assert result.title == "Title A"  # not overwritten since already set
+    assert result.url == "https://a"  # not overwritten
+    assert result.sub_title == "Sub B"  # backfilled from the duplicate
+    assert result.description == "Desc B"  # backfilled from the duplicate
+    assert result.archive_source == "src"  # backfilled from the duplicate
+    assert result.archive_url == "https://archive"  # backfilled from the duplicate
+
+
+def test_merge_duplicate_groups_is_noop_for_unique_keys():
+    groups = [_make_group("a", title="A"), _make_group("b", title="B")]
+    assert merge_duplicate_groups(groups) == groups
 
 
 def test_partition_and_relabel_chapter_events_filters_by_title_only():
