@@ -1762,7 +1762,7 @@ def test_get_groups_from_connpass_chapters_inherits_unset_fields():
     # real group's values instead of staying null
     assert groups[0].image_url == "https://example.com/real.png"
     assert groups[0].sub_title == "IoT platform community"
-    assert groups[0].member_users_count == 1000
+    assert groups[0].member_users_count is None
     # id belongs to the shared group; two chapters carved out of the same
     # shared group must not both report its id as their own
     assert groups[0].id is None
@@ -1894,7 +1894,7 @@ def test_request_groups_from_connpass_chapters():
     assert groups[0].url == "https://soracom-ug.connpass.com/"
     # image_url wasn't configured, so it's inherited from the real group
     assert groups[0].image_url == "https://example.com/real.png"
-    assert groups[0].member_users_count == 1000
+    assert groups[0].member_users_count is None
     # id belongs to the shared group, not this chapter
     assert groups[0].id is None
     assert last_modified == datetime.fromtimestamp(789, timezone.utc)

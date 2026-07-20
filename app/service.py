@@ -567,6 +567,8 @@ def get_groups_from_connpass_chapters(chapters, real_groups_by_key):
         # chapters carved out of the same shared group would otherwise
         # all report the same id.
         inherited.pop("id", None)
+        # member_users_count is the shared group's total, not this chapter's
+        inherited.pop("member_users_count", None)
         g = Group.from_json({
             **inherited,
             "key": entry["key"],
