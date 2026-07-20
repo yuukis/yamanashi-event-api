@@ -6,6 +6,7 @@ from .providers.archive import ArchiveIndexRequest, ArchiveException
 from .models import Event, Group
 from .cache import EventRequestCache
 from .keywords import KeywordExtractor
+import dataclasses
 import os
 from datetime import datetime, timezone
 import yaml
@@ -17,6 +18,8 @@ config_file = os.path.join(dirname, "config.yaml")
 
 cache = EventRequestCache()
 keyword_extractor = KeywordExtractor()
+
+_archive_group_keys = None  # see get_archive_group_keys()
 
 with open(config_file, "r", encoding="utf-8") as yml:
     config = yaml.safe_load(yml)
@@ -202,37 +205,57 @@ def request_events(params, cache_ttl: int = None,
     return events, last_modified
 
 
-def find_group_source(group_key) -> Optional[dict]:
-    """Resolve group_key to its configured source using only config.yaml;
-    only scope.archives needs an actual fetch (its own index), since
-    archive group identity isn't declared in config.yaml. Returns None if
-    group_key isn't configured (prefecture-only discoveries don't count)."""
-    global cache
+def get_archive_group_keys() -> frozenset:
+    """Community keys across all archives, memoized for the process (a
+    frozenset so callers can't mutate the shared cache)."""
+    global _archive_group_keys, cache
 
-    plain_subdomains, chapters = split_connpass_scope(config)
+    if _archive_group_keys is not None:
+        return _archive_group_keys
 
-    chapter_entry = next((c for c in chapters if c["key"] == group_key), None)
-    if chapter_entry is not None:
-        return {"type": "connpass", "subdomain": chapter_entry["subdomain"],
-                "keyword": chapter_entry["title_keyword"],
-                "chapter_entry": chapter_entry}
-
-    if group_key in plain_subdomains:
-        return {"type": "connpass", "subdomain": group_key, "keyword": None,
-                "chapter_entry": None}
-
-    if "scope" in config and "icalendar" in config["scope"]:
-        for entry in config["scope"]["icalendar"]:
-            if entry["key"] == group_key:
-                return {"type": "icalendar", "ical_url": entry["ical_url"],
-                        "name": entry["name"],
-                        "group_url": entry.get("group_url")}
-
+    keys = set()
     if "scope" in config and "archives" in config["scope"]:
         for url in get_archive_urls(config):
             r = ArchiveIndexRequest(url=url, cache=cache)
-            if any(g.key == group_key for g in r.get_groups()):
-                return {"type": "archive"}
+            keys |= {g.key for g in r.get_groups()}
+
+    _archive_group_keys = frozenset(keys)
+    return _archive_group_keys
+
+
+def find_group_source(group_key) -> Optional[dict]:
+    """Resolve group_key to its source; flags "also_archive" when an
+    archive also has a community under the same key."""
+    plain_subdomains, chapters = split_connpass_scope(config)
+
+    primary = None
+    chapter_entry = next((c for c in chapters if c["key"] == group_key), None)
+    if chapter_entry is not None:
+        primary = {"type": "connpass", "subdomain": chapter_entry["subdomain"],
+                   "keyword": chapter_entry["title_keyword"],
+                   "chapter_entry": chapter_entry}
+
+    elif group_key in plain_subdomains:
+        primary = {"type": "connpass", "subdomain": group_key, "keyword": None,
+                   "chapter_entry": None}
+
+    elif "scope" in config and "icalendar" in config["scope"]:
+        for entry in config["scope"]["icalendar"]:
+            if entry["key"] == group_key:
+                primary = {"type": "icalendar", "ical_url": entry["ical_url"],
+                           "name": entry["name"],
+                           "group_url": entry.get("group_url")}
+                break
+
+    has_archive_group = group_key in get_archive_group_keys()
+
+    if primary is not None:
+        if has_archive_group:
+            primary["also_archive"] = True
+        return primary
+
+    if has_archive_group:
+        return {"type": "archive"}
 
     return None
 
@@ -267,7 +290,8 @@ def request_events_for_group(source: dict, group_key, ym, ymd, cache_ttl: int,
         events += r.get_events()
         last_modified = max(last_modified, r.get_last_modified())
 
-    elif source["type"] == "archive":
+    # Not "elif": a primary source and an archive can both contribute events.
+    if source["type"] == "archive" or source.get("also_archive"):
         # Archive indexes have no per-group query -- filter client-side.
         for url in get_archive_urls(config):
             r = ArchiveIndexRequest(url=url, ym=ym, ymd=ymd, cache=cache)
@@ -303,6 +327,7 @@ def get_group_events_page(group_key, keyword, uid, page: int, per_page: int,
     can_paginate_upstream = (
         source["type"] == "connpass"
         and source["chapter_entry"] is None
+        and not source.get("also_archive")
         and keyword is None
         and uid is None
     )
@@ -417,7 +442,32 @@ def request_groups(params) -> Tuple[List[Group], datetime]:
     except ArchiveException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
 
+    groups = merge_duplicate_groups(groups)
+
     return groups, last_modified
+
+
+def merge_duplicate_groups(groups: List[Group]) -> List[Group]:
+    """Fold Group entries sharing a key into one, backfilling only the
+    base's null fields from later duplicates."""
+    merged_by_key = {}
+    order = []
+    for g in groups:
+        if g.key not in merged_by_key:
+            merged_by_key[g.key] = g
+            order.append(g.key)
+            continue
+
+        base = merged_by_key[g.key]
+        for field in dataclasses.fields(Group):
+            if field.name in ("id", "key"):
+                continue
+            if getattr(base, field.name) is None:
+                value = getattr(g, field.name)
+                if value is not None:
+                    setattr(base, field.name, value)
+
+    return [merged_by_key[key] for key in order]
 
 
 def get_user_agent(config):

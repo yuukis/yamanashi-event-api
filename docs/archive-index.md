@@ -30,6 +30,12 @@ scope:
         - https://example.github.io/another-tech-event-archive/index.json
 ```
 
+## Merging with connpass/icalendar communities
+
+Giving `communities[].key` (and matching `events[].group_key`) the same
+value as an existing `scope.connpass`/`scope.icalendar` entry merges them
+into one community.
+
 ## JSON Format
 
 The top-level `events` array is converted to `Event`. The top-level
