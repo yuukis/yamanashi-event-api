@@ -981,6 +981,9 @@ def test_find_group_source_also_archive_when_archive_key_matches_primary():
 def test_get_archive_group_keys_is_memoized():
     first = get_archive_group_keys()
     assert first == {"yamanashi-web"}
+    # Immutable, so a caller can't accidentally corrupt the memoized value
+    # for the rest of the process (no .add()/.clear() exist on it).
+    assert isinstance(first, frozenset)
 
     requests_before = len(MockArchiveIndexRequest.requested_urls)
     second = get_archive_group_keys()

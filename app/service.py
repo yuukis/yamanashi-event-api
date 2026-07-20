@@ -19,8 +19,8 @@ config_file = os.path.join(dirname, "config.yaml")
 cache = EventRequestCache()
 keyword_extractor = KeywordExtractor()
 
-# Lazily computed set of every community key across configured archives,
-# memoized for the life of the process (see get_archive_group_keys()).
+# Lazily computed frozenset of every community key across configured
+# archives, memoized for the life of the process (see get_archive_group_keys()).
 _archive_group_keys = None
 
 with open(config_file, "r", encoding="utf-8") as yml:
@@ -207,14 +207,17 @@ def request_events(params, cache_ttl: int = None,
     return events, last_modified
 
 
-def get_archive_group_keys() -> set:
+def get_archive_group_keys() -> frozenset:
     """All community keys across every configured archive index, memoized
     for the life of the process. Safe to memoize indefinitely: once an
     archive index is successfully fetched, ArchiveIndexRequest caches its
     JSON without expiration for the rest of the process too (see
     docs/archive-index.md), so this set can't go stale mid-process either.
     A fetch failure is not memoized, so a later call retries instead of
-    permanently assuming "no archive communities"."""
+    permanently assuming "no archive communities". Returns a frozenset,
+    not a set, since the same object is reused for every call for the
+    rest of the process -- a mutable set would let one caller's mistaken
+    .add()/.clear() silently corrupt it for everyone else."""
     global _archive_group_keys, cache
 
     if _archive_group_keys is not None:
@@ -226,7 +229,7 @@ def get_archive_group_keys() -> set:
             r = ArchiveIndexRequest(url=url, cache=cache)
             keys |= {g.key for g in r.get_groups()}
 
-    _archive_group_keys = keys
+    _archive_group_keys = frozenset(keys)
     return _archive_group_keys
 
 
