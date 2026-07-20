@@ -156,6 +156,18 @@ class TestEvent(unittest.TestCase):
         event = Event.from_json(data)
         self.assertIsNone(event.source)
 
+    def test_from_json_with_unrecognized_source_defaults_to_none(self):
+        # A value outside the Literal (e.g. from a corrupted cache entry)
+        # would 500 on response_model validation if let through as-is.
+        data = {
+            "uid": "event_1@example.com", "event_id": 1, "title": "Event 1",
+            "catch": "", "hash_tag": "", "event_url": "", "started_at": "",
+            "ended_at": "", "updated_at": "", "open_status": "",
+            "source": "not-a-real-source"
+        }
+        event = Event.from_json(data)
+        self.assertIsNone(event.source)
+
     def test_to_json_with_list(self):
         # Create a list of event objects
         events = [

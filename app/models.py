@@ -101,7 +101,7 @@ class Event:
                 lat=data.get("lat"),
                 lon=data.get("lon"),
                 keywords=Event.sanitize_keywords(data.get("keywords")),
-                source=data.get("source")
+                source=Event.sanitize_source(data.get("source"))
             )
 
         raise ValueError("data must be dict or List[dict]")
@@ -115,6 +115,14 @@ class Event:
         if len(keywords) == 0:
             return None
         return keywords
+
+    @staticmethod
+    def sanitize_source(data: any) -> Optional[str]:
+        # response_model validation would 500 on a value outside the
+        # Literal, e.g. from a corrupted cache entry -- fall back to None.
+        if data in ("connpass", "icalendar", "archive"):
+            return data
+        return None
 
     @staticmethod
     def to_json(data: any):
