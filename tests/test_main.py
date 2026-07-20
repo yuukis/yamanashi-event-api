@@ -237,9 +237,7 @@ class MockArchiveIndexRequest:
 
 
 class MockArchiveIndexRequestJagyamanashi(MockArchiveIndexRequest):
-    """An archive whose community was migrated under the same key as the
-    real config.yaml connpass entry "jagyamanashi", for testing the
-    connpass+archive merge behavior."""
+    """An archive community sharing its key with the real "jagyamanashi" connpass entry."""
 
     def get_events(self):
         json = [
@@ -325,10 +323,7 @@ class MockFailingPreloadArchiveIndexRequest:
 def mock_archive_index_request():
     MockArchiveIndexRequest.requested_urls = []
     MockArchiveIndexRequest.preloaded_urls = []
-    # get_archive_group_keys() memoizes across calls for the life of the
-    # process; reset it per test so one test's archive mock/config can't
-    # leak into another's.
-    service._archive_group_keys = None
+    service._archive_group_keys = None  # reset the process-lifetime memoization
     with patch("app.service.ArchiveIndexRequest", MockArchiveIndexRequest):
         yield
     service._archive_group_keys = None
@@ -969,9 +964,7 @@ def test_find_group_source_not_found():
 
 @patch("app.service.ArchiveIndexRequest", MockArchiveIndexRequestJagyamanashi)
 def test_find_group_source_also_archive_when_archive_key_matches_primary():
-    # "jagyamanashi" is a real plain connpass entry in config.yaml; when an
-    # archive also has a community under that same key, the primary source
-    # is flagged so callers know to merge in archive events too.
+    # "jagyamanashi" is a real plain connpass entry in config.yaml.
     source = find_group_source("jagyamanashi")
     assert source["type"] == "connpass"
     assert source["subdomain"] == "jagyamanashi"
@@ -981,8 +974,6 @@ def test_find_group_source_also_archive_when_archive_key_matches_primary():
 def test_get_archive_group_keys_is_memoized():
     first = get_archive_group_keys()
     assert first == {"yamanashi-web"}
-    # Immutable, so a caller can't accidentally corrupt the memoized value
-    # for the rest of the process (no .add()/.clear() exist on it).
     assert isinstance(first, frozenset)
 
     requests_before = len(MockArchiveIndexRequest.requested_urls)
@@ -1009,8 +1000,7 @@ def test_read_group_events_merges_archive_when_key_matches_connpass():
     assert all(ev["group_key"] == "jagyamanashi" for ev in events
               if ev["uid"].startswith("jagyamanashi-"))
 
-    # also_archive disables the connpass upstream-pagination fast path,
-    # since only a local merge+sort can produce a correct combined total.
+    # fast path (upstream pagination) must be disabled when merging archives
     assert MockConnpassEventRequest.page_requests == []
 
 
@@ -1690,13 +1680,15 @@ def test_merge_duplicate_groups_backfills_null_fields_without_overwriting():
 
     assert [g.key for g in merged] == ["k", "other"]
     result = merged[0]
-    assert result.id == 1  # base's own id/key kept, not overwritten
-    assert result.title == "Title A"  # not overwritten since already set
-    assert result.url == "https://a"  # not overwritten
-    assert result.sub_title == "Sub B"  # backfilled from the duplicate
-    assert result.description == "Desc B"  # backfilled from the duplicate
-    assert result.archive_source == "src"  # backfilled from the duplicate
-    assert result.archive_url == "https://archive"  # backfilled from the duplicate
+    # base's own already-set fields are kept, not overwritten
+    assert result.id == 1
+    assert result.title == "Title A"
+    assert result.url == "https://a"
+    # base's null fields are backfilled from the duplicate
+    assert result.sub_title == "Sub B"
+    assert result.description == "Desc B"
+    assert result.archive_source == "src"
+    assert result.archive_url == "https://archive"
 
 
 def test_merge_duplicate_groups_is_noop_for_unique_keys():

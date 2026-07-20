@@ -19,9 +19,7 @@ config_file = os.path.join(dirname, "config.yaml")
 cache = EventRequestCache()
 keyword_extractor = KeywordExtractor()
 
-# Lazily computed frozenset of every community key across configured
-# archives, memoized for the life of the process (see get_archive_group_keys()).
-_archive_group_keys = None
+_archive_group_keys = None  # see get_archive_group_keys()
 
 with open(config_file, "r", encoding="utf-8") as yml:
     config = yaml.safe_load(yml)
@@ -208,16 +206,8 @@ def request_events(params, cache_ttl: int = None,
 
 
 def get_archive_group_keys() -> frozenset:
-    """All community keys across every configured archive index, memoized
-    for the life of the process. Safe to memoize indefinitely: once an
-    archive index is successfully fetched, ArchiveIndexRequest caches its
-    JSON without expiration for the rest of the process too (see
-    docs/archive-index.md), so this set can't go stale mid-process either.
-    A fetch failure is not memoized, so a later call retries instead of
-    permanently assuming "no archive communities". Returns a frozenset,
-    not a set, since the same object is reused for every call for the
-    rest of the process -- a mutable set would let one caller's mistaken
-    .add()/.clear() silently corrupt it for everyone else."""
+    """Community keys across all archives, memoized for the process (a
+    frozenset so callers can't mutate the shared cache)."""
     global _archive_group_keys, cache
 
     if _archive_group_keys is not None:
@@ -234,14 +224,8 @@ def get_archive_group_keys() -> frozenset:
 
 
 def find_group_source(group_key) -> Optional[dict]:
-    """Resolve group_key to its configured source. A connpass/icalendar
-    primary source and an archive can both back the same group_key (a
-    community whose recent events live on connpass/icalendar but whose
-    older events were migrated into an archive index under the same key);
-    when that happens, the primary source's dict gets "also_archive": True
-    so callers know to merge in archive events too. Returns None if
-    group_key isn't configured anywhere (prefecture-only discoveries don't
-    count)."""
+    """Resolve group_key to its source; flags "also_archive" when an
+    archive also has a community under the same key."""
     plain_subdomains, chapters = split_connpass_scope(config)
 
     primary = None
@@ -306,9 +290,7 @@ def request_events_for_group(source: dict, group_key, ym, ymd, cache_ttl: int,
         events += r.get_events()
         last_modified = max(last_modified, r.get_last_modified())
 
-    # Not "elif": a connpass/icalendar primary source and an archive can
-    # both back the same group_key (see find_group_source()'s
-    # "also_archive"), in which case both contribute events.
+    # Not "elif": a primary source and an archive can both contribute events.
     if source["type"] == "archive" or source.get("also_archive"):
         # Archive indexes have no per-group query -- filter client-side.
         for url in get_archive_urls(config):
@@ -466,13 +448,8 @@ def request_groups(params) -> Tuple[List[Group], datetime]:
 
 
 def merge_duplicate_groups(groups: List[Group]) -> List[Group]:
-    """Fold multiple Group entries sharing the same key (e.g. a connpass
-    group and an archive whose community was migrated under the same key)
-    into one. The first entry with a given key is kept as the base; later
-    duplicates are dropped, but any field left unset (None) on the base is
-    backfilled from them -- this is how an archive-only field like
-    archive_source/archive_url reaches a group whose primary entry comes
-    from connpass/icalendar."""
+    """Fold Group entries sharing a key into one, backfilling only the
+    base's null fields from later duplicates."""
     merged_by_key = {}
     order = []
     for g in groups:
