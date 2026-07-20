@@ -30,6 +30,25 @@ scope:
         - https://example.github.io/another-tech-event-archive/index.json
 ```
 
+## Merging with connpass/icalendar communities
+
+A community's identity is its `key`. If a `communities[].key` (and the
+matching `events[].group_key`) in the archive index is set to the *same*
+key as an existing `scope.connpass` or `scope.icalendar` entry, the API
+treats them as one community: `/groups` returns a single merged entry
+(archive-only fields such as `archive_source`/`archive_url` are filled in
+on top of the connpass/icalendar group), and `/groups/{key}/events` and
+`/summary/events` include both the archive's historical events and the
+live connpass/icalendar events under that one key.
+
+This is how a community that has since moved from a standalone archived
+group to an active connpass/icalendar group (or vice versa) should be
+modeled -- give the archive entry the same `key` as the live one, rather
+than a different key, so its historical events count as that community's
+events instead of a separate one. Give `events[].group_name`/`group_url`
+in the archive index the community's current display name/URL too, since
+the API does not rewrite them.
+
 ## JSON Format
 
 The top-level `events` array is converted to `Event`. The top-level
