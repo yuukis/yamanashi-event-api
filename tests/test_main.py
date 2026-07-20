@@ -67,7 +67,8 @@ class MockConnpassEventRequest:
                 "group_url": "",
                 "description": "Description",
                 "lat": "",
-                "lon": ""
+                "lon": "",
+                "source": "connpass"
             },
             {
                 "uid": "UID 2",
@@ -91,7 +92,8 @@ class MockConnpassEventRequest:
                 "group_url": "",
                 "description": "Description",
                 "lat": "",
-                "lon": ""
+                "lon": "",
+                "source": "connpass"
             }
         ]
 
@@ -159,7 +161,8 @@ class MockICalEventRequest:
                 "group_url": "Group URL 1",
                 "description": None,
                 "lat": None,
-                "lon": None
+                "lon": None,
+                "source": "icalendar"
             }
         ]
         events = Event.from_json(json)
@@ -202,7 +205,8 @@ class MockArchiveIndexRequest:
                 "group_url": "https://example.com/yamanashi-web",
                 "description": "山梨Web勉強会の初回イベント。",
                 "lat": None,
-                "lon": None
+                "lon": None,
+                "source": "archive"
             }
         ]
         return Event.from_json(json)
@@ -263,7 +267,8 @@ class MockArchiveIndexRequestJagyamanashi(MockArchiveIndexRequest):
                 "group_url": "https://jagyamanashi.connpass.com/",
                 "description": None,
                 "lat": None,
-                "lon": None
+                "lon": None,
+                "source": "archive"
             }
         ]
         return Event.from_json(json)
@@ -999,6 +1004,12 @@ def test_read_group_events_merges_archive_when_key_matches_connpass():
               for ev in events)
     assert all(ev["group_key"] == "jagyamanashi" for ev in events
               if ev["uid"].startswith("jagyamanashi-"))
+
+    # clients can tell live connpass events apart from archived ones
+    by_uid = {ev["uid"]: ev for ev in events}
+    assert by_uid["UID 1"]["source"] == "connpass"
+    assert by_uid["UID 2"]["source"] == "connpass"
+    assert by_uid["jagyamanashi-2015-01-01-001@yamanashi-event-archive"]["source"] == "archive"
 
     # fast path (upstream pagination) must be disabled when merging archives
     assert MockConnpassEventRequest.page_requests == []

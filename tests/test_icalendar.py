@@ -44,6 +44,7 @@ END:VCALENDAR
         self.assertEqual(events[0].group_key, "test_key")
         self.assertEqual(events[0].group_name, "Test Group")
         self.assertEqual(events[0].group_url, "http://example.com/group")
+        self.assertEqual(events[0].source, "icalendar")
 
     @patch("app.providers.icalendar.datetime")
     def test_get_events_open_status(self, mock_datetime):

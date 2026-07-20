@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Literal
 from dataclasses import dataclass
 
 
@@ -28,6 +28,7 @@ class Event:
     lat: Optional[str] = None
     lon: Optional[str] = None
     keywords: Optional[List[str]] = None
+    source: Optional[Literal["connpass", "icalendar", "archive"]] = None
 
     @staticmethod
     def distinct_by_uid(data):
@@ -99,7 +100,8 @@ class Event:
                 description=data.get("description"),
                 lat=data.get("lat"),
                 lon=data.get("lon"),
-                keywords=Event.sanitize_keywords(data.get("keywords"))
+                keywords=Event.sanitize_keywords(data.get("keywords")),
+                source=Event.sanitize_source(data.get("source"))
             )
 
         raise ValueError("data must be dict or List[dict]")
@@ -113,6 +115,13 @@ class Event:
         if len(keywords) == 0:
             return None
         return keywords
+
+    @staticmethod
+    def sanitize_source(data: any) -> Optional[Literal["connpass", "icalendar", "archive"]]:
+        # an unrecognized value would 500 on response_model validation otherwise
+        if data in ("connpass", "icalendar", "archive"):
+            return data
+        return None
 
     @staticmethod
     def to_json(data: any):
@@ -144,7 +153,8 @@ class Event:
                 "description": data.description,
                 "lat": data.lat,
                 "lon": data.lon,
-                "keywords": data.keywords
+                "keywords": data.keywords,
+                "source": data.source
             }
 
         raise ValueError("data must be Event or List[Event]")
