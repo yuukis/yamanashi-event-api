@@ -39,7 +39,7 @@ scope:
       name: 'SORACOM UG 山梨'
 
   icalendar:
-    - key: 'yamanashi-wordpress-meetup-ical'
+    - key: 'yamanashi-wordpress-meetup'
       name: 'Yamanashi WordPress Meetup'
       image_url: null
       group_url: https://www.meetup.com/ja-JP/yamanashi-wordpress-meetup/

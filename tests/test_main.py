@@ -905,12 +905,12 @@ def test_read_group_events_connpass_chapter():
 @patch("app.service.IcalEventRequest", MockICalEventRequest)
 def test_read_group_events_icalendar():
     # config.yaml's real icalendar entry, resolved from config alone
-    response = client.get("/groups/yamanashi-wordpress-meetup-ical/events")
+    response = client.get("/groups/yamanashi-wordpress-meetup/events")
     assert response.status_code == 200
 
     assert len(MockICalEventRequest.requests) >= 1
     for req in MockICalEventRequest.requests:
-        assert req["key"] == "yamanashi-wordpress-meetup-ical"
+        assert req["key"] == "yamanashi-wordpress-meetup"
         assert req["url"] == \
             "https://www.meetup.com/ja-JP/Yamanashi-WordPress-Meetup/events/ical/"
 
@@ -947,7 +947,7 @@ def test_find_group_source_connpass_chapter():
 
 
 def test_find_group_source_icalendar():
-    source = find_group_source("yamanashi-wordpress-meetup-ical")
+    source = find_group_source("yamanashi-wordpress-meetup")
     assert source["type"] == "icalendar"
     assert source["ical_url"] == \
         "https://www.meetup.com/ja-JP/Yamanashi-WordPress-Meetup/events/ical/"
