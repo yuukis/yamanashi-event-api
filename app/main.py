@@ -25,6 +25,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Total-Count", "X-Page", "X-Per-Page", "X-Total-Pages"],
 )
 
 # Imported for its side effect: registers all routes and mounts MCP onto
