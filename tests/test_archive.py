@@ -23,6 +23,8 @@ class TestArchiveIndexRequest(unittest.TestCase):
         )
         self.assertEqual(events[0].event_id, None)
         self.assertEqual(events[0].group_key, "yamanashi-web")
+        # Forced to "archive" regardless of the archive JSON's own content.
+        self.assertEqual(events[0].source, "archive")
 
     def test_get_events_by_ym(self):
         archive_request = ArchiveIndexRequest(

@@ -24,6 +24,8 @@ class ArchiveIndexRequest:
             json = self.__get_json_or_fetch()
 
             events = Event.from_json(json.get("events", []))
+            for event in events:
+                event.source = "archive"
             return self.__find_by_ym_ymd(events)
 
         except requests.RequestException as e:

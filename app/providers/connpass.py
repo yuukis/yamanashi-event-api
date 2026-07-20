@@ -256,7 +256,8 @@ class ConnpassEventRequest:
                     group_url=group_url,
                     description=item["description"],
                     lat=item["lat"],
-                    lon=item["lon"]
+                    lon=item["lon"],
+                    source="connpass"
                 )
             )
         return events

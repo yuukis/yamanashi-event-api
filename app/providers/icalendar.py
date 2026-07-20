@@ -124,6 +124,7 @@ class IcalEventRequest:
                 "group_key": self.key,
                 "group_name": self.name,
                 "group_url": self.group_url,
+                "source": "icalendar",
             })
             if event.event_url is None and event.description is not None:
                 url_pattern = r'(https?://[^\s]+)'

@@ -68,6 +68,7 @@ class TestConnpassEventRequest(unittest.TestCase):
         self.assertEqual(event.title, 'Test Event')
         self.assertEqual(event.description, 'This is a test event')
         self.assertEqual(event.address, 'Yamanashi, Japan')
+        self.assertEqual(event.source, 'connpass')
 
     def test_get_events(self):
         # Create a mock response with multiple events

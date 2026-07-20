@@ -112,7 +112,8 @@ class TestEvent(unittest.TestCase):
             "group_url": "Group URL",
             "description": "Description",
             "lat": "35.6895",
-            "lon": "139.6917"
+            "lon": "139.6917",
+            "source": "connpass"
         }
 
         # Call the from_json method
@@ -143,6 +144,17 @@ class TestEvent(unittest.TestCase):
         self.assertEqual(event.description, "Description")
         self.assertEqual(event.lat, "35.6895")
         self.assertEqual(event.lon, "139.6917")
+        self.assertEqual(event.source, "connpass")
+
+    def test_from_json_without_source_defaults_to_none(self):
+        # Backward compat with events cached before "source" existed.
+        data = {
+            "uid": "event_1@example.com", "event_id": 1, "title": "Event 1",
+            "catch": "", "hash_tag": "", "event_url": "", "started_at": "",
+            "ended_at": "", "updated_at": "", "open_status": ""
+        }
+        event = Event.from_json(data)
+        self.assertIsNone(event.source)
 
     def test_to_json_with_list(self):
         # Create a list of event objects
@@ -159,7 +171,7 @@ class TestEvent(unittest.TestCase):
                         place="Place", address="Address", group_key="Group Key",
                         group_name="Group Name", group_url="Group URL",
                         description="Description",
-                        lat="35.6895", lon="139.6917"),
+                        lat="35.6895", lon="139.6917", source="archive"),
             Event(uid="event_2@example.com",
                         event_id=2, title="Event 2", catch="Catch 2",
                         hash_tag="Hash Tag", event_url="Event URL",
@@ -183,6 +195,8 @@ class TestEvent(unittest.TestCase):
         self.assertEqual(len(data), 2)
         self.assertEqual(data[0]["event_id"], 1)
         self.assertEqual(data[1]["event_id"], 2)
+        self.assertEqual(data[0]["source"], "archive")
+        self.assertIsNone(data[1]["source"])
 
     def test_is_valid(self):
         event1 = Event(uid="event_1@example.com",
