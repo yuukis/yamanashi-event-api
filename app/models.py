@@ -118,8 +118,7 @@ class Event:
 
     @staticmethod
     def sanitize_source(data: any) -> Optional[Literal["connpass", "icalendar", "archive"]]:
-        # response_model validation would 500 on a value outside the
-        # Literal, e.g. from a corrupted cache entry -- fall back to None.
+        # an unrecognized value would 500 on response_model validation otherwise
         if data in ("connpass", "icalendar", "archive"):
             return data
         return None
