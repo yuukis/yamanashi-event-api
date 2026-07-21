@@ -599,8 +599,7 @@ async def read_groups_summary(
         build_group_summary_from_counts(group, counts_by_group.get(group.key, {}), to_year)
         for group in groups
     ]
-    # Oldest community first; groups with no data (start_year is None)
-    # sort last, alphabetically among themselves.
+    # Oldest first; no-data groups (start_year is None) sort last.
     group_summaries.sort(
         key=lambda g: (g.start_year is None, g.start_year or 0, g.name))
 

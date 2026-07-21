@@ -1187,8 +1187,7 @@ def test_read_groups_summary(mock_get_groups_from_icalendar):
     assert by_key["Key"]["start_year"] is None
     assert by_key["Key"]["years"] == []
 
-    # Oldest community first; groups with no start_year sort last (tied
-    # among themselves alphabetically by name: "SORACOM UG 山梨" < "Title").
+    # No-start_year groups sort last, tied by name ("SORACOM UG 山梨" < "Title").
     assert [g["key"] for g in data["groups"]] == \
         ["yamanashi-web", "soracomug-yamanashi", "Key"]
 
