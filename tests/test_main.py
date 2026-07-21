@@ -1949,6 +1949,29 @@ def test_request_events_dedupes_repeated_chapter_subdomain():
     assert set(call["keyword"]) == {"山梨", "Tokyo"}
 
 
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequestCountingCalls)
+@patch("app.service.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        # Two chapters sharing a subdomain AND (accidentally) the same
+        # title_keyword
+        "connpass": [
+            CHAPTER_ENTRY,
+            {**CHAPTER_ENTRY, "key": "soracomug-yamanashi-2"}
+        ]
+    }
+})
+def test_request_events_dedupes_repeated_chapter_keyword():
+    MockConnpassEventRequestCountingCalls.instances = []
+
+    request_events({})
+
+    # A misconfigured duplicate title_keyword must not reach the connpass
+    # request -- it would shift the query params/cache key for no reason.
+    assert len(MockConnpassEventRequestCountingCalls.instances) == 1
+    assert MockConnpassEventRequestCountingCalls.instances[0]["keyword"] == ["山梨"]
+
+
 class MockConnpassGroupRequestForChapters:
     def __init__(self, **kwargs):
         pass

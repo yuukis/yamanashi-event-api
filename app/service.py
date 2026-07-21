@@ -166,9 +166,16 @@ def request_events(params, cache_ttl: int = None,
             # is broader than a title match (see its docstring).
             chapters_by_subdomain = group_chapters_by_subdomain(chapters)
             for chapter_subdomain, entries in chapters_by_subdomain.items():
+                # dict.fromkeys, not a plain list: a misconfigured scope
+                # with repeated chapter entries (or entries that happen to
+                # share a title_keyword) must not leak a duplicate
+                # keyword into the query -- same reasoning as the plain
+                # subdomain dedup above.
+                keywords = list(dict.fromkeys(
+                    entry["title_keyword"] for entry in entries))
                 r = ConnpassEventRequest(
                     subdomain=[chapter_subdomain],
-                    keyword=[entry["title_keyword"] for entry in entries],
+                    keyword=keywords,
                     ym=ym, ymd=ymd, cache=cache,
                     api_key=connpass_api_key,
                     user_agent=user_agent,
