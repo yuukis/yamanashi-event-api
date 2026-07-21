@@ -406,9 +406,9 @@ def get_full_history(
     hit the exact same get_events() cache entry instead of independently
     paying for the same multi-year connpass fetch.
 
-    Excludes prefecture-wide (unregistered/one-off) events: neither
-    summary endpoint can attribute them to a known group, so fetching
-    them here would be pure wasted connpass load.
+    Excludes prefecture-wide (unregistered/one-off) events by design: both
+    /summary/events and /summary/groups intentionally report only known-
+    community activity, not the broader unaffiliated event landscape.
 
     Returns (events, groups, from_year, to_year, last_modified)."""
     from_year = MIN_EVENT_YEAR

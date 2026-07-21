@@ -542,24 +542,42 @@ async def read_events_summary_legacy(
     return await read_events_summary(response, background_tasks, if_modified_since)
 
 
-def build_group_summary(group: Group, events: List, to_year: int) -> GroupSummary:
-    """Aggregate one group's yearly event counts out of an already-fetched
-    full-history events list (see service.get_full_history()). years is
-    trimmed to start_year..to_year -- years before a group's first event
-    are always zero, so keeping them would only inflate the response."""
-    counts = {}
+def build_year_counts_by_group(events: List) -> dict:
+    """Bucket events into {group_key: {year: count}} in one pass, so
+    building every group's summary doesn't rescan the full events list
+    per group (see read_groups_summary())."""
+    counts_by_group = {}
     for ev in events:
-        if ev.group_key != group.key:
+        if not ev.group_key:
             continue
         year = int(ev.started_at[:4])
+        counts = counts_by_group.setdefault(ev.group_key, {})
         counts[year] = counts.get(year, 0) + 1
+    return counts_by_group
 
+
+def build_group_summary_from_counts(group: Group, counts: dict, to_year: int) -> GroupSummary:
+    """years is trimmed to start_year..to_year -- years before a group's
+    first event are always zero, so keeping them would only inflate the
+    response."""
     start_year = min(counts) if counts else None
     years = [GroupYearlyActivity(year=y, event_count=counts.get(y, 0))
             for y in range(start_year, to_year + 1)] if start_year is not None else []
 
     return GroupSummary(key=group.key, name=group.title, image_url=group.image_url,
                         url=group.url, start_year=start_year, years=years)
+
+
+def build_group_summary(group: Group, events: List, to_year: int) -> GroupSummary:
+    """Aggregate one group's yearly event counts out of an already-fetched
+    full-history events list (see service.get_full_history())."""
+    counts = {}
+    for ev in events:
+        if ev.group_key != group.key:
+            continue
+        year = int(ev.started_at[:4])
+        counts[year] = counts.get(year, 0) + 1
+    return build_group_summary_from_counts(group, counts, to_year)
 
 
 @app.get("/summary/groups", response_model=GroupsSummary,
@@ -581,7 +599,11 @@ async def read_groups_summary(
     if is_not_modified(if_modified_since, last_modified):
         return Response(status_code=304, headers=headers)
 
-    group_summaries = [build_group_summary(group, events, to_year) for group in groups]
+    counts_by_group = build_year_counts_by_group(events)
+    group_summaries = [
+        build_group_summary_from_counts(group, counts_by_group.get(group.key, {}), to_year)
+        for group in groups
+    ]
 
     filtered = filter_model_fields(group_summaries, GroupSummary, fields)
     if filtered is None:
