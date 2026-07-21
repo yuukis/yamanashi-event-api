@@ -18,6 +18,8 @@ config_file = os.path.join(dirname, "config.yaml")
 
 # connpass's own service start; the floor for every from_year/ym range.
 MIN_EVENT_YEAR = 2010
+# Generous sanity ceiling for year path params; no real-world meaning.
+MAX_EVENT_YEAR = 2040
 
 cache = EventRequestCache()
 keyword_extractor = KeywordExtractor()
