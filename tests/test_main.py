@@ -1156,6 +1156,112 @@ def test_read_events_summary_uses_extended_ttls(mock_get_groups_from_icalendar):
     assert 3600 * 24 * 6 < remaining <= 3600 * 24 * 7
 
 
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+@patch("app.service.cache", EventRequestCache(prefix="test_summary_groups_"))
+def test_read_groups_summary(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    response = client.get("/summary/groups")
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "public, no-cache"
+    assert "Last-Modified" in response.headers
+
+    data = response.json()
+    assert data["from_year"] == 2010
+    to_year = data["to_year"]
+
+    by_key = {g["key"]: g for g in data["groups"]}
+
+    # Archive mock event: 2012-05-19, group_key "yamanashi-web"
+    web = by_key["yamanashi-web"]
+    assert web["start_year"] == 2012
+    assert web["years"][0] == {"year": 2012, "event_count": 1}
+    assert web["years"][-1] == {"year": to_year, "event_count": 0}
+    assert len(web["years"]) == to_year - 2012 + 1
+
+    # A group with no events anywhere in range gets a null start_year and
+    # an empty years list, not a list zero-filled back to from_year
+    assert by_key["Key"]["start_year"] is None
+    assert by_key["Key"]["years"] == []
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+@patch("app.service.cache", EventRequestCache(prefix="test_summary_groups_fields_"))
+def test_read_groups_summary_with_fields(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    response = client.get("/summary/groups", params={"fields": "key,name,start_year"})
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["groups"]) > 0
+    for group in data["groups"]:
+        assert set(group.keys()) == {"key", "name", "start_year"}
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+@patch("app.service.cache", EventRequestCache(prefix="test_summary_group_"))
+def test_read_group_summary(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    response = client.get("/summary/groups/yamanashi-web")
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["key"] == "yamanashi-web"
+    assert data["start_year"] == 2012
+    assert data["years"][0] == {"year": 2012, "event_count": 1}
+
+
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+@patch("app.service.cache", EventRequestCache(prefix="test_summary_group_404_"))
+def test_read_group_summary_not_found(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    response = client.get("/summary/groups/no-such-group")
+    assert response.status_code == 404
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+@patch("app.service.cache", EventRequestCache(prefix="test_summary_shared_cache_"))
+def test_read_groups_summary_reuses_events_summary_cache(mock_get_groups_from_icalendar):
+    """/summary/groups must issue the exact same get_events() params as
+    /summary/events (same ym range, same keyword=None), so once
+    /summary/events has warmed the cache, /summary/groups is served from
+    it instead of paying for a second full-history connpass fetch."""
+    mock_get_groups_from_icalendar.return_value = []
+
+    events_response = client.get("/summary/events")
+    assert events_response.status_code == 200
+
+    from_year = service.MIN_EVENT_YEAR
+    to_year = datetime.now().year
+    ym = [f"{y:04}{m:02}" for y in range(from_year, to_year + 1) for m in range(1, 13)]
+    params = normalize_event_params({"ym": ym, "keyword": None})
+
+    # The background revalidation triggered by /summary/events must have
+    # already populated this exact cache entry by the time the request
+    # returns (TestClient runs BackgroundTasks synchronously).
+    cached_events, _ = service.get_events_from_cache(service.cache, params)
+    assert cached_events is not None
+
+    groups_response = client.get("/summary/groups")
+    assert groups_response.status_code == 200
+    assert groups_response.json()["to_year"] == to_year
+
+
 @patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
 @patch("app.service.get_groups_from_icalendar")
 def test_read_group(mock_get_groups_from_icalendar):

@@ -5,6 +5,7 @@ from fastapi_mcp import FastApiMCP
 from . import service
 from .models import Event, Group
 from .models import GroupActivity, YearSummary, HeatmapBucket, EventsSummary
+from .models import GroupYearlyActivity, GroupSummary, GroupsSummary
 import hmac
 from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime, parsedate_to_datetime
@@ -539,6 +540,94 @@ async def read_events_summary_legacy(
     if_modified_since: str = Header(None)
 ):
     return await read_events_summary(response, background_tasks, if_modified_since)
+
+
+def build_group_summary(group: Group, events: List, to_year: int) -> GroupSummary:
+    """Aggregate one group's yearly event counts out of an already-fetched
+    full-history events list (see service.get_full_history()). years is
+    trimmed to start_year..to_year -- years before a group's first event
+    are always zero, so keeping them would only inflate the response."""
+    counts = {}
+    for ev in events:
+        if ev.group_key != group.key:
+            continue
+        year = int(ev.started_at[:4])
+        counts[year] = counts.get(year, 0) + 1
+
+    start_year = min(counts) if counts else None
+    years = [GroupYearlyActivity(year=y, event_count=counts.get(y, 0))
+            for y in range(start_year, to_year + 1)] if start_year is not None else []
+
+    return GroupSummary(key=group.key, name=group.title, image_url=group.image_url,
+                        url=group.url, start_year=start_year, years=years)
+
+
+@app.get("/summary/groups", response_model=GroupsSummary,
+         operation_id="summary_groups",
+         summary="Get per-group activity summary (start year and yearly event counts)")
+async def read_groups_summary(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    fields: str = None,
+    if_modified_since: str = Header(None)
+):
+    events, groups, from_year, to_year, last_modified = \
+        service.get_full_history(background_tasks)
+
+    headers = {"Cache-Control": LIST_CACHE_CONTROL}
+    if last_modified is not None:
+        headers["Last-Modified"] = format_last_modified(last_modified)
+
+    if is_not_modified(if_modified_since, last_modified):
+        return Response(status_code=304, headers=headers)
+
+    group_summaries = [build_group_summary(group, events, to_year) for group in groups]
+
+    filtered = filter_model_fields(group_summaries, GroupSummary, fields)
+    if filtered is None:
+        for key, value in headers.items():
+            response.headers[key] = value
+        return GroupsSummary(from_year=from_year, to_year=to_year, groups=group_summaries)
+
+    return JSONResponse(
+        content={"from_year": from_year, "to_year": to_year, "groups": filtered},
+        headers=headers)
+
+
+@app.get("/summary/groups/{group_key}", response_model=GroupSummary,
+         operation_id="summary_group",
+         summary="Get a single group's activity summary (start year and yearly event counts)")
+async def read_group_summary(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    group_key: str,
+    fields: str = None,
+    if_modified_since: str = Header(None)
+):
+    events, groups, from_year, to_year, last_modified = \
+        service.get_full_history(background_tasks)
+
+    group = next((g for g in groups if g.key == group_key), None)
+    if group is None:
+        raise HTTPException(status_code=404,
+                            detail=f"Group '{group_key}' not found")
+
+    headers = {"Cache-Control": LIST_CACHE_CONTROL}
+    if last_modified is not None:
+        headers["Last-Modified"] = format_last_modified(last_modified)
+
+    if is_not_modified(if_modified_since, last_modified):
+        return Response(status_code=304, headers=headers)
+
+    group_summary = build_group_summary(group, events, to_year)
+
+    filtered = filter_model_fields([group_summary], GroupSummary, fields)
+    if filtered is None:
+        for key, value in headers.items():
+            response.headers[key] = value
+        return group_summary
+
+    return JSONResponse(content=filtered[0], headers=headers)
 
 
 def verify_refresh_token(x_refresh_token: str = Header(None)):
