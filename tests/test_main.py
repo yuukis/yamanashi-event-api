@@ -1222,6 +1222,8 @@ def test_read_group_summary(mock_get_groups_from_icalendar):
     assert data["years"][0] == {"year": 2012, "event_count": 1}
 
 
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
 @patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
 @patch("app.service.get_groups_from_icalendar")
 @patch("app.service.cache", EventRequestCache(prefix="test_summary_group_404_"))
