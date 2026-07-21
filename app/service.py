@@ -16,6 +16,11 @@ load_dotenv()
 dirname = os.path.dirname(__file__)
 config_file = os.path.join(dirname, "config.yaml")
 
+# connpass's own service start; the floor for every from_year/ym range.
+MIN_EVENT_YEAR = 2010
+# Generous sanity ceiling for year path params; no real-world meaning.
+MAX_EVENT_YEAR = 2040
+
 cache = EventRequestCache()
 keyword_extractor = KeywordExtractor()
 
@@ -116,6 +121,8 @@ def request_events(params, cache_ttl: int = None,
     keyword = params["keyword"] if "keyword" in params else None
     uid = params["uid"] if "uid" in params else None
     group_key = params.get("group_key")
+    # get_full_history() (backing /summary/*) opts out of this query.
+    include_prefecture = params.get("include_prefecture", True)
     connpass_cache_ttl = cache_ttl if cache_ttl is not None else 3600
 
     user_agent = get_user_agent(config)
@@ -130,7 +137,7 @@ def request_events(params, cache_ttl: int = None,
                     source, group_key, ym, ymd, connpass_cache_ttl, force_refresh)
 
         else:
-            if "scope" in config and "prefecture" in config["scope"]:
+            if include_prefecture and "scope" in config and "prefecture" in config["scope"]:
                 prefecture = config["scope"]["prefecture"]
                 r = ConnpassEventRequest(prefecture=prefecture,
                                          ym=ym, ymd=ymd, cache=cache,
@@ -387,6 +394,33 @@ def get_groups(params,
         background_tasks.add_task(fetch_groups, params)
 
     return groups, last_modified
+
+
+def get_full_history(
+    background_tasks: BackgroundTasks = None
+) -> Tuple[List[Event], List[Group], int, int, Optional[datetime]]:
+    """Fetch every event/group from MIN_EVENT_YEAR through the current year.
+    Shared by /summary/events and /summary/groups so both hit the same
+    get_events() cache entry. Excludes prefecture-wide (unregistered/
+    one-off) events by design -- both endpoints report known-community
+    activity only.
+
+    Returns (events, groups, from_year, to_year, last_modified)."""
+    from_year = MIN_EVENT_YEAR
+    to_year = datetime.now().year
+    ym = [f"{y:04}{m:02}" for y in range(from_year, to_year + 1) for m in range(1, 13)]
+
+    events, last_modified = get_events(
+        {"ym": ym, "keyword": None, "include_prefecture": False}, background_tasks,
+        ex=3600*24*7,  # 7 days
+        cache_ttl=3600*24)  # 24 hours
+    groups, groups_last_modified = get_groups({}, background_tasks)
+
+    if groups_last_modified is not None:
+        last_modified = (groups_last_modified if last_modified is None
+                         else max(last_modified, groups_last_modified))
+
+    return events, groups, from_year, to_year, last_modified
 
 
 def get_groups_from_cache(

@@ -1028,7 +1028,7 @@ def test_read_events_summary(mock_get_groups_from_icalendar):
     assert "Last-Modified" in response.headers
 
     data = response.json()
-    assert data["from_year"] == 2010
+    assert data["from_year"] == service.MIN_EVENT_YEAR
     assert data["granularity"] == "month"
     assert len(data["years"]) == data["to_year"] - data["from_year"] + 1
 
@@ -1082,7 +1082,7 @@ def test_read_events_summary_legacy_path_still_works(mock_get_groups_from_icalen
     response = client.get("/events/summary")
     assert response.status_code == 200
     data = response.json()
-    assert data["from_year"] == 2010
+    assert data["from_year"] == service.MIN_EVENT_YEAR
     assert data["granularity"] == "month"
 
 
@@ -1146,14 +1146,122 @@ def test_read_events_summary_uses_extended_ttls(mock_get_groups_from_icalendar):
     # entry) must use a 7 day expiry, not the default 72 hours used by
     # the other /events endpoints. The years/heatmap payload built from
     # it is not itself cached and is recomputed on every request.
-    from_year = 2010
+    from_year = service.MIN_EVENT_YEAR
     to_year = datetime.now().year
     ym = [f"{y:04}{m:02}" for y in range(from_year, to_year + 1) for m in range(1, 13)]
-    params = normalize_event_params({"ym": ym, "keyword": None})
+    params = normalize_event_params(
+        {"ym": ym, "keyword": None, "include_prefecture": False})
     key = service_module.cache.generate_key(params) + ":content"
     expiry = service_module.cache._expiry[key]
     remaining = expiry - datetime.now(timezone.utc).timestamp()
     assert 3600 * 24 * 6 < remaining <= 3600 * 24 * 7
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+@patch("app.service.cache", EventRequestCache(prefix="test_summary_groups_"))
+def test_read_groups_summary(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    response = client.get("/summary/groups")
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "public, no-cache"
+    assert "Last-Modified" in response.headers
+
+    data = response.json()
+    assert data["from_year"] == service.MIN_EVENT_YEAR
+    to_year = data["to_year"]
+
+    by_key = {g["key"]: g for g in data["groups"]}
+
+    # Archive mock event: 2012-05-19, group_key "yamanashi-web"
+    web = by_key["yamanashi-web"]
+    assert web["start_year"] == 2012
+    assert web["years"][0] == {"year": 2012, "event_count": 1}
+    assert web["years"][-1] == {"year": to_year, "event_count": 0}
+    assert len(web["years"]) == to_year - 2012 + 1
+
+    # No events in range -> null start_year, empty years (not zero-filled).
+    assert by_key["Key"]["start_year"] is None
+    assert by_key["Key"]["years"] == []
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+@patch("app.service.cache", EventRequestCache(prefix="test_summary_groups_fields_"))
+def test_read_groups_summary_with_fields(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    response = client.get("/summary/groups", params={"fields": "key,name,start_year"})
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["groups"]) > 0
+    for group in data["groups"]:
+        assert set(group.keys()) == {"key", "name", "start_year"}
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+@patch("app.service.cache", EventRequestCache(prefix="test_summary_group_"))
+def test_read_group_summary(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    response = client.get("/summary/groups/yamanashi-web")
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["key"] == "yamanashi-web"
+    assert data["start_year"] == 2012
+    assert data["years"][0] == {"year": 2012, "event_count": 1}
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+@patch("app.service.cache", EventRequestCache(prefix="test_summary_group_404_"))
+def test_read_group_summary_not_found(mock_get_groups_from_icalendar):
+    mock_get_groups_from_icalendar.return_value = []
+
+    response = client.get("/summary/groups/no-such-group")
+    assert response.status_code == 404
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+@patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
+@patch("app.service.get_groups_from_icalendar")
+@patch("app.service.cache", EventRequestCache(prefix="test_summary_shared_cache_"))
+def test_read_groups_summary_reuses_events_summary_cache(mock_get_groups_from_icalendar):
+    """/summary/groups must issue the exact same get_events() params as
+    /summary/events (same ym range, same keyword=None), so once
+    /summary/events has warmed the cache, /summary/groups is served from
+    it instead of paying for a second full-history connpass fetch."""
+    mock_get_groups_from_icalendar.return_value = []
+
+    events_response = client.get("/summary/events")
+    assert events_response.status_code == 200
+
+    from_year = service.MIN_EVENT_YEAR
+    to_year = datetime.now().year
+    ym = [f"{y:04}{m:02}" for y in range(from_year, to_year + 1) for m in range(1, 13)]
+    params = normalize_event_params(
+        {"ym": ym, "keyword": None, "include_prefecture": False})
+
+    # TestClient runs BackgroundTasks synchronously, so the cache must
+    # already be warm by the time /summary/events returns.
+    cached_events, _ = service.get_events_from_cache(service.cache, params)
+    assert cached_events is not None
+
+    groups_response = client.get("/summary/groups")
+    assert groups_response.status_code == 200
+    assert groups_response.json()["to_year"] == to_year
 
 
 @patch("app.service.ConnpassGroupRequest", MockConnpassGroupRequest)
@@ -1870,6 +1978,48 @@ class MockConnpassEventRequestCountingCalls:
 
     def get_last_modified(self):
         return datetime.fromtimestamp(456, timezone.utc)
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequestCountingCalls)
+@patch("app.service.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "prefecture": ["山梨県"],
+        "connpass": [{"subdomain": "jagyamanashi"}]
+    }
+})
+def test_request_events_includes_prefecture_query_by_default():
+    MockConnpassEventRequestCountingCalls.instances = []
+
+    request_events({})
+
+    # /events/* (the default) still wants the prefecture-wide search.
+    prefecture_calls = [c for c in MockConnpassEventRequestCountingCalls.instances
+                        if c.get("prefecture")]
+    assert len(prefecture_calls) == 1
+    assert prefecture_calls[0]["prefecture"] == ["山梨県"]
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequestCountingCalls)
+@patch("app.service.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "prefecture": ["山梨県"],
+        "connpass": [{"subdomain": "jagyamanashi"}]
+    }
+})
+def test_request_events_excludes_prefecture_query_when_opted_out():
+    MockConnpassEventRequestCountingCalls.instances = []
+
+    request_events({"include_prefecture": False})
+
+    # get_full_history() (backing /summary/*) opts out of this query.
+    prefecture_calls = [c for c in MockConnpassEventRequestCountingCalls.instances
+                        if c.get("prefecture")]
+    assert prefecture_calls == []
+    assert len(MockConnpassEventRequestCountingCalls.instances) == 1
+    assert MockConnpassEventRequestCountingCalls.instances[0]["subdomain"] == \
+        ["jagyamanashi"]
 
 
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequestCountingCalls)

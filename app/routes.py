@@ -5,6 +5,7 @@ from fastapi_mcp import FastApiMCP
 from . import service
 from .models import Event, Group
 from .models import GroupActivity, YearSummary, HeatmapBucket, EventsSummary
+from .models import GroupYearlyActivity, GroupSummary, GroupsSummary
 import hmac
 from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime, parsedate_to_datetime
@@ -116,7 +117,7 @@ async def read_events_next_week(
 async def read_events_year(
     response: Response,
     background_tasks: BackgroundTasks,
-    year: int = Path(ge=2010, le=2040),
+    year: int = Path(ge=service.MIN_EVENT_YEAR, le=service.MAX_EVENT_YEAR),
     keyword: str = None,
     uid: str = None,
     fields: str = None,
@@ -135,7 +136,7 @@ async def read_events_year(
 async def read_events_in_year_legacy(
     response: Response,
     background_tasks: BackgroundTasks,
-    year: int = Path(ge=2010, le=2040),
+    year: int = Path(ge=service.MIN_EVENT_YEAR, le=service.MAX_EVENT_YEAR),
     keyword: str = None,
     uid: str = None,
     fields: str = None,
@@ -151,7 +152,7 @@ async def read_events_in_year_legacy(
 async def read_events_month(
     response: Response,
     background_tasks: BackgroundTasks,
-    year: int = Path(ge=2010, le=2040),
+    year: int = Path(ge=service.MIN_EVENT_YEAR, le=service.MAX_EVENT_YEAR),
     month: int = Path(ge=1, le=12),
     keyword: str = None,
     uid: str = None,
@@ -171,7 +172,7 @@ async def read_events_month(
 async def read_events_in_year_month_legacy(
     response: Response,
     background_tasks: BackgroundTasks,
-    year: int = Path(ge=2010, le=2040),
+    year: int = Path(ge=service.MIN_EVENT_YEAR, le=service.MAX_EVENT_YEAR),
     month: int = Path(ge=1, le=12),
     keyword: str = None,
     uid: str = None,
@@ -188,7 +189,7 @@ async def read_events_in_year_month_legacy(
 async def read_events_day(
     response: Response,
     background_tasks: BackgroundTasks,
-    year: int = Path(ge=2010, le=2040),
+    year: int = Path(ge=service.MIN_EVENT_YEAR, le=service.MAX_EVENT_YEAR),
     month: int = Path(ge=1, le=12),
     day: int = Path(ge=1, le=31),
     keyword: str = None,
@@ -212,7 +213,7 @@ async def read_events_day(
 async def read_events_in_year_month_day_legacy(
     response: Response,
     background_tasks: BackgroundTasks,
-    year: int = Path(ge=2010, le=2040),
+    year: int = Path(ge=service.MIN_EVENT_YEAR, le=service.MAX_EVENT_YEAR),
     month: int = Path(ge=1, le=12),
     day: int = Path(ge=1, le=31),
     keyword: str = None,
@@ -231,9 +232,9 @@ async def read_events_in_year_month_day_legacy(
 async def read_events_range(
     response: Response,
     background_tasks: BackgroundTasks,
-    from_year: int = Path(ge=2010, le=2040),
+    from_year: int = Path(ge=service.MIN_EVENT_YEAR, le=service.MAX_EVENT_YEAR),
     from_month: int = Path(ge=1, le=12),
-    to_year: int = Path(ge=2010, le=2040),
+    to_year: int = Path(ge=service.MIN_EVENT_YEAR, le=service.MAX_EVENT_YEAR),
     to_month: int = Path(ge=1, le=12),
     keyword: str = None,
     uid: str = None,
@@ -263,9 +264,9 @@ async def read_events_range(
 async def read_events_fromto_year_month_legacy(
     response: Response,
     background_tasks: BackgroundTasks,
-    from_year: int = Path(ge=2010, le=2040),
+    from_year: int = Path(ge=service.MIN_EVENT_YEAR, le=service.MAX_EVENT_YEAR),
     from_month: int = Path(ge=1, le=12),
-    to_year: int = Path(ge=2010, le=2040),
+    to_year: int = Path(ge=service.MIN_EVENT_YEAR, le=service.MAX_EVENT_YEAR),
     to_month: int = Path(ge=1, le=12),
     keyword: str = None,
     uid: str = None,
@@ -466,22 +467,9 @@ async def read_events_summary(
     background_tasks: BackgroundTasks,
     if_modified_since: str = Header(None)
 ):
-    from_year = 2010
-    to_year = datetime.now().year
-
-    ym = [f"{y:04}{m:02}" for y in range(from_year, to_year + 1) for m in range(1, 13)]
-
-    events, last_modified = service.get_events(
-        {"ym": ym, "keyword": None},
-        background_tasks,
-        ex=3600*24*7,  # 7 days
-        cache_ttl=3600*24)  # 24 hours
-    groups, groups_last_modified = service.get_groups({}, background_tasks)
+    events, groups, from_year, to_year, last_modified = \
+        service.get_full_history(background_tasks)
     group_by_key = {g.key: g for g in groups}
-
-    if groups_last_modified is not None:
-        last_modified = (groups_last_modified if last_modified is None
-                         else max(last_modified, groups_last_modified))
 
     headers = {"Cache-Control": LIST_CACHE_CONTROL}
     if last_modified is not None:
@@ -552,6 +540,111 @@ async def read_events_summary_legacy(
     if_modified_since: str = Header(None)
 ):
     return await read_events_summary(response, background_tasks, if_modified_since)
+
+
+def build_year_counts_by_group(events: List) -> dict:
+    """Bucket events by group/year in one pass (see read_groups_summary())."""
+    counts_by_group = {}
+    for ev in events:
+        if not ev.group_key:
+            continue
+        year = int(ev.started_at[:4])
+        counts = counts_by_group.setdefault(ev.group_key, {})
+        counts[year] = counts.get(year, 0) + 1
+    return counts_by_group
+
+
+def build_group_summary_from_counts(group: Group, counts: dict, to_year: int) -> GroupSummary:
+    """years is trimmed to start_year..to_year (earlier years are always zero)."""
+    start_year = min(counts) if counts else None
+    years = [GroupYearlyActivity(year=y, event_count=counts.get(y, 0))
+            for y in range(start_year, to_year + 1)] if start_year is not None else []
+
+    return GroupSummary(key=group.key, name=group.title, image_url=group.image_url,
+                        url=group.url, start_year=start_year, years=years)
+
+
+def build_group_summary(group: Group, events: List, to_year: int) -> GroupSummary:
+    """Aggregate one group's yearly event counts out of a full-history events list."""
+    counts = {}
+    for ev in events:
+        if ev.group_key != group.key:
+            continue
+        year = int(ev.started_at[:4])
+        counts[year] = counts.get(year, 0) + 1
+    return build_group_summary_from_counts(group, counts, to_year)
+
+
+@app.get("/summary/groups", response_model=GroupsSummary,
+         operation_id="summary_groups",
+         summary="Get per-group activity summary (start year and yearly event counts)")
+async def read_groups_summary(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    fields: str = None,
+    if_modified_since: str = Header(None)
+):
+    events, groups, from_year, to_year, last_modified = \
+        service.get_full_history(background_tasks)
+
+    headers = {"Cache-Control": LIST_CACHE_CONTROL}
+    if last_modified is not None:
+        headers["Last-Modified"] = format_last_modified(last_modified)
+
+    if is_not_modified(if_modified_since, last_modified):
+        return Response(status_code=304, headers=headers)
+
+    counts_by_group = build_year_counts_by_group(events)
+    group_summaries = [
+        build_group_summary_from_counts(group, counts_by_group.get(group.key, {}), to_year)
+        for group in groups
+    ]
+
+    filtered = filter_model_fields(group_summaries, GroupSummary, fields)
+    if filtered is None:
+        for key, value in headers.items():
+            response.headers[key] = value
+        return GroupsSummary(from_year=from_year, to_year=to_year, groups=group_summaries)
+
+    return JSONResponse(
+        content={"from_year": from_year, "to_year": to_year, "groups": filtered},
+        headers=headers)
+
+
+@app.get("/summary/groups/{group_key}", response_model=GroupSummary,
+         operation_id="summary_group",
+         summary="Get a single group's activity summary (start year and yearly event counts)")
+async def read_group_summary(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    group_key: str,
+    fields: str = None,
+    if_modified_since: str = Header(None)
+):
+    events, groups, from_year, to_year, last_modified = \
+        service.get_full_history(background_tasks)
+
+    group = next((g for g in groups if g.key == group_key), None)
+    if group is None:
+        raise HTTPException(status_code=404,
+                            detail=f"Group '{group_key}' not found")
+
+    headers = {"Cache-Control": LIST_CACHE_CONTROL}
+    if last_modified is not None:
+        headers["Last-Modified"] = format_last_modified(last_modified)
+
+    if is_not_modified(if_modified_since, last_modified):
+        return Response(status_code=304, headers=headers)
+
+    group_summary = build_group_summary(group, events, to_year)
+
+    filtered = filter_model_fields([group_summary], GroupSummary, fields)
+    if filtered is None:
+        for key, value in headers.items():
+            response.headers[key] = value
+        return group_summary
+
+    return JSONResponse(content=filtered[0], headers=headers)
 
 
 def verify_refresh_token(x_refresh_token: str = Header(None)):
