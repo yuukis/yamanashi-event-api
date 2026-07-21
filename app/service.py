@@ -143,18 +143,40 @@ def request_events(params, cache_ttl: int = None,
                 last_modified = max(last_modified, r.get_last_modified())
 
             plain_subdomains, chapters = split_connpass_scope(config)
-            subdomain = merged_connpass_subdomains(plain_subdomains, chapters)
 
-            if len(subdomain) > 0:
-                r = ConnpassEventRequest(subdomain=subdomain,
+            if len(plain_subdomains) > 0:
+                r = ConnpassEventRequest(subdomain=plain_subdomains,
                                          ym=ym, ymd=ymd, cache=cache,
                                          api_key=connpass_api_key,
                                          user_agent=user_agent,
                                          cache_ttl=connpass_cache_ttl,
                                          skip_cache=force_refresh
                                          )
+                events += r.get_events()
+                last_modified = max(last_modified, r.get_last_modified())
+
+            # Chapters are fetched separately, one request per shared
+            # subdomain, with their title_keyword(s) passed as connpass's
+            # `keyword` filter -- a subdomain shared with other chapters
+            # (e.g. a nationwide group) can carry far more history than
+            # this chapter's own share of it, so narrowing upstream avoids
+            # paginating through all of it just to extract a handful of
+            # relevant events. partition_and_relabel_chapter_events() still
+            # re-checks the title exactly, since connpass's keyword search
+            # is broader than a title match (see its docstring).
+            chapters_by_subdomain = group_chapters_by_subdomain(chapters)
+            for chapter_subdomain, entries in chapters_by_subdomain.items():
+                r = ConnpassEventRequest(
+                    subdomain=[chapter_subdomain],
+                    keyword=[entry["title_keyword"] for entry in entries],
+                    ym=ym, ymd=ymd, cache=cache,
+                    api_key=connpass_api_key,
+                    user_agent=user_agent,
+                    cache_ttl=connpass_cache_ttl,
+                    skip_cache=force_refresh
+                )
                 events += partition_and_relabel_chapter_events(
-                    r.get_events(), chapters)
+                    r.get_events(), entries)
                 last_modified = max(last_modified, r.get_last_modified())
 
             if "scope" in config and "icalendar" in config["scope"]:
