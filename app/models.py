@@ -260,3 +260,53 @@ class EventsSummary:
     granularity: str
     years: List[YearSummary]
     heatmap: List[HeatmapBucket]
+
+
+@dataclass
+class GroupYearlyActivity:
+    year: int
+    event_count: int
+
+    @staticmethod
+    def to_json(data: any):
+        if isinstance(data, list):
+            return [GroupYearlyActivity.to_json(item) for item in data]
+
+        if isinstance(data, GroupYearlyActivity):
+            return {"year": data.year, "event_count": data.event_count}
+
+        raise ValueError("data must be GroupYearlyActivity or List[GroupYearlyActivity]")
+
+
+@dataclass
+class GroupSummary:
+    key: str
+    name: str
+    image_url: Optional[str]
+    url: Optional[str]
+    start_year: Optional[int]
+    years: List[GroupYearlyActivity]
+
+    @staticmethod
+    def to_json(data: any):
+        if isinstance(data, list):
+            return [GroupSummary.to_json(item) for item in data]
+
+        if isinstance(data, GroupSummary):
+            return {
+                "key": data.key,
+                "name": data.name,
+                "image_url": data.image_url,
+                "url": data.url,
+                "start_year": data.start_year,
+                "years": GroupYearlyActivity.to_json(data.years),
+            }
+
+        raise ValueError("data must be GroupSummary or List[GroupSummary]")
+
+
+@dataclass
+class GroupsSummary:
+    from_year: int
+    to_year: int
+    groups: List[GroupSummary]
