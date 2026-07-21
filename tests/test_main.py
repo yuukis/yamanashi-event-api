@@ -1585,6 +1585,23 @@ def test_split_connpass_scope_separates_plain_and_chapter_entries():
     assert chapters == [CHAPTER_ENTRY]
 
 
+def test_split_connpass_scope_dedupes_repeated_plain_entries():
+    # A duplicate plain subdomain in config must not leak into `plain`.
+    config = {
+        "scope": {
+            "connpass": [
+                {"subdomain": "jagyamanashi"},
+                {"subdomain": "coderdojokofu"},
+                {"subdomain": "jagyamanashi"},
+            ]
+        }
+    }
+
+    plain, _ = split_connpass_scope(config)
+
+    assert plain == ["jagyamanashi", "coderdojokofu"]
+
+
 @pytest.mark.parametrize("title_keyword", [None, ""])
 def test_split_connpass_scope_rejects_empty_title_keyword(title_keyword):
     config = {
@@ -1800,6 +1817,48 @@ def test_request_events_from_connpass_chapters():
     assert last_modified == datetime.fromtimestamp(456, timezone.utc)
 
 
+class MockConnpassEventRequestCapturingKwargs:
+    instances = []
+
+    def __init__(self, **kwargs):
+        MockConnpassEventRequestCapturingKwargs.instances.append(kwargs)
+
+    def get_events(self):
+        return [
+            _make_subgroup_event("UID Yamanashi 1", "SORACOM UG 山梨 #1"),
+            _make_subgroup_event("UID Tokyo 1", "SORACOM UG Tokyo #1",
+                                 description="山梨から来たゲストを迎えます"),
+        ]
+
+    def get_last_modified(self):
+        return datetime.fromtimestamp(456, timezone.utc)
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequestCapturingKwargs)
+@patch("app.service.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "connpass": [CHAPTER_ENTRY]
+    }
+})
+def test_request_events_chapter_query_passes_title_keyword_upstream():
+    MockConnpassEventRequestCapturingKwargs.instances = []
+
+    events, _ = request_events({})
+
+    # title_keyword is sent to connpass as a narrowing `keyword` filter.
+    assert len(MockConnpassEventRequestCapturingKwargs.instances) == 1
+    call = MockConnpassEventRequestCapturingKwargs.instances[0]
+    assert call["subdomain"] == ["soracomug-tokyo"]
+    assert call["keyword"] == ["山梨"]
+
+    # Exact title re-check must still drop the Tokyo event whose
+    # *description* happens to mention 山梨.
+    assert len(events) == 1
+    assert events[0].uid == "UID Yamanashi 1"
+    assert events[0].group_key == "soracomug-yamanashi"
+
+
 class MockConnpassEventRequestCountingCalls:
     instances = []
 
@@ -1807,10 +1866,7 @@ class MockConnpassEventRequestCountingCalls:
         MockConnpassEventRequestCountingCalls.instances.append(kwargs)
 
     def get_events(self):
-        return [
-            _make_subgroup_event("UID Yamanashi 1", "SORACOM UG 山梨 #1"),
-            _make_subgroup_event("UID Tokyo 1", "SORACOM UG Tokyo #1"),
-        ]
+        return []
 
     def get_last_modified(self):
         return datetime.fromtimestamp(456, timezone.utc)
@@ -1823,18 +1879,39 @@ class MockConnpassEventRequestCountingCalls:
         "connpass": [{"subdomain": "jagyamanashi"}, CHAPTER_ENTRY]
     }
 })
-def test_request_events_merges_chapters_into_single_subdomain_query():
+def test_request_events_fetches_chapters_separately_from_plain_subdomains():
     MockConnpassEventRequestCountingCalls.instances = []
 
-    events, _ = request_events({})
+    request_events({})
 
-    # Plain and chapter entries under scope.connpass must share a single
-    # ConnpassEventRequest call (no extra connpass query per chapter).
+    # Plain subdomains and chapters must NOT share a query.
+    assert len(MockConnpassEventRequestCountingCalls.instances) == 2
+
+    by_subdomain = {tuple(c["subdomain"]): c
+                    for c in MockConnpassEventRequestCountingCalls.instances}
+    assert set(by_subdomain.keys()) == {("jagyamanashi",), ("soracomug-tokyo",)}
+
+    assert by_subdomain[("jagyamanashi",)].get("keyword") is None
+    assert by_subdomain[("soracomug-tokyo",)]["keyword"] == ["山梨"]
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequestCountingCalls)
+@patch("app.service.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "connpass": [{"subdomain": "jagyamanashi"}, {"subdomain": "jagyamanashi"}]
+    }
+})
+def test_request_events_plain_query_dedupes_repeated_subdomain():
+    MockConnpassEventRequestCountingCalls.instances = []
+
+    request_events({})
+
+    # A misconfigured duplicate plain entry must not reach the connpass
+    # request -- it would shift the query params/cache key for no reason.
     assert len(MockConnpassEventRequestCountingCalls.instances) == 1
-    called_subdomain = MockConnpassEventRequestCountingCalls.instances[0]["subdomain"]
-    assert set(called_subdomain) == {"jagyamanashi", "soracomug-tokyo"}
-    assert len(events) == 1
-    assert events[0].group_key == "soracomug-yamanashi"
+    assert MockConnpassEventRequestCountingCalls.instances[0]["subdomain"] == \
+        ["jagyamanashi"]
 
 
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequestCountingCalls)
@@ -1854,8 +1931,35 @@ def test_request_events_dedupes_repeated_chapter_subdomain():
 
     request_events({})
 
-    called_subdomain = MockConnpassEventRequestCountingCalls.instances[0]["subdomain"]
-    assert called_subdomain == ["soracomug-tokyo"]
+    # Still a single request for the shared subdomain, with both chapters'
+    # title_keyword sent together as connpass's OR-matched keyword filter.
+    assert len(MockConnpassEventRequestCountingCalls.instances) == 1
+    call = MockConnpassEventRequestCountingCalls.instances[0]
+    assert call["subdomain"] == ["soracomug-tokyo"]
+    assert set(call["keyword"]) == {"山梨", "Tokyo"}
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequestCountingCalls)
+@patch("app.service.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        # Two chapters sharing a subdomain AND (accidentally) the same
+        # title_keyword
+        "connpass": [
+            CHAPTER_ENTRY,
+            {**CHAPTER_ENTRY, "key": "soracomug-yamanashi-2"}
+        ]
+    }
+})
+def test_request_events_dedupes_repeated_chapter_keyword():
+    MockConnpassEventRequestCountingCalls.instances = []
+
+    request_events({})
+
+    # A misconfigured duplicate title_keyword must not reach the connpass
+    # request -- it would shift the query params/cache key for no reason.
+    assert len(MockConnpassEventRequestCountingCalls.instances) == 1
+    assert MockConnpassEventRequestCountingCalls.instances[0]["keyword"] == ["山梨"]
 
 
 class MockConnpassGroupRequestForChapters:
