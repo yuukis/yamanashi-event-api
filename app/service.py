@@ -531,16 +531,24 @@ def merged_connpass_subdomains(plain_subdomains, chapters):
     return list(merged)
 
 
+def group_chapters_by_subdomain(chapters):
+    grouped = {}
+    for entry in chapters:
+        grouped.setdefault(entry["subdomain"], []).append(entry)
+    return grouped
+
+
 def partition_and_relabel_chapter_events(events, chapters):
-    # Matched against the title only, not sent to connpass as a `keyword`
-    # search param: connpass's keyword search also matches description/
-    # address text, which would pull in other chapters' events.
+    # The exact title substring match here is the source of truth, even
+    # when the caller already pre-filtered upstream via connpass's own
+    # `keyword` search (see request_events()) -- that search also matches
+    # description/address text, so it can still return other chapters'
+    # events (sharing the same subdomain); this re-check is what actually
+    # keeps only the ones belonging to this chapter.
     if not chapters:
         return events
 
-    entries_by_subdomain = {}
-    for entry in chapters:
-        entries_by_subdomain.setdefault(entry["subdomain"], []).append(entry)
+    entries_by_subdomain = group_chapters_by_subdomain(chapters)
 
     result = []
     for ev in events:
