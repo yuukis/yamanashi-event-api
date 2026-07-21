@@ -152,18 +152,36 @@ def request_events(params, cache_ttl: int = None,
                 last_modified = max(last_modified, r.get_last_modified())
 
             plain_subdomains, chapters = split_connpass_scope(config)
-            subdomain = merged_connpass_subdomains(plain_subdomains, chapters)
 
-            if len(subdomain) > 0:
-                r = ConnpassEventRequest(subdomain=subdomain,
+            if len(plain_subdomains) > 0:
+                r = ConnpassEventRequest(subdomain=plain_subdomains,
                                          ym=ym, ymd=ymd, cache=cache,
                                          api_key=connpass_api_key,
                                          user_agent=user_agent,
                                          cache_ttl=connpass_cache_ttl,
                                          skip_cache=force_refresh
                                          )
+                events += r.get_events()
+                last_modified = max(last_modified, r.get_last_modified())
+
+            # Chapters are fetched separately, per shared subdomain, with
+            # title_keyword(s) sent upstream as connpass's `keyword` filter
+            # to avoid paginating through the whole shared subdomain.
+            chapters_by_subdomain = group_chapters_by_subdomain(chapters)
+            for chapter_subdomain, entries in chapters_by_subdomain.items():
+                keywords = list(dict.fromkeys(
+                    entry["title_keyword"] for entry in entries))
+                r = ConnpassEventRequest(
+                    subdomain=[chapter_subdomain],
+                    keyword=keywords,
+                    ym=ym, ymd=ymd, cache=cache,
+                    api_key=connpass_api_key,
+                    user_agent=user_agent,
+                    cache_ttl=connpass_cache_ttl,
+                    skip_cache=force_refresh
+                )
                 events += partition_and_relabel_chapter_events(
-                    r.get_events(), chapters)
+                    r.get_events(), entries)
                 last_modified = max(last_modified, r.get_last_modified())
 
             if "scope" in config and "icalendar" in config["scope"]:
@@ -557,6 +575,9 @@ def split_connpass_scope(config):
             "(title_keyword set) -- a subdomain can only be one or the "
             "other")
 
+    # dict.fromkeys: dedupes repeated plain entries while preserving order.
+    plain = list(dict.fromkeys(plain))
+
     return plain, chapters
 
 
@@ -570,16 +591,21 @@ def merged_connpass_subdomains(plain_subdomains, chapters):
     return list(merged)
 
 
+def group_chapters_by_subdomain(chapters):
+    grouped = {}
+    for entry in chapters:
+        grouped.setdefault(entry["subdomain"], []).append(entry)
+    return grouped
+
+
 def partition_and_relabel_chapter_events(events, chapters):
-    # Matched against the title only, not sent to connpass as a `keyword`
-    # search param: connpass's keyword search also matches description/
-    # address text, which would pull in other chapters' events.
+    # Exact title match is the source of truth: request_events()'s
+    # upstream `keyword` pre-filter is broader (also scans description/
+    # address), so it can still return other chapters' events too.
     if not chapters:
         return events
 
-    entries_by_subdomain = {}
-    for entry in chapters:
-        entries_by_subdomain.setdefault(entry["subdomain"], []).append(entry)
+    entries_by_subdomain = group_chapters_by_subdomain(chapters)
 
     result = []
     for ev in events:
