@@ -1187,6 +1187,44 @@ def test_read_groups_summary(mock_get_groups_from_icalendar):
     assert by_key["Key"]["start_year"] is None
     assert by_key["Key"]["years"] == []
 
+    # No-start_year groups sort last, tied by name ("SORACOM UG 山梨" < "Title").
+    assert [g["key"] for g in data["groups"]] == \
+        ["yamanashi-web", "soracomug-yamanashi", "Key"]
+
+
+def _make_summary_event(uid, group_key, started_at):
+    return Event.from_json({
+        "uid": uid, "title": "Event", "event_url": "https://example.com",
+        "started_at": started_at, "ended_at": started_at,
+        "updated_at": started_at, "open_status": "open",
+        "group_key": group_key,
+    })
+
+
+@patch("app.service.get_full_history")
+def test_read_groups_summary_sorts_by_start_year_then_name(mock_get_full_history):
+    groups = Group.from_json([
+        {"key": "b-newer", "title": "B (newer)"},
+        {"key": "a-tie", "title": "A (tie)"},
+        {"key": "c-tie", "title": "C (tie)"},
+        {"key": "d-no-events", "title": "D (no events)"},
+    ])
+    events = [
+        _make_summary_event("uid1", "b-newer", "2020-01-01T00:00:00+09:00"),
+        _make_summary_event("uid2", "a-tie", "2015-01-01T00:00:00+09:00"),
+        _make_summary_event("uid3", "c-tie", "2015-06-01T00:00:00+09:00"),
+    ]
+    mock_get_full_history.return_value = (
+        events, groups, 2010, 2026, datetime.fromtimestamp(123, timezone.utc))
+
+    response = client.get("/summary/groups")
+    assert response.status_code == 200
+
+    data = response.json()
+    # 2015-tie broken alphabetically by name, then 2020, then no-events last.
+    assert [g["key"] for g in data["groups"]] == \
+        ["a-tie", "c-tie", "b-newer", "d-no-events"]
+
 
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
 @patch("app.service.IcalEventRequest", MockICalEventRequest)

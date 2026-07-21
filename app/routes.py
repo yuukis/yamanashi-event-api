@@ -599,6 +599,8 @@ async def read_groups_summary(
         build_group_summary_from_counts(group, counts_by_group.get(group.key, {}), to_year)
         for group in groups
     ]
+    group_summaries.sort(
+        key=lambda g: (g.start_year is None, g.start_year or 0, g.name))
 
     filtered = filter_model_fields(group_summaries, GroupSummary, fields)
     if filtered is None:
