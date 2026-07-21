@@ -1028,7 +1028,7 @@ def test_read_events_summary(mock_get_groups_from_icalendar):
     assert "Last-Modified" in response.headers
 
     data = response.json()
-    assert data["from_year"] == 2010
+    assert data["from_year"] == service.MIN_EVENT_YEAR
     assert data["granularity"] == "month"
     assert len(data["years"]) == data["to_year"] - data["from_year"] + 1
 
@@ -1082,7 +1082,7 @@ def test_read_events_summary_legacy_path_still_works(mock_get_groups_from_icalen
     response = client.get("/events/summary")
     assert response.status_code == 200
     data = response.json()
-    assert data["from_year"] == 2010
+    assert data["from_year"] == service.MIN_EVENT_YEAR
     assert data["granularity"] == "month"
 
 
@@ -1146,7 +1146,7 @@ def test_read_events_summary_uses_extended_ttls(mock_get_groups_from_icalendar):
     # entry) must use a 7 day expiry, not the default 72 hours used by
     # the other /events endpoints. The years/heatmap payload built from
     # it is not itself cached and is recomputed on every request.
-    from_year = 2010
+    from_year = service.MIN_EVENT_YEAR
     to_year = datetime.now().year
     ym = [f"{y:04}{m:02}" for y in range(from_year, to_year + 1) for m in range(1, 13)]
     params = normalize_event_params(
@@ -1171,7 +1171,7 @@ def test_read_groups_summary(mock_get_groups_from_icalendar):
     assert "Last-Modified" in response.headers
 
     data = response.json()
-    assert data["from_year"] == 2010
+    assert data["from_year"] == service.MIN_EVENT_YEAR
     to_year = data["to_year"]
 
     by_key = {g["key"]: g for g in data["groups"]}
