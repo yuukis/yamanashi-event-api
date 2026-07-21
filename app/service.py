@@ -16,8 +16,7 @@ load_dotenv()
 dirname = os.path.dirname(__file__)
 config_file = os.path.join(dirname, "config.yaml")
 
-# connpass's own service start; nothing in scope predates this, so it's the
-# floor for every from_year/ym range this app ever builds.
+# connpass's own service start; the floor for every from_year/ym range.
 MIN_EVENT_YEAR = 2010
 
 cache = EventRequestCache()
@@ -120,10 +119,7 @@ def request_events(params, cache_ttl: int = None,
     keyword = params["keyword"] if "keyword" in params else None
     uid = params["uid"] if "uid" in params else None
     group_key = params.get("group_key")
-    # get_full_history() (backing /summary/*) opts out: an event found
-    # only through the prefecture-wide search can never be attributed to
-    # a known group, so it's pure wasted fetch cost for a per-group
-    # summary. /events/* (the default) still wants these events.
+    # get_full_history() (backing /summary/*) opts out of this query.
     include_prefecture = params.get("include_prefecture", True)
     connpass_cache_ttl = cache_ttl if cache_ttl is not None else 3600
 
@@ -401,14 +397,11 @@ def get_groups(params,
 def get_full_history(
     background_tasks: BackgroundTasks = None
 ) -> Tuple[List[Event], List[Group], int, int, Optional[datetime]]:
-    """Fetch every event and group in scope, from MIN_EVENT_YEAR through the
-    current year. Shared by /summary/events and /summary/groups so both
-    hit the exact same get_events() cache entry instead of independently
-    paying for the same multi-year connpass fetch.
-
-    Excludes prefecture-wide (unregistered/one-off) events by design: both
-    /summary/events and /summary/groups intentionally report only known-
-    community activity, not the broader unaffiliated event landscape.
+    """Fetch every event/group from MIN_EVENT_YEAR through the current year.
+    Shared by /summary/events and /summary/groups so both hit the same
+    get_events() cache entry. Excludes prefecture-wide (unregistered/
+    one-off) events by design -- both endpoints report known-community
+    activity only.
 
     Returns (events, groups, from_year, to_year, last_modified)."""
     from_year = MIN_EVENT_YEAR

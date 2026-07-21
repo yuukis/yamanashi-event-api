@@ -1183,8 +1183,7 @@ def test_read_groups_summary(mock_get_groups_from_icalendar):
     assert web["years"][-1] == {"year": to_year, "event_count": 0}
     assert len(web["years"]) == to_year - 2012 + 1
 
-    # A group with no events anywhere in range gets a null start_year and
-    # an empty years list, not a list zero-filled back to from_year
+    # No events in range -> null start_year, empty years (not zero-filled).
     assert by_key["Key"]["start_year"] is None
     assert by_key["Key"]["years"] == []
 
@@ -1255,9 +1254,8 @@ def test_read_groups_summary_reuses_events_summary_cache(mock_get_groups_from_ic
     params = normalize_event_params(
         {"ym": ym, "keyword": None, "include_prefecture": False})
 
-    # The background revalidation triggered by /summary/events must have
-    # already populated this exact cache entry by the time the request
-    # returns (TestClient runs BackgroundTasks synchronously).
+    # TestClient runs BackgroundTasks synchronously, so the cache must
+    # already be warm by the time /summary/events returns.
     cached_events, _ = service.get_events_from_cache(service.cache, params)
     assert cached_events is not None
 
@@ -1995,8 +1993,7 @@ def test_request_events_includes_prefecture_query_by_default():
 
     request_events({})
 
-    # /events/* (the default) still wants unregistered/one-off events
-    # found only through the prefecture-wide search.
+    # /events/* (the default) still wants the prefecture-wide search.
     prefecture_calls = [c for c in MockConnpassEventRequestCountingCalls.instances
                         if c.get("prefecture")]
     assert len(prefecture_calls) == 1
@@ -2016,9 +2013,7 @@ def test_request_events_excludes_prefecture_query_when_opted_out():
 
     request_events({"include_prefecture": False})
 
-    # get_full_history() (backing /summary/*) opts out: an event found
-    # only through the prefecture-wide search can never be attributed to
-    # a known group, so fetching it would be pure wasted connpass load.
+    # get_full_history() (backing /summary/*) opts out of this query.
     prefecture_calls = [c for c in MockConnpassEventRequestCountingCalls.instances
                         if c.get("prefecture")]
     assert prefecture_calls == []

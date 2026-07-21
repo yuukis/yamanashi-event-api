@@ -543,9 +543,7 @@ async def read_events_summary_legacy(
 
 
 def build_year_counts_by_group(events: List) -> dict:
-    """Bucket events into {group_key: {year: count}} in one pass, so
-    building every group's summary doesn't rescan the full events list
-    per group (see read_groups_summary())."""
+    """Bucket events by group/year in one pass (see read_groups_summary())."""
     counts_by_group = {}
     for ev in events:
         if not ev.group_key:
@@ -557,9 +555,7 @@ def build_year_counts_by_group(events: List) -> dict:
 
 
 def build_group_summary_from_counts(group: Group, counts: dict, to_year: int) -> GroupSummary:
-    """years is trimmed to start_year..to_year -- years before a group's
-    first event are always zero, so keeping them would only inflate the
-    response."""
+    """years is trimmed to start_year..to_year (earlier years are always zero)."""
     start_year = min(counts) if counts else None
     years = [GroupYearlyActivity(year=y, event_count=counts.get(y, 0))
             for y in range(start_year, to_year + 1)] if start_year is not None else []
@@ -569,8 +565,7 @@ def build_group_summary_from_counts(group: Group, counts: dict, to_year: int) ->
 
 
 def build_group_summary(group: Group, events: List, to_year: int) -> GroupSummary:
-    """Aggregate one group's yearly event counts out of an already-fetched
-    full-history events list (see service.get_full_history())."""
+    """Aggregate one group's yearly event counts out of a full-history events list."""
     counts = {}
     for ev in events:
         if ev.group_key != group.key:
