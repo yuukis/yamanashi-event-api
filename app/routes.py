@@ -466,22 +466,9 @@ async def read_events_summary(
     background_tasks: BackgroundTasks,
     if_modified_since: str = Header(None)
 ):
-    from_year = 2010
-    to_year = datetime.now().year
-
-    ym = [f"{y:04}{m:02}" for y in range(from_year, to_year + 1) for m in range(1, 13)]
-
-    events, last_modified = service.get_events(
-        {"ym": ym, "keyword": None},
-        background_tasks,
-        ex=3600*24*7,  # 7 days
-        cache_ttl=3600*24)  # 24 hours
-    groups, groups_last_modified = service.get_groups({}, background_tasks)
+    events, groups, from_year, to_year, last_modified = \
+        service.get_full_history(background_tasks)
     group_by_key = {g.key: g for g in groups}
-
-    if groups_last_modified is not None:
-        last_modified = (groups_last_modified if last_modified is None
-                         else max(last_modified, groups_last_modified))
 
     headers = {"Cache-Control": LIST_CACHE_CONTROL}
     if last_modified is not None:

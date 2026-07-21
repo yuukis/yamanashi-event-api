@@ -375,6 +375,32 @@ def get_groups(params,
     return groups, last_modified
 
 
+def get_full_history(
+    background_tasks: BackgroundTasks = None
+) -> Tuple[List[Event], List[Group], int, int, Optional[datetime]]:
+    """Fetch every event and group in scope, from MIN_EVENT_YEAR through the
+    current year. Shared by /summary/events and /summary/groups so both
+    hit the exact same get_events() cache entry instead of independently
+    paying for the same multi-year connpass fetch.
+
+    Returns (events, groups, from_year, to_year, last_modified)."""
+    from_year = MIN_EVENT_YEAR
+    to_year = datetime.now().year
+    ym = [f"{y:04}{m:02}" for y in range(from_year, to_year + 1) for m in range(1, 13)]
+
+    events, last_modified = get_events(
+        {"ym": ym, "keyword": None}, background_tasks,
+        ex=3600*24*7,  # 7 days
+        cache_ttl=3600*24)  # 24 hours
+    groups, groups_last_modified = get_groups({}, background_tasks)
+
+    if groups_last_modified is not None:
+        last_modified = (groups_last_modified if last_modified is None
+                         else max(last_modified, groups_last_modified))
+
+    return events, groups, from_year, to_year, last_modified
+
+
 def get_groups_from_cache(
     cache, params
 ) -> Tuple[Optional[List[Group]], Optional[datetime]]:
