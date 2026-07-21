@@ -1585,6 +1585,26 @@ def test_split_connpass_scope_separates_plain_and_chapter_entries():
     assert chapters == [CHAPTER_ENTRY]
 
 
+def test_split_connpass_scope_dedupes_repeated_plain_entries():
+    # A misconfigured scope.connpass with the same plain subdomain listed
+    # twice must not leak duplicates into callers that build a connpass
+    # request straight from `plain` -- a duplicate subdomain would shift
+    # the request's query params (and cache key) for no reason.
+    config = {
+        "scope": {
+            "connpass": [
+                {"subdomain": "jagyamanashi"},
+                {"subdomain": "coderdojokofu"},
+                {"subdomain": "jagyamanashi"},
+            ]
+        }
+    }
+
+    plain, _ = split_connpass_scope(config)
+
+    assert plain == ["jagyamanashi", "coderdojokofu"]
+
+
 @pytest.mark.parametrize("title_keyword", [None, ""])
 def test_split_connpass_scope_rejects_empty_title_keyword(title_keyword):
     config = {
@@ -1883,6 +1903,25 @@ def test_request_events_fetches_chapters_separately_from_plain_subdomains():
 
     assert by_subdomain[("jagyamanashi",)].get("keyword") is None
     assert by_subdomain[("soracomug-tokyo",)]["keyword"] == ["山梨"]
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequestCountingCalls)
+@patch("app.service.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "connpass": [{"subdomain": "jagyamanashi"}, {"subdomain": "jagyamanashi"}]
+    }
+})
+def test_request_events_plain_query_dedupes_repeated_subdomain():
+    MockConnpassEventRequestCountingCalls.instances = []
+
+    request_events({})
+
+    # A misconfigured duplicate plain entry must not reach the connpass
+    # request -- it would shift the query params/cache key for no reason.
+    assert len(MockConnpassEventRequestCountingCalls.instances) == 1
+    assert MockConnpassEventRequestCountingCalls.instances[0]["subdomain"] == \
+        ["jagyamanashi"]
 
 
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequestCountingCalls)

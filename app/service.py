@@ -540,6 +540,12 @@ def split_connpass_scope(config):
             "(title_keyword set) -- a subdomain can only be one or the "
             "other")
 
+    # dict.fromkeys, not set(): dedupes a config with repeated plain
+    # entries while preserving order, so callers building a connpass
+    # request straight from this list get a stable query/cache key
+    # regardless of accidental duplicates in scope.connpass.
+    plain = list(dict.fromkeys(plain))
+
     return plain, chapters
 
 
