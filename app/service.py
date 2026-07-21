@@ -16,6 +16,10 @@ load_dotenv()
 dirname = os.path.dirname(__file__)
 config_file = os.path.join(dirname, "config.yaml")
 
+# connpass's own service start; nothing in scope predates this, so it's the
+# floor for every from_year/ym range this app ever builds.
+MIN_EVENT_YEAR = 2010
+
 cache = EventRequestCache()
 keyword_extractor = KeywordExtractor()
 

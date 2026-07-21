@@ -116,7 +116,7 @@ async def read_events_next_week(
 async def read_events_year(
     response: Response,
     background_tasks: BackgroundTasks,
-    year: int = Path(ge=2010, le=2040),
+    year: int = Path(ge=service.MIN_EVENT_YEAR, le=2040),
     keyword: str = None,
     uid: str = None,
     fields: str = None,
@@ -135,7 +135,7 @@ async def read_events_year(
 async def read_events_in_year_legacy(
     response: Response,
     background_tasks: BackgroundTasks,
-    year: int = Path(ge=2010, le=2040),
+    year: int = Path(ge=service.MIN_EVENT_YEAR, le=2040),
     keyword: str = None,
     uid: str = None,
     fields: str = None,
@@ -151,7 +151,7 @@ async def read_events_in_year_legacy(
 async def read_events_month(
     response: Response,
     background_tasks: BackgroundTasks,
-    year: int = Path(ge=2010, le=2040),
+    year: int = Path(ge=service.MIN_EVENT_YEAR, le=2040),
     month: int = Path(ge=1, le=12),
     keyword: str = None,
     uid: str = None,
@@ -171,7 +171,7 @@ async def read_events_month(
 async def read_events_in_year_month_legacy(
     response: Response,
     background_tasks: BackgroundTasks,
-    year: int = Path(ge=2010, le=2040),
+    year: int = Path(ge=service.MIN_EVENT_YEAR, le=2040),
     month: int = Path(ge=1, le=12),
     keyword: str = None,
     uid: str = None,
@@ -188,7 +188,7 @@ async def read_events_in_year_month_legacy(
 async def read_events_day(
     response: Response,
     background_tasks: BackgroundTasks,
-    year: int = Path(ge=2010, le=2040),
+    year: int = Path(ge=service.MIN_EVENT_YEAR, le=2040),
     month: int = Path(ge=1, le=12),
     day: int = Path(ge=1, le=31),
     keyword: str = None,
@@ -212,7 +212,7 @@ async def read_events_day(
 async def read_events_in_year_month_day_legacy(
     response: Response,
     background_tasks: BackgroundTasks,
-    year: int = Path(ge=2010, le=2040),
+    year: int = Path(ge=service.MIN_EVENT_YEAR, le=2040),
     month: int = Path(ge=1, le=12),
     day: int = Path(ge=1, le=31),
     keyword: str = None,
@@ -231,9 +231,9 @@ async def read_events_in_year_month_day_legacy(
 async def read_events_range(
     response: Response,
     background_tasks: BackgroundTasks,
-    from_year: int = Path(ge=2010, le=2040),
+    from_year: int = Path(ge=service.MIN_EVENT_YEAR, le=2040),
     from_month: int = Path(ge=1, le=12),
-    to_year: int = Path(ge=2010, le=2040),
+    to_year: int = Path(ge=service.MIN_EVENT_YEAR, le=2040),
     to_month: int = Path(ge=1, le=12),
     keyword: str = None,
     uid: str = None,
@@ -263,9 +263,9 @@ async def read_events_range(
 async def read_events_fromto_year_month_legacy(
     response: Response,
     background_tasks: BackgroundTasks,
-    from_year: int = Path(ge=2010, le=2040),
+    from_year: int = Path(ge=service.MIN_EVENT_YEAR, le=2040),
     from_month: int = Path(ge=1, le=12),
-    to_year: int = Path(ge=2010, le=2040),
+    to_year: int = Path(ge=service.MIN_EVENT_YEAR, le=2040),
     to_month: int = Path(ge=1, le=12),
     keyword: str = None,
     uid: str = None,
