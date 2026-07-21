@@ -155,22 +155,11 @@ def request_events(params, cache_ttl: int = None,
                 events += r.get_events()
                 last_modified = max(last_modified, r.get_last_modified())
 
-            # Chapters are fetched separately, one request per shared
-            # subdomain, with their title_keyword(s) passed as connpass's
-            # `keyword` filter -- a subdomain shared with other chapters
-            # (e.g. a nationwide group) can carry far more history than
-            # this chapter's own share of it, so narrowing upstream avoids
-            # paginating through all of it just to extract a handful of
-            # relevant events. partition_and_relabel_chapter_events() still
-            # re-checks the title exactly, since connpass's keyword search
-            # is broader than a title match (see its docstring).
+            # Chapters are fetched separately, per shared subdomain, with
+            # title_keyword(s) sent upstream as connpass's `keyword` filter
+            # to avoid paginating through the whole shared subdomain.
             chapters_by_subdomain = group_chapters_by_subdomain(chapters)
             for chapter_subdomain, entries in chapters_by_subdomain.items():
-                # dict.fromkeys, not a plain list: a misconfigured scope
-                # with repeated chapter entries (or entries that happen to
-                # share a title_keyword) must not leak a duplicate
-                # keyword into the query -- same reasoning as the plain
-                # subdomain dedup above.
                 keywords = list(dict.fromkeys(
                     entry["title_keyword"] for entry in entries))
                 r = ConnpassEventRequest(
@@ -547,10 +536,7 @@ def split_connpass_scope(config):
             "(title_keyword set) -- a subdomain can only be one or the "
             "other")
 
-    # dict.fromkeys, not set(): dedupes a config with repeated plain
-    # entries while preserving order, so callers building a connpass
-    # request straight from this list get a stable query/cache key
-    # regardless of accidental duplicates in scope.connpass.
+    # dict.fromkeys: dedupes repeated plain entries while preserving order.
     plain = list(dict.fromkeys(plain))
 
     return plain, chapters
@@ -574,12 +560,9 @@ def group_chapters_by_subdomain(chapters):
 
 
 def partition_and_relabel_chapter_events(events, chapters):
-    # The exact title substring match here is the source of truth, even
-    # when the caller already pre-filtered upstream via connpass's own
-    # `keyword` search (see request_events()) -- that search also matches
-    # description/address text, so it can still return other chapters'
-    # events (sharing the same subdomain); this re-check is what actually
-    # keeps only the ones belonging to this chapter.
+    # Exact title match is the source of truth: request_events()'s
+    # upstream `keyword` pre-filter is broader (also scans description/
+    # address), so it can still return other chapters' events too.
     if not chapters:
         return events
 

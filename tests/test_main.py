@@ -1586,10 +1586,7 @@ def test_split_connpass_scope_separates_plain_and_chapter_entries():
 
 
 def test_split_connpass_scope_dedupes_repeated_plain_entries():
-    # A misconfigured scope.connpass with the same plain subdomain listed
-    # twice must not leak duplicates into callers that build a connpass
-    # request straight from `plain` -- a duplicate subdomain would shift
-    # the request's query params (and cache key) for no reason.
+    # A duplicate plain subdomain in config must not leak into `plain`.
     config = {
         "scope": {
             "connpass": [
@@ -1849,17 +1846,14 @@ def test_request_events_chapter_query_passes_title_keyword_upstream():
 
     events, _ = request_events({})
 
-    # The chapter's title_keyword is sent to connpass as a narrowing
-    # `keyword` filter, so a shared subdomain's unrelated history isn't
-    # paginated through just to extract this chapter's events.
+    # title_keyword is sent to connpass as a narrowing `keyword` filter.
     assert len(MockConnpassEventRequestCapturingKwargs.instances) == 1
     call = MockConnpassEventRequestCapturingKwargs.instances[0]
     assert call["subdomain"] == ["soracomug-tokyo"]
     assert call["keyword"] == ["山梨"]
 
-    # connpass's keyword search is broader than a title match (it also
-    # scans description/address), so the exact title re-check must still
-    # drop the Tokyo event whose *description* happens to mention 山梨.
+    # Exact title re-check must still drop the Tokyo event whose
+    # *description* happens to mention 山梨.
     assert len(events) == 1
     assert events[0].uid == "UID Yamanashi 1"
     assert events[0].group_key == "soracomug-yamanashi"
@@ -1890,11 +1884,7 @@ def test_request_events_fetches_chapters_separately_from_plain_subdomains():
 
     request_events({})
 
-    # Plain subdomains and chapters must NOT share a query: a chapter's
-    # subdomain can be shared with other, unrelated chapters (e.g. a
-    # nationwide group), so mixing it into the plain-subdomain query would
-    # force paginating through all of that shared history on every request
-    # instead of narrowing it upstream with `keyword` (see below).
+    # Plain subdomains and chapters must NOT share a query.
     assert len(MockConnpassEventRequestCountingCalls.instances) == 2
 
     by_subdomain = {tuple(c["subdomain"]): c
