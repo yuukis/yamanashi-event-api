@@ -1149,7 +1149,8 @@ def test_read_events_summary_uses_extended_ttls(mock_get_groups_from_icalendar):
     from_year = 2010
     to_year = datetime.now().year
     ym = [f"{y:04}{m:02}" for y in range(from_year, to_year + 1) for m in range(1, 13)]
-    params = normalize_event_params({"ym": ym, "keyword": None})
+    params = normalize_event_params(
+        {"ym": ym, "keyword": None, "include_prefecture": False})
     key = service_module.cache.generate_key(params) + ":content"
     expiry = service_module.cache._expiry[key]
     remaining = expiry - datetime.now(timezone.utc).timestamp()
@@ -1249,7 +1250,8 @@ def test_read_groups_summary_reuses_events_summary_cache(mock_get_groups_from_ic
     from_year = service.MIN_EVENT_YEAR
     to_year = datetime.now().year
     ym = [f"{y:04}{m:02}" for y in range(from_year, to_year + 1) for m in range(1, 13)]
-    params = normalize_event_params({"ym": ym, "keyword": None})
+    params = normalize_event_params(
+        {"ym": ym, "keyword": None, "include_prefecture": False})
 
     # The background revalidation triggered by /summary/events must have
     # already populated this exact cache entry by the time the request
@@ -1920,6 +1922,51 @@ class MockConnpassEventRequestCountingCalls:
 
     def get_last_modified(self):
         return datetime.fromtimestamp(456, timezone.utc)
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequestCountingCalls)
+@patch("app.service.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "prefecture": ["山梨県"],
+        "connpass": [{"subdomain": "jagyamanashi"}]
+    }
+})
+def test_request_events_includes_prefecture_query_by_default():
+    MockConnpassEventRequestCountingCalls.instances = []
+
+    request_events({})
+
+    # /events/* (the default) still wants unregistered/one-off events
+    # found only through the prefecture-wide search.
+    prefecture_calls = [c for c in MockConnpassEventRequestCountingCalls.instances
+                        if c.get("prefecture")]
+    assert len(prefecture_calls) == 1
+    assert prefecture_calls[0]["prefecture"] == ["山梨県"]
+
+
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequestCountingCalls)
+@patch("app.service.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "prefecture": ["山梨県"],
+        "connpass": [{"subdomain": "jagyamanashi"}]
+    }
+})
+def test_request_events_excludes_prefecture_query_when_opted_out():
+    MockConnpassEventRequestCountingCalls.instances = []
+
+    request_events({"include_prefecture": False})
+
+    # get_full_history() (backing /summary/*) opts out: an event found
+    # only through the prefecture-wide search can never be attributed to
+    # a known group, so fetching it would be pure wasted connpass load.
+    prefecture_calls = [c for c in MockConnpassEventRequestCountingCalls.instances
+                        if c.get("prefecture")]
+    assert prefecture_calls == []
+    assert len(MockConnpassEventRequestCountingCalls.instances) == 1
+    assert MockConnpassEventRequestCountingCalls.instances[0]["subdomain"] == \
+        ["jagyamanashi"]
 
 
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequestCountingCalls)

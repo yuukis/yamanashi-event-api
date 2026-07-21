@@ -120,6 +120,11 @@ def request_events(params, cache_ttl: int = None,
     keyword = params["keyword"] if "keyword" in params else None
     uid = params["uid"] if "uid" in params else None
     group_key = params.get("group_key")
+    # get_full_history() (backing /summary/*) opts out: an event found
+    # only through the prefecture-wide search can never be attributed to
+    # a known group, so it's pure wasted fetch cost for a per-group
+    # summary. /events/* (the default) still wants these events.
+    include_prefecture = params.get("include_prefecture", True)
     connpass_cache_ttl = cache_ttl if cache_ttl is not None else 3600
 
     user_agent = get_user_agent(config)
@@ -134,7 +139,7 @@ def request_events(params, cache_ttl: int = None,
                     source, group_key, ym, ymd, connpass_cache_ttl, force_refresh)
 
         else:
-            if "scope" in config and "prefecture" in config["scope"]:
+            if include_prefecture and "scope" in config and "prefecture" in config["scope"]:
                 prefecture = config["scope"]["prefecture"]
                 r = ConnpassEventRequest(prefecture=prefecture,
                                          ym=ym, ymd=ymd, cache=cache,
@@ -383,13 +388,17 @@ def get_full_history(
     hit the exact same get_events() cache entry instead of independently
     paying for the same multi-year connpass fetch.
 
+    Excludes prefecture-wide (unregistered/one-off) events: neither
+    summary endpoint can attribute them to a known group, so fetching
+    them here would be pure wasted connpass load.
+
     Returns (events, groups, from_year, to_year, last_modified)."""
     from_year = MIN_EVENT_YEAR
     to_year = datetime.now().year
     ym = [f"{y:04}{m:02}" for y in range(from_year, to_year + 1) for m in range(1, 13)]
 
     events, last_modified = get_events(
-        {"ym": ym, "keyword": None}, background_tasks,
+        {"ym": ym, "keyword": None, "include_prefecture": False}, background_tasks,
         ex=3600*24*7,  # 7 days
         cache_ttl=3600*24)  # 24 hours
     groups, groups_last_modified = get_groups({}, background_tasks)
