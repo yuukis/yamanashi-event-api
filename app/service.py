@@ -681,6 +681,33 @@ def preload_archive_indexes():
             })
 
 
+def refresh_archive_indexes():
+    """Force-refetch every configured archive index, bypassing the
+    in-memory cache entry that preload_archive_indexes() otherwise keeps
+    forever. Used by the admin refresh endpoint so a running process can
+    pick up archive changes without a restart."""
+    global _archive_group_keys
+
+    results = []
+    for url in get_archive_urls(config):
+        try:
+            r = ArchiveIndexRequest(url=url, cache=cache, skip_cache=True)
+            r.preload()
+            results.append({"url": url, "status": "ok"})
+        except ArchiveException as e:
+            results.append({
+                "url": url,
+                "status": "error",
+                "status_code": e.status_code,
+                "detail": e.message
+            })
+
+    # Community keys may have changed; drop the memoized set so the next
+    # call to get_archive_group_keys() recomputes it from the fresh data.
+    _archive_group_keys = None
+    return results
+
+
 def get_archive_urls(config):
     if "scope" not in config or "archives" not in config["scope"]:
         return []

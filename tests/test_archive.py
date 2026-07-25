@@ -186,6 +186,38 @@ class TestArchiveIndexRequest(unittest.TestCase):
 
         self.assertNotEqual(first_last_modified, second_last_modified)
 
+    @patch("app.providers.archive.requests.get")
+    def test_skip_cache_refetches_even_when_cached(self, mock_get):
+        response = MagicMock()
+        response.status_code = 200
+        response.json.return_value = self.__archive_index()
+        mock_get.return_value = response
+
+        cache = EventRequestCache(prefix="test_archive_skip_cache_")
+        url = "https://example.com/archive/index.json"
+
+        ArchiveIndexRequest(url=url, cache=cache).preload()
+        self.assertEqual(mock_get.call_count, 1)
+
+        ArchiveIndexRequest(url=url, cache=cache, skip_cache=True).preload()
+        self.assertEqual(mock_get.call_count, 2)
+
+    @patch("app.providers.archive.requests.get")
+    def test_skip_cache_still_updates_cache_for_subsequent_reads(self, mock_get):
+        response = MagicMock()
+        response.status_code = 200
+        response.json.return_value = self.__archive_index()
+        mock_get.return_value = response
+
+        cache = EventRequestCache(prefix="test_archive_skip_cache_update_")
+        url = "https://example.com/archive/index.json"
+
+        ArchiveIndexRequest(url=url, cache=cache, skip_cache=True).preload()
+
+        events = ArchiveIndexRequest(url=url, cache=cache).get_events()
+        self.assertEqual(len(events), 2)
+        self.assertEqual(mock_get.call_count, 1)
+
     def __archive_index(self):
         return {
             "schema_version": "1.0",

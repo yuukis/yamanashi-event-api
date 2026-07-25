@@ -9,11 +9,11 @@ Parameters:
     Type: String
     Default: ""
     NoEcho: true
-    Description: "Shared secret required to call POST /events/refresh. Leave empty to disable the endpoint."
+    Description: "Shared secret for the admin refresh endpoints. Leave empty to disable them."
   EventsRefreshMinIntervalSeconds:
     Type: String
     Default: "60"
-    Description: "Minimum seconds between accepted POST /events/refresh calls"
+    Description: "Minimum seconds between accepted admin refresh calls"
 
 Resources:
   FastApiFunction:

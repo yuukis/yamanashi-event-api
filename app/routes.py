@@ -650,8 +650,9 @@ async def read_group_summary(
 
 
 def verify_refresh_token(x_refresh_token: str = Header(None)):
-    """Auth guard for POST /events/refresh. Fails closed (503) if no secret
-    is configured, so the endpoint can never be reached by matching an empty
+    """Auth guard for the admin refresh endpoints (POST /admin/events/refresh,
+    POST /admin/archive/refresh). Fails closed (503) if no secret is
+    configured, so the endpoint can never be reached by matching an empty
     token, and uses a constant-time comparison to avoid timing attacks."""
     if not service.events_refresh_token:
         raise HTTPException(status_code=503,
@@ -673,7 +674,7 @@ def try_acquire_refresh_lock() -> bool:
     return True
 
 
-@app.post("/events/refresh", response_model=List[Event],
+@app.post("/admin/events/refresh", response_model=List[Event],
          operation_id="refresh_events",
          summary="Force-refresh recent events, bypassing cache",
          include_in_schema=False)
@@ -702,6 +703,35 @@ async def refresh_events(
     if last_modified is not None:
         response.headers["Last-Modified"] = format_last_modified(last_modified)
     return events
+
+
+def try_acquire_archive_refresh_lock() -> bool:
+    """Process-local minimum-interval lock, mirroring
+    try_acquire_refresh_lock() but keyed separately so archive refreshes
+    and event refreshes don't share a rate limit."""
+    lock_key = "archive-refresh-lock"
+    if service.cache.get(lock_key) is not None:
+        return False
+    service.cache.set(lock_key, "1", ex=service.events_refresh_min_interval)
+    return True
+
+
+@app.post("/admin/archive/refresh",
+         operation_id="refresh_archive_indexes",
+         summary="Force-refresh archive index data, bypassing the in-memory cache",
+         include_in_schema=False)
+async def refresh_archive(
+    response: Response,
+    _: None = Depends(verify_refresh_token)
+):
+    if not try_acquire_archive_refresh_lock():
+        raise HTTPException(status_code=429,
+                            detail="Refresh already performed recently")
+
+    results = service.refresh_archive_indexes()
+
+    response.headers["Cache-Control"] = "no-store"
+    return {"results": results}
 
 
 mcp = FastApiMCP(app, include_operations=[
