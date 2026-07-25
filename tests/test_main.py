@@ -5,7 +5,7 @@ import pytest
 from app.main import app
 from app.service import get_user_agent, get_groups_from_icalendar
 from app.service import request_events, request_groups, get_groups_from_archives
-from app.service import get_archive_urls, preload_archive_indexes
+from app.service import get_archive_urls, preload_archive_indexes, refresh_archive_indexes
 from app.service import get_events, get_groups, normalize_event_params
 from app.service import find_group_source, get_archive_group_keys
 from app.service import fetch_events, fetch_groups
@@ -176,10 +176,13 @@ class MockICalEventRequest:
 class MockArchiveIndexRequest:
     requested_urls = []
     preloaded_urls = []
+    received_skip_cache = []
 
     def __init__(self, **kwargs):
         self.url = kwargs.get("url")
         MockArchiveIndexRequest.requested_urls.append(self.url)
+        MockArchiveIndexRequest.received_skip_cache.append(
+            kwargs.get("skip_cache", False))
 
     def get_events(self):
         json = [
@@ -328,6 +331,7 @@ class MockFailingPreloadArchiveIndexRequest:
 def mock_archive_index_request():
     MockArchiveIndexRequest.requested_urls = []
     MockArchiveIndexRequest.preloaded_urls = []
+    MockArchiveIndexRequest.received_skip_cache = []
     service._archive_group_keys = None  # reset the process-lifetime memoization
     with patch("app.service.ArchiveIndexRequest", MockArchiveIndexRequest):
         yield
@@ -2261,6 +2265,75 @@ def test_preload_archive_indexes_does_not_raise_on_error():
         preload_archive_indexes()
 
 
+@patch("app.service.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "archives": [
+            {
+                "url": [
+                    "https://example.com/archive/index-1.json",
+                    "https://example.com/archive/index-2.json"
+                ]
+            }
+        ]
+    }
+})
+def test_refresh_archive_indexes_forces_cache_bypass():
+    results = refresh_archive_indexes()
+
+    assert MockArchiveIndexRequest.preloaded_urls == [
+        "https://example.com/archive/index-1.json",
+        "https://example.com/archive/index-2.json"
+    ]
+    assert all(MockArchiveIndexRequest.received_skip_cache)
+    assert results == [
+        {"url": "https://example.com/archive/index-1.json", "status": "ok"},
+        {"url": "https://example.com/archive/index-2.json", "status": "ok"}
+    ]
+
+
+@patch("app.service.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "archives": [
+            {
+                "url": [
+                    "https://example.com/archive/index-1.json"
+                ]
+            }
+        ]
+    }
+})
+def test_refresh_archive_indexes_reports_error_without_raising():
+    with patch("app.service.ArchiveIndexRequest",
+               MockFailingPreloadArchiveIndexRequest):
+        results = refresh_archive_indexes()
+
+    assert results == [{
+        "url": "https://example.com/archive/index-1.json",
+        "status": "error",
+        "status_code": 500,
+        "detail": "Failed to fetch archive index"
+    }]
+
+
+@patch("app.service.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "archives": [
+            {"url": ["https://example.com/archive/index-1.json"]}
+        ]
+    }
+})
+def test_refresh_archive_indexes_resets_memoized_group_keys():
+    get_archive_group_keys()
+    assert service._archive_group_keys is not None
+
+    refresh_archive_indexes()
+
+    assert service._archive_group_keys is None
+
+
 def test_legacy_routes_marked_deprecated_in_openapi_schema():
     schema = client.get("/openapi.json").json()
     legacy = [
@@ -2304,20 +2377,20 @@ class MockConnpassEventRequestCapturingSkipCache:
 
 @patch("app.service.events_refresh_token", None)
 def test_refresh_events_requires_token_configured():
-    response = client.post("/events/refresh",
+    response = client.post("/admin/events/refresh",
                            headers={"X-Refresh-Token": "anything"})
     assert response.status_code == 503
 
 
 @patch("app.service.events_refresh_token", "secret-token")
 def test_refresh_events_rejects_missing_token():
-    response = client.post("/events/refresh")
+    response = client.post("/admin/events/refresh")
     assert response.status_code == 401
 
 
 @patch("app.service.events_refresh_token", "secret-token")
 def test_refresh_events_rejects_wrong_token():
-    response = client.post("/events/refresh",
+    response = client.post("/admin/events/refresh",
                            headers={"X-Refresh-Token": "wrong-token"})
     assert response.status_code == 401
 
@@ -2330,7 +2403,7 @@ def test_refresh_events_success_returns_fresh_data_and_updates_cache():
     import app.service as service_module
     import app.routes as routes_module
 
-    response = client.post("/events/refresh",
+    response = client.post("/admin/events/refresh",
                            headers={"X-Refresh-Token": "secret-token"})
     assert response.status_code == 200
     assert response.headers["Cache-Control"] == "no-store"
@@ -2359,10 +2432,10 @@ def test_refresh_events_success_returns_fresh_data_and_updates_cache():
 def test_refresh_events_rate_limited_on_second_call():
     headers = {"X-Refresh-Token": "secret-token"}
 
-    first = client.post("/events/refresh", headers=headers)
+    first = client.post("/admin/events/refresh", headers=headers)
     assert first.status_code == 200
 
-    second = client.post("/events/refresh", headers=headers)
+    second = client.post("/admin/events/refresh", headers=headers)
     assert second.status_code == 429
 
 
@@ -2373,7 +2446,7 @@ def test_refresh_events_rate_limited_on_second_call():
 def test_refresh_events_forces_connpass_cache_bypass():
     MockConnpassEventRequestCapturingSkipCache.received_skip_cache = []
 
-    response = client.post("/events/refresh",
+    response = client.post("/admin/events/refresh",
                            headers={"X-Refresh-Token": "secret-token"})
     assert response.status_code == 200
     assert len(MockConnpassEventRequestCapturingSkipCache.received_skip_cache) > 0
@@ -2382,11 +2455,94 @@ def test_refresh_events_forces_connpass_cache_bypass():
 
 def test_refresh_events_excluded_from_schema_and_mcp():
     schema = client.get("/openapi.json").json()
-    assert "/events/refresh" not in schema["paths"]
+    assert "/admin/events/refresh" not in schema["paths"]
 
     from app.routes import mcp
     tool_names = {t.name for t in mcp.tools}
     assert "refresh_events" not in tool_names
+
+
+@patch("app.service.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "archives": [
+            {"url": ["https://example.com/archive/index-1.json"]}
+        ]
+    }
+})
+@patch("app.service.events_refresh_token", None)
+def test_refresh_archive_requires_token_configured():
+    response = client.post("/admin/archive/refresh",
+                           headers={"X-Refresh-Token": "anything"})
+    assert response.status_code == 503
+
+
+@patch("app.service.events_refresh_token", "secret-token")
+def test_refresh_archive_rejects_missing_token():
+    response = client.post("/admin/archive/refresh")
+    assert response.status_code == 401
+
+
+@patch("app.service.events_refresh_token", "secret-token")
+def test_refresh_archive_rejects_wrong_token():
+    response = client.post("/admin/archive/refresh",
+                           headers={"X-Refresh-Token": "wrong-token"})
+    assert response.status_code == 401
+
+
+@patch("app.service.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "archives": [
+            {"url": ["https://example.com/archive/index-1.json"]}
+        ]
+    }
+})
+@patch("app.service.events_refresh_token", "secret-token")
+@patch("app.service.cache", EventRequestCache(prefix="test_refresh_archive_success_"))
+def test_refresh_archive_success_bypasses_cache():
+    response = client.post("/admin/archive/refresh",
+                           headers={"X-Refresh-Token": "secret-token"})
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "no-store"
+    assert response.json() == {
+        "results": [
+            {"url": "https://example.com/archive/index-1.json", "status": "ok"}
+        ]
+    }
+    assert MockArchiveIndexRequest.preloaded_urls == [
+        "https://example.com/archive/index-1.json"
+    ]
+    assert all(MockArchiveIndexRequest.received_skip_cache)
+
+
+@patch("app.service.config", {
+    "metadata": {"version": "1.0.0"},
+    "scope": {
+        "archives": [
+            {"url": ["https://example.com/archive/index-1.json"]}
+        ]
+    }
+})
+@patch("app.service.events_refresh_token", "secret-token")
+@patch("app.service.cache", EventRequestCache(prefix="test_refresh_archive_rate_limit_"))
+def test_refresh_archive_rate_limited_on_second_call():
+    headers = {"X-Refresh-Token": "secret-token"}
+
+    first = client.post("/admin/archive/refresh", headers=headers)
+    assert first.status_code == 200
+
+    second = client.post("/admin/archive/refresh", headers=headers)
+    assert second.status_code == 429
+
+
+def test_refresh_archive_excluded_from_schema_and_mcp():
+    schema = client.get("/openapi.json").json()
+    assert "/admin/archive/refresh" not in schema["paths"]
+
+    from app.routes import mcp
+    tool_names = {t.name for t in mcp.tools}
+    assert "refresh_archive_indexes" not in tool_names
 
 
 def test_mcp_excludes_legacy_operations():

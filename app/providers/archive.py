@@ -12,11 +12,12 @@ class ArchiveException(Exception):
 
 
 class ArchiveIndexRequest:
-    def __init__(self, url, ym=None, ymd=None, cache=None):
+    def __init__(self, url, ym=None, ymd=None, cache=None, skip_cache=False):
         self.url = url
         self.ym = [] if ym is None else ym
         self.ymd = [] if ymd is None else ymd
         self.cache = cache
+        self.skip_cache = skip_cache
         self.last_modified = datetime.fromtimestamp(0, timezone.utc)
 
     def get_events(self):
@@ -81,10 +82,15 @@ class ArchiveIndexRequest:
             raise ArchiveException(500, str(e))
 
     def __get_json_or_fetch(self):
-        json = self.__get_json_from_cache()
-        if json is not None:
-            return json
+        if not self.skip_cache:
+            json = self.__get_json_from_cache()
+            if json is not None:
+                return json
 
+        # peek() is read regardless of skip_cache: last_modified should
+        # reflect when the data actually last changed, not merely when it
+        # was last checked, so even a forced refresh still needs the
+        # previous value to compare against.
         previous = self.cache.peek(self.__cache_key()) if self.cache is not None else None
         json = self.__get_json()
         self.last_modified = self.__resolve_last_modified(previous, json)
