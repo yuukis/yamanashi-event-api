@@ -299,7 +299,15 @@ async def read_events_upcoming(
     events, last_modified = service.get_events(
         {"ym": ym, "keyword": keyword, "uid": uid}, background_tasks)
 
-    events = [ev for ev in events if ev.is_upcoming(datetime.now(JST))]
+    now_jst = datetime.now(JST)
+    ended_ats = [ev.ended_at_datetime(JST) for ev in events]
+    past_ended_ats = [dt for dt in ended_ats if dt is not None and dt <= now_jst]
+    if past_ended_ats:
+        most_recently_ended = max(past_ended_ats).astimezone(timezone.utc)
+        if last_modified is None or most_recently_ended > last_modified:
+            last_modified = most_recently_ended
+
+    events = [ev for ev in events if ev.is_upcoming(now_jst)]
 
     return build_list_response(response, events, Event, last_modified,
                                fields, if_modified_since)

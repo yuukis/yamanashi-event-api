@@ -17,6 +17,7 @@ from app.cache import EventRequestCache
 from app.providers.archive import ArchiveException
 from app.models import Event, Group
 from datetime import datetime, timedelta, timezone
+from email.utils import format_datetime
 
 client = TestClient(app)
 
@@ -540,6 +541,18 @@ def test_read_events_upcoming_returns_304_when_not_modified_since():
                           headers={"If-Modified-Since": last_modified})
     assert response.status_code == 304
     assert response.content == b""
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_events_upcoming_reval_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequestRelativeToNow)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+def test_read_events_upcoming_revalidates_when_event_has_ended_since_source_last_modified():
+    stale_last_modified = format_datetime(
+        datetime.fromtimestamp(123, timezone.utc), usegmt=True)
+
+    response = client.get("/events/upcoming",
+                          headers={"If-Modified-Since": stale_last_modified})
+    assert response.status_code == 200
 
 
 @patch("app.service.cache", EventRequestCache(prefix="test_events_upcoming_sort_"))

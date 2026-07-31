@@ -60,14 +60,18 @@ class Event:
 
         return True
 
-    def is_upcoming(self, now: datetime) -> bool:
+    def ended_at_datetime(self, tzinfo) -> Optional[datetime]:
         try:
             ended = datetime.fromisoformat(self.ended_at)
         except (TypeError, ValueError):
-            return False
+            return None
         if ended.tzinfo is None:
-            ended = ended.replace(tzinfo=now.tzinfo)
-        return ended > now
+            ended = ended.replace(tzinfo=tzinfo)
+        return ended
+
+    def is_upcoming(self, now: datetime) -> bool:
+        ended = self.ended_at_datetime(now.tzinfo)
+        return ended is not None and ended > now
 
     def is_valid(self):
         return all([
