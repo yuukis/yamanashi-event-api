@@ -446,6 +446,112 @@ def test_read_events_next_week():
         _assert_consecutive_week_starting_monday(ymd, next_monday)
 
 
+class MockConnpassEventRequestRelativeToNow:
+    def __init__(self, **kwargs):
+        pass
+
+    def get_events(self):
+        now = datetime.now(timezone(timedelta(hours=9)))
+
+        def iso(dt):
+            return dt.isoformat()
+
+        return Event.from_json([
+            {
+                "uid": "past-event", "event_id": 1, "title": "Past Event",
+                "catch": None, "hash_tag": None, "event_url": "u",
+                "started_at": iso(now - timedelta(days=2)),
+                "ended_at": iso(now - timedelta(hours=1)),
+                "updated_at": iso(now), "open_status": "close",
+                "source": "connpass",
+            },
+            {
+                "uid": "ongoing-event", "event_id": 2, "title": "Ongoing Event",
+                "catch": None, "hash_tag": None, "event_url": "u",
+                "started_at": iso(now - timedelta(days=1)),
+                "ended_at": iso(now + timedelta(days=1)),
+                "updated_at": iso(now), "open_status": "open",
+                "source": "connpass",
+            },
+            {
+                "uid": "future-event", "event_id": 3, "title": "Future Event",
+                "catch": None, "hash_tag": None, "event_url": "u",
+                "started_at": iso(now + timedelta(days=3)),
+                "ended_at": iso(now + timedelta(days=3, hours=2)),
+                "updated_at": iso(now), "open_status": "preopen",
+                "source": "connpass",
+            },
+        ])
+
+    def get_last_modified(self):
+        return datetime.fromtimestamp(123, timezone.utc)
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_events_upcoming_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequestRelativeToNow)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+def test_read_events_upcoming_excludes_past_and_includes_ongoing_and_future():
+    response = client.get("/events/upcoming")
+    assert response.status_code == 200
+    uids = {ev["uid"] for ev in response.json()}
+    assert uids == {"ongoing-event", "future-event"}
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_events_upcoming_keyword_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequestRelativeToNow)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+def test_read_events_upcoming_supports_keyword():
+    response = client.get("/events/upcoming", params={"keyword": "Future"})
+    assert response.status_code == 200
+    uids = {ev["uid"] for ev in response.json()}
+    assert uids == {"future-event"}
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_events_upcoming_uid_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequestRelativeToNow)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+def test_read_events_upcoming_supports_uid():
+    response = client.get("/events/upcoming", params={"uid": "ongoing-event"})
+    assert response.status_code == 200
+    uids = {ev["uid"] for ev in response.json()}
+    assert uids == {"ongoing-event"}
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_events_upcoming_fields_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequestRelativeToNow)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+def test_read_events_upcoming_supports_fields():
+    response = client.get("/events/upcoming",
+                          params={"uid": "future-event", "fields": "uid,title"})
+    assert response.status_code == 200
+    events = response.json()
+    assert len(events) == 1
+    assert events[0] == {"uid": "future-event", "title": "Future Event"}
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_events_upcoming_304_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequestRelativeToNow)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+def test_read_events_upcoming_returns_304_when_not_modified_since():
+    baseline = client.get("/events/upcoming")
+    last_modified = baseline.headers["Last-Modified"]
+
+    response = client.get("/events/upcoming",
+                          headers={"If-Modified-Since": last_modified})
+    assert response.status_code == 304
+    assert response.content == b""
+
+
+@patch("app.service.cache", EventRequestCache(prefix="test_events_upcoming_sort_"))
+@patch("app.service.ConnpassEventRequest", MockConnpassEventRequestRelativeToNow)
+@patch("app.service.IcalEventRequest", MockICalEventRequest)
+def test_read_events_upcoming_sorted_ascending_by_started_at():
+    response = client.get("/events/upcoming")
+    assert response.status_code == 200
+    started_ats = [ev["started_at"] for ev in response.json()]
+    assert started_ats == sorted(started_ats)
+
+
 @patch("app.service.ConnpassEventRequest", MockConnpassEventRequest)
 @patch("app.service.IcalEventRequest", MockICalEventRequest)
 def test_read_events_year():
@@ -2558,7 +2664,8 @@ def test_mcp_excludes_legacy_operations():
 
     for canonical_id in [
         "list_events", "list_events_today", "list_events_this_week",
-        "list_events_next_week", "list_events_by_year", "list_events_by_month",
-        "list_events_by_day", "list_events_by_range", "list_groups",
+        "list_events_next_week", "list_events_upcoming", "list_events_by_year",
+        "list_events_by_month", "list_events_by_day", "list_events_by_range",
+        "list_groups",
     ]:
         assert canonical_id in tool_names
