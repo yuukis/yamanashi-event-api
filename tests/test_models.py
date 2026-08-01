@@ -1,4 +1,5 @@
 import unittest
+from datetime import datetime, timedelta, timezone
 from app.models import Event, Group
 
 
@@ -86,6 +87,53 @@ class TestEvent(unittest.TestCase):
 
         # Check if the event contains the keyword "Event" and "Dummy"
         self.assertFalse(event.contains_keyword("Event,Dummy"))
+
+    def _event_with_ended_at(self, ended_at):
+        return Event(uid="event_1@example.com",
+                     event_id=1, title="Event 1", catch="", hash_tag="",
+                     event_url="", image_url="", started_at="",
+                     ended_at=ended_at, updated_at="",
+                     open_status="", owner_name="", place="", address="",
+                     group_key="", group_name="", group_url="")
+
+    def test_is_upcoming_true_for_future_event(self):
+        now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        event = self._event_with_ended_at((now + timedelta(days=3)).isoformat())
+        self.assertTrue(event.is_upcoming(now))
+
+    def test_is_upcoming_true_for_ongoing_event(self):
+        now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        event = self._event_with_ended_at((now + timedelta(hours=1)).isoformat())
+        self.assertTrue(event.is_upcoming(now))
+
+    def test_is_upcoming_false_for_past_event(self):
+        now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        event = self._event_with_ended_at((now - timedelta(days=1)).isoformat())
+        self.assertFalse(event.is_upcoming(now))
+
+    def test_is_upcoming_boundary_ended_exactly_now_is_not_upcoming(self):
+        now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        event = self._event_with_ended_at(now.isoformat())
+        self.assertFalse(event.is_upcoming(now))
+
+    def test_is_upcoming_boundary_ended_one_second_after_now_is_upcoming(self):
+        now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        event = self._event_with_ended_at(
+            (now + timedelta(seconds=1)).isoformat())
+        self.assertTrue(event.is_upcoming(now))
+
+    def test_is_upcoming_handles_naive_all_day_ended_at(self):
+        now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        event = self._event_with_ended_at("2026-01-03")
+        self.assertTrue(event.is_upcoming(now))
+
+        later = datetime(2026, 1, 10, tzinfo=timezone.utc)
+        self.assertFalse(event.is_upcoming(later))
+
+    def test_is_upcoming_returns_false_on_unparseable_ended_at(self):
+        now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        event = self._event_with_ended_at("not-a-date")
+        self.assertFalse(event.is_upcoming(now))
 
     def test_from_json_with_data(self):
         # Create a data object

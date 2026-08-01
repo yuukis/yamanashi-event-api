@@ -1,5 +1,6 @@
 from typing import List, Optional, Literal
 from dataclasses import dataclass
+from datetime import datetime
 
 
 @dataclass
@@ -58,6 +59,19 @@ class Event:
                 return False
 
         return True
+
+    def ended_at_datetime(self, tzinfo) -> Optional[datetime]:
+        try:
+            ended = datetime.fromisoformat(self.ended_at)
+        except (TypeError, ValueError):
+            return None
+        if ended.tzinfo is None:
+            ended = ended.replace(tzinfo=tzinfo)
+        return ended
+
+    def is_upcoming(self, now: datetime) -> bool:
+        ended = self.ended_at_datetime(now.tzinfo)
+        return ended is not None and ended > now
 
     def is_valid(self):
         return all([

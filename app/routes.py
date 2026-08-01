@@ -13,6 +13,7 @@ from email.utils import format_datetime, parsedate_to_datetime
 from .main import app
 
 LIST_CACHE_CONTROL = "public, no-cache"
+JST = timezone(timedelta(hours=9))
 
 
 @app.get("/", include_in_schema=False)
@@ -276,6 +277,40 @@ async def read_events_fromto_year_month_legacy(
     return await read_events_range(response, background_tasks,
                                    from_year, from_month, to_year, to_month,
                                    keyword, uid, fields, if_modified_since)
+
+
+@app.get("/events/upcoming", response_model=List[Event],
+         operation_id="list_events_upcoming",
+         summary="List upcoming events (not yet ended)")
+async def read_events_upcoming(
+    response: Response,
+    background_tasks: BackgroundTasks,
+    keyword: str = None,
+    uid: str = None,
+    fields: str = None,
+    if_modified_since: str = Header(None)
+):
+    days = service.config["recent_days"] if "recent_days" in service.config else 90
+    now = datetime.now()
+    dt_from = now - timedelta(days=days)
+    dt_to = now + timedelta(days=days)
+    ym = year_month_range(dt_from.year, dt_from.month, dt_to.year, dt_to.month)
+
+    events, last_modified = service.get_events(
+        {"ym": ym, "keyword": keyword, "uid": uid}, background_tasks)
+
+    now_jst = datetime.now(JST)
+    ended_ats = [ev.ended_at_datetime(JST) for ev in events]
+    past_ended_ats = [dt for dt in ended_ats if dt is not None and dt <= now_jst]
+    if past_ended_ats:
+        most_recently_ended = max(past_ended_ats).astimezone(timezone.utc)
+        if last_modified is None or most_recently_ended > last_modified:
+            last_modified = most_recently_ended
+
+    events = [ev for ev in events if ev.is_upcoming(now_jst)]
+
+    return build_list_response(response, events, Event, last_modified,
+                               fields, if_modified_since)
 
 
 def year_month_range(from_year: int, from_month: int,
@@ -739,6 +774,7 @@ mcp = FastApiMCP(app, include_operations=[
     "list_events_today",
     "list_events_this_week",
     "list_events_next_week",
+    "list_events_upcoming",
     "list_events_by_year",
     "list_events_by_month",
     "list_events_by_day",
