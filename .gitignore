@@ -161,3 +161,6 @@ cython_debug/
 
 # VSCode
 .vscode/
+
+# connpass snapshot written by app/sync.py
+data/

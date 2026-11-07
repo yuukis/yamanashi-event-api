@@ -92,6 +92,30 @@ If you have Docker and Docker Compose installed, you can use the following steps
 
 See [API document](https://yuukis.github.io/yamanashi-event-api) for more details.
 
+## connpass Snapshot
+
+connpass's API allows only 1 request / 12 seconds and 100 requests / day,
+far too few to query it per API request. Setting `CONNPASS_SNAPSHOT` (a
+file path) switches the API to serve connpass data from a snapshot file
+instead, written by a separate sync job that is the only connpass client:
+
+```sh
+CONNPASS_SNAPSHOT=data/connpass-snapshot.json python -m app.sync --loop
+```
+
+Every cycle (2 hours by default) the job re-fetches a recent window of
+events for each configured query, refreshes groups once a day, and uses
+whatever the day's request budget can spare to backfill the full event
+history, so `/summary/*` and older months fill in over the first day or
+so. The request budget is persisted next to the snapshot
+(`*.state.json`), so restarts don't reset it. `docker-compose.yml` runs the
+job as the `sync` service. See [Configuration](docs/config.md#connpass_sync)
+for its settings.
+
+`CONNPASS_SNAPSHOT` may also be an http(s) URL of a snapshot published
+elsewhere (e.g. for a serverless deployment); the API re-fetches it every
+5 minutes. Leave it unset to query connpass live per request, as before.
+
 ## MCP Server
 
 This API also exposes an [MCP](https://modelcontextprotocol.io) server at

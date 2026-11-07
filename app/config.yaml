@@ -8,6 +8,14 @@ api_client:
 
 recent_days: 120
 
+connpass_sync:
+  interval_minutes: 120
+  daily_request_limit: 90
+  request_interval_seconds: 13
+  recent_months_before: 1
+  recent_months_after: 6
+  full_resync_days: 30
+
 scope:
   prefecture:
     - '山梨県'
