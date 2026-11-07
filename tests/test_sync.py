@@ -151,6 +151,29 @@ def test_backfill_resumes_and_prunes(tmp_path):
     assert sync.backfill(client, snapshot, [QUERY], 5, 30, NOW, save) == 0
 
 
+def test_exact_multiple_of_page_size_needs_no_extra_request(tmp_path):
+    state = make_state(tmp_path)
+    upstream = [raw_event(i, f"2020-01-{i % 28 + 1:02}T19:00:00+09:00")
+                for i in range(1, 201)]
+    client = FakeConnpass(state, upstream)
+
+    items = sync.fetch_all_pages(client, "events/", QUERY["params"], "events")
+    assert len(items) == 200
+    assert len(client.calls) == 2
+
+    client.calls.clear()
+    snapshot = sync.load_snapshot(str(tmp_path / "snap.json"))
+    used = sync.backfill(client, snapshot, [QUERY], 5, 30, NOW, MagicMock())
+    assert used == 2
+    assert snapshot["backfill"] is None
+    assert len(snapshot["pools"][QUERY["pool"]]["events"]) == 200
+
+
+def test_is_last_page_without_results_available():
+    assert sync.is_last_page({"results_returned": 100}, 1) is False
+    assert sync.is_last_page({"results_returned": 99}, 1) is True
+
+
 def test_backfill_skips_pruning_when_counts_disagree(tmp_path):
     snapshot = {"pools": {}}
     pool = sync.get_pool(snapshot, QUERY["pool"])

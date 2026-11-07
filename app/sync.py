@@ -182,6 +182,15 @@ def event_month(item) -> str:
     return item["started_at"][:7].replace("-", "")
 
 
+def is_last_page(json_data, start) -> bool:
+    """Also checks results_available, so a total that's an exact multiple
+    of PAGE_SIZE doesn't cost an extra request for an empty page."""
+    returned = json_data["results_returned"]
+    available = json_data.get("results_available")
+    return returned < PAGE_SIZE or \
+        (available is not None and start - 1 + returned >= available)
+
+
 def fetch_all_pages(client, endpoint, params, key) -> list:
     items = []
     start = 1
@@ -189,7 +198,7 @@ def fetch_all_pages(client, endpoint, params, key) -> list:
         json_data = client.get(endpoint, {**params, "count": PAGE_SIZE,
                                           "order": 2, "start": start})
         items += json_data[key]
-        if json_data["results_returned"] < PAGE_SIZE:
+        if is_last_page(json_data, start):
             return items
         start += PAGE_SIZE
 
@@ -295,9 +304,10 @@ def backfill(client, snapshot, queries, allowance, full_resync_days,
                 events[event_id] = item
                 changed = True
             job["seen"].append(event_id)
+        last_page = is_last_page(json_data, job["start"])
         job["start"] += PAGE_SIZE
 
-        if json_data["results_returned"] < PAGE_SIZE:
+        if last_page:
             changed |= finish_backfill(pool, job, json_data)
             pool["full_synced_at"] = iso(now)
             snapshot["backfill"] = None
