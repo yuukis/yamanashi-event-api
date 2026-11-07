@@ -13,6 +13,8 @@ api_client:
 
 recent_days: 120
 
+connpass_sync: {...}
+
 scope:
   prefecture: [...]
   connpass: [...]
@@ -38,6 +40,22 @@ OpenAPI docs at `/docs`).
 Default number of days considered "recent" by the `/events` (and other
 recent-events) endpoints when no explicit range is given. Optional, defaults
 to 90.
+
+## connpass_sync
+
+Settings for the connpass sync job (`python -m app.sync`), used only when
+`CONNPASS_SNAPSHOT` is set. See [connpass Snapshot](../README.md#connpass-snapshot).
+Every key is optional; the defaults are shown.
+
+```yaml
+connpass_sync:
+  interval_minutes: 120          # one sync cycle every 2 hours
+  daily_request_limit: 90        # connpass allows 100 / day; rest is headroom
+  request_interval_seconds: 13   # connpass allows 1 request / 12s
+  recent_months_before: 1        # recent window re-fetched every cycle,
+  recent_months_after: 6         #   in months around the current one
+  full_resync_days: 30           # full history is re-checked this often
+```
 
 ## scope
 

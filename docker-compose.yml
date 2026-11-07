@@ -3,7 +3,20 @@ services:
   web:
     build: .
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    environment:
+      CONNPASS_SNAPSHOT: /app/data/connpass-snapshot.json
     volumes:
       - .:/app
     ports:
       - ${PORT:-8000}:8000
+
+  # The only connpass client: writes the snapshot the web service reads.
+  sync:
+    build: .
+    command: python -m app.sync --loop
+    environment:
+      CONNPASS_SNAPSHOT: /app/data/connpass-snapshot.json
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - .:/app
+    restart: unless-stopped

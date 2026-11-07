@@ -219,48 +219,7 @@ class ConnpassEventRequest:
         return False
 
     def __convert_to_events(self, json: dict):
-        events = []
-
-        for item in json:
-            event_id = item["id"]
-            uid = f"event_{event_id}@connpass.com"
-            group_subdomain = None
-            group_title = None
-            group_url = None
-            if item["group"] is not None:
-                group_subdomain = item["group"]["subdomain"]
-                group_title = item["group"]["title"]
-                group_url = item["group"]["url"]
-
-            events.append(
-                Event(
-                    uid=uid,
-                    event_id=event_id,
-                    title=item["title"],
-                    catch=item["catch"],
-                    hash_tag=item["hash_tag"],
-                    event_url=item["url"],
-                    image_url=item["image_url"],
-                    started_at=item["started_at"],
-                    ended_at=item["ended_at"],
-                    updated_at=item["updated_at"],
-                    open_status=item["open_status"],
-                    limit=item["limit"],
-                    accepted=item["accepted"],
-                    waiting=item["waiting"],
-                    owner_name=item["owner_display_name"],
-                    place=item["place"],
-                    address=item["address"],
-                    group_key=group_subdomain,
-                    group_name=group_title,
-                    group_url=group_url,
-                    description=item["description"],
-                    lat=item["lat"],
-                    lon=item["lon"],
-                    source="connpass"
-                )
-            )
-        return events
+        return convert_events(json)
 
 
 class ConnpassGroupRequest:
@@ -365,24 +324,73 @@ class ConnpassGroupRequest:
         return response
 
     def __convert_to_groups(self, json: dict):
-        groups = []
+        return convert_groups(json)
 
-        for item in json:
-            groups.append(
-                Group(
-                    id=item["id"],
-                    key=item["subdomain"],
-                    title=item["title"],
-                    sub_title=item["sub_title"],
-                    url=item["url"],
-                    description=item["description"],
-                    owner_text=item["owner_text"],
-                    image_url=item["image_url"],
-                    website_url=item["website_url"],
-                    x_username=item["twitter_username"],
-                    facebook_url=item["facebook_url"],
-                    member_users_count=item["member_users_count"],
-                    ical_url=None
-                )
+
+def convert_events(json: list):
+    events = []
+
+    for item in json:
+        event_id = item["id"]
+        uid = f"event_{event_id}@connpass.com"
+        group_subdomain = None
+        group_title = None
+        group_url = None
+        if item["group"] is not None:
+            group_subdomain = item["group"]["subdomain"]
+            group_title = item["group"]["title"]
+            group_url = item["group"]["url"]
+
+        events.append(
+            Event(
+                uid=uid,
+                event_id=event_id,
+                title=item["title"],
+                catch=item["catch"],
+                hash_tag=item["hash_tag"],
+                event_url=item["url"],
+                image_url=item["image_url"],
+                started_at=item["started_at"],
+                ended_at=item["ended_at"],
+                updated_at=item["updated_at"],
+                open_status=item["open_status"],
+                limit=item["limit"],
+                accepted=item["accepted"],
+                waiting=item["waiting"],
+                owner_name=item["owner_display_name"],
+                place=item["place"],
+                address=item["address"],
+                group_key=group_subdomain,
+                group_name=group_title,
+                group_url=group_url,
+                description=item["description"],
+                lat=item["lat"],
+                lon=item["lon"],
+                source="connpass"
             )
-        return groups
+        )
+    return events
+
+
+def convert_groups(json: list):
+    groups = []
+
+    for item in json:
+        groups.append(
+            Group(
+                id=item["id"],
+                key=item["subdomain"],
+                title=item["title"],
+                sub_title=item["sub_title"],
+                url=item["url"],
+                description=item["description"],
+                owner_text=item["owner_text"],
+                image_url=item["image_url"],
+                website_url=item["website_url"],
+                x_username=item["twitter_username"],
+                facebook_url=item["facebook_url"],
+                member_users_count=item["member_users_count"],
+                ical_url=None
+            )
+        )
+    return groups

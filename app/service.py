@@ -1,6 +1,9 @@
 from typing import List, Optional, Tuple
 from fastapi import BackgroundTasks, HTTPException
 from .providers.connpass import ConnpassEventRequest, ConnpassGroupRequest, ConnpassException
+from .providers.connpass_snapshot import ConnpassSnapshot, ConnpassSnapshotEventRequest
+from .providers.connpass_snapshot import ConnpassSnapshotGroupRequest
+from .providers.connpass_snapshot import PREFECTURE_POOL, subdomain_pool_name
 from .providers.icalendar import IcalEventRequest, IcalException
 from .providers.archive import ArchiveIndexRequest, ArchiveException
 from .models import Event, Group
@@ -30,6 +33,12 @@ with open(config_file, "r", encoding="utf-8") as yml:
     config = yaml.safe_load(yml)
 
 connpass_api_key = os.getenv("CONNPASS_API_KEY")
+# Path or URL of the snapshot written by app/sync.py. When set, connpass
+# data is served from it and the API never calls connpass itself; when
+# unset, connpass is queried live per request (the original behavior).
+connpass_snapshot_location = os.getenv("CONNPASS_SNAPSHOT") or None
+connpass_snapshot = (ConnpassSnapshot(connpass_snapshot_location)
+                     if connpass_snapshot_location else None)
 events_refresh_token = os.getenv("EVENTS_REFRESH_TOKEN")
 try:
     events_refresh_min_interval = int(
@@ -139,7 +148,7 @@ def request_events(params, cache_ttl: int = None,
         else:
             if include_prefecture and "scope" in config and "prefecture" in config["scope"]:
                 prefecture = config["scope"]["prefecture"]
-                r = ConnpassEventRequest(prefecture=prefecture,
+                r = new_connpass_event_request(prefecture=prefecture,
                                          ym=ym, ymd=ymd, cache=cache,
                                          api_key=connpass_api_key,
                                          user_agent=user_agent,
@@ -152,7 +161,7 @@ def request_events(params, cache_ttl: int = None,
             plain_subdomains, chapters = split_connpass_scope(config)
 
             if len(plain_subdomains) > 0:
-                r = ConnpassEventRequest(subdomain=plain_subdomains,
+                r = new_connpass_event_request(subdomain=plain_subdomains,
                                          ym=ym, ymd=ymd, cache=cache,
                                          api_key=connpass_api_key,
                                          user_agent=user_agent,
@@ -169,7 +178,7 @@ def request_events(params, cache_ttl: int = None,
             for chapter_subdomain, entries in chapters_by_subdomain.items():
                 keywords = list(dict.fromkeys(
                     entry["title_keyword"] for entry in entries))
-                r = ConnpassEventRequest(
+                r = new_connpass_event_request(
                     subdomain=[chapter_subdomain],
                     keyword=keywords,
                     ym=ym, ymd=ymd, cache=cache,
@@ -296,7 +305,7 @@ def request_events_for_group(source: dict, group_key, ym, ymd, cache_ttl: int,
     last_modified = datetime.fromtimestamp(0, timezone.utc)
 
     if source["type"] == "connpass":
-        r = ConnpassEventRequest(subdomain=[source["subdomain"]],
+        r = new_connpass_event_request(subdomain=[source["subdomain"]],
                                  keyword=source["keyword"],
                                  ym=ym, ymd=ymd, cache=cache,
                                  api_key=connpass_api_key, user_agent=user_agent,
@@ -359,7 +368,7 @@ def get_group_events_page(group_key, keyword, uid, page: int, per_page: int,
 
     if can_paginate_upstream:
         user_agent = get_user_agent(config)
-        r = ConnpassEventRequest(subdomain=[source["subdomain"]],
+        r = new_connpass_event_request(subdomain=[source["subdomain"]],
                                  cache=cache, api_key=connpass_api_key,
                                  user_agent=user_agent)
         item_start = (page - 1) * per_page + 1
@@ -467,7 +476,7 @@ def request_groups(params) -> Tuple[List[Group], datetime]:
 
         real_groups_by_key = {}
         if len(subdomain) > 0:
-            r = ConnpassGroupRequest(subdomain=subdomain,
+            r = new_connpass_group_request(subdomain=subdomain,
                                      cache=cache, api_key=connpass_api_key,
                                      user_agent=user_agent)
             fetched = r.get_groups()
@@ -520,6 +529,53 @@ def merge_duplicate_groups(groups: List[Group]) -> List[Group]:
                     setattr(base, field.name, value)
 
     return [merged_by_key[key] for key in order]
+
+
+def new_connpass_event_request(**kwargs):
+    if connpass_snapshot is not None:
+        return ConnpassSnapshotEventRequest(connpass_snapshot, **kwargs)
+    return ConnpassEventRequest(**kwargs)
+
+
+def new_connpass_group_request(**kwargs):
+    if connpass_snapshot is not None:
+        return ConnpassSnapshotGroupRequest(connpass_snapshot, **kwargs)
+    return ConnpassGroupRequest(**kwargs)
+
+
+def connpass_event_queries(config) -> List[dict]:
+    """The connpass event queries request_events() needs, as
+    {"pool", "params"}; app/sync.py fetches exactly these into the
+    snapshot pools that ConnpassSnapshotEventRequest reads back."""
+    queries = []
+    if "scope" in config and "prefecture" in config["scope"]:
+        queries.append({
+            "pool": PREFECTURE_POOL,
+            "params": {"keyword_or": ",".join(config["scope"]["prefecture"])},
+        })
+
+    plain_subdomains, chapters = split_connpass_scope(config)
+    if len(plain_subdomains) > 0:
+        queries.append({
+            "pool": subdomain_pool_name(plain_subdomains),
+            "params": {"subdomain": ",".join(plain_subdomains)},
+        })
+
+    for chapter_subdomain, entries in group_chapters_by_subdomain(chapters).items():
+        keywords = list(dict.fromkeys(
+            entry["title_keyword"] for entry in entries))
+        queries.append({
+            "pool": subdomain_pool_name([chapter_subdomain], keywords),
+            "params": {"subdomain": chapter_subdomain,
+                       "keyword": ",".join(keywords)},
+        })
+
+    return queries
+
+
+def connpass_group_subdomains(config) -> List[str]:
+    plain_subdomains, chapters = split_connpass_scope(config)
+    return merged_connpass_subdomains(plain_subdomains, chapters)
 
 
 def get_user_agent(config):
